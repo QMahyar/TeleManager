@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TeleManager</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <nav class="topbar" data-reveal>
+        <a class="brand" href="/" aria-label="TeleManager home">
+          <span class="brand-mark">TM</span>
+          <span>
+            <strong>TeleManager</strong>
+            <small>Local session command</small>
+          </span>
+        </a>
+        <div class="topbar-actions">
+          <span class="local-chip">127.0.0.1 only</span>
+          <button id="refreshButton" class="button ghost" type="button">
+            Refresh State
+          </button>
+        </div>
+      </nav>
+
+      <main class="shell">
+        <section class="hero-grid" data-reveal>
+          <div class="hero-copy">
+            <p class="eyebrow">Telegram account operations</p>
+            <h1>Session control for every account.</h1>
+            <p class="lede">
+              Create Telethon <code>.session</code> files, keep accounts stopped
+              by default, and start only the selected sessions when you need
+              them.
+            </p>
+          </div>
+
+          <aside class="status-rail" aria-label="Account status summary">
+            <div class="metric primary">
+              <span>Total Accounts</span>
+              <strong id="totalAccounts">0</strong>
+            </div>
+            <div class="metric">
+              <span>Running</span>
+              <strong id="runningAccounts">0</strong>
+            </div>
+            <div class="metric">
+              <span>Stopped</span>
+              <strong id="stoppedAccounts">0</strong>
+            </div>
+          </aside>
+        </section>
+
+        <section class="control-grid" data-reveal>
+          <article class="panel api-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="panel-kicker">Credentials</p>
+                <h2>Telegram API</h2>
+              </div>
+              <span class="panel-code">data/config.json</span>
+            </div>
+            <p class="hint">
+              Use your own API ID and API hash from
+              <code>my.telegram.org</code>. The hash stays local and is not
+              rendered back into the UI.
+            </p>
+            <form id="configForm" class="stack">
+              <label>
+                API ID
+                <input
+                  name="api_id"
+                  type="number"
+                  min="1"
+                  required
+                  placeholder="123456"
+                />
+              </label>
+              <label>
+                API Hash
+                <input
+                  name="api_hash"
+                  type="password"
+                  required
+                  placeholder="Telegram API hash"
+                />
+              </label>
+              <button class="button full" type="submit">
+                Save API Settings
+              </button>
+            </form>
+            <p id="configStatus" class="status"></p>
+          </article>
+
+          <article class="panel login-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="panel-kicker">Enrollment</p>
+                <h2>Add Account</h2>
+              </div>
+              <span class="panel-code">stopped after login</span>
+            </div>
+            <p class="hint">
+              Enter a phone number in international format. After the login code
+              is confirmed, the session is saved and disconnected.
+            </p>
+            <form id="loginForm" class="stack">
+              <label>
+                Label
+                <input name="label" placeholder="Main account" />
+              </label>
+              <label>
+                Phone
+                <input name="phone" required placeholder="+15551234567" />
+              </label>
+              <button class="button full" type="submit">Send Login Code</button>
+            </form>
+          </article>
+
+          <article class="panel queue-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="panel-kicker">Next module</p>
+                <h2>Action Queue</h2>
+              </div>
+              <span class="panel-code">planned</span>
+            </div>
+            <div class="queue-list">
+              <div><span>Join link</span><small>selected accounts</small></div>
+              <div><span>Start bot</span><small>rate limited</small></div>
+              <div>
+                <span>Leave channel</span><small>confirmed action</small>
+              </div>
+              <div><span>Delete chat</span><small>audit logged</small></div>
+            </div>
+          </article>
+        </section>
+
+        <section
+          id="challengePanel"
+          class="panel challenge-panel hidden"
+          data-reveal
+        >
+          <div class="panel-heading">
+            <div>
+              <p class="panel-kicker">Authentication</p>
+              <h2>Finish Login</h2>
+            </div>
+            <span class="panel-code">Telegram challenge</span>
+          </div>
+          <p class="hint" id="challengeHint">
+            Enter the code Telegram sent to the selected account.
+          </p>
+          <div class="challenge-forms">
+            <form id="codeForm" class="inline-form">
+              <input name="code" required placeholder="Login code" />
+              <button class="button" type="submit">Confirm Code</button>
+            </form>
+            <form id="passwordForm" class="inline-form hidden">
+              <input
+                name="password"
+                type="password"
+                required
+                placeholder="2FA password"
+              />
+              <button class="button" type="submit">Confirm Password</button>
+            </form>
+          </div>
+        </section>
+
+        <section class="operations-grid" data-reveal>
+          <article class="panel fleet-panel">
+            <div class="toolbar">
+              <div>
+                <p class="panel-kicker">Fleet</p>
+                <h2>Accounts</h2>
+                <p class="hint">
+                  Select accounts, then start or stop only those sessions.
+                </p>
+              </div>
+              <div class="selected-meter">
+                <span id="selectedCount">0 selected</span>
+              </div>
+            </div>
+
+            <div class="bulk-actions">
+              <button id="startSelectedButton" class="button" type="button">
+                Start Selected
+              </button>
+              <button
+                id="stopSelectedButton"
+                class="button ghost"
+                type="button"
+              >
+                Stop Selected
+              </button>
+              <button
+                id="startAllButton"
+                class="button secondary"
+                type="button"
+              >
+                Start All
+              </button>
+              <button id="stopAllButton" class="button secondary" type="button">
+                Stop All
+              </button>
+            </div>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>
+                      <input
+                        id="selectAll"
+                        type="checkbox"
+                        aria-label="Select all accounts"
+                      />
+                    </th>
+                    <th>Account</th>
+                    <th>Phone</th>
+                    <th>Status</th>
+                    <th>Session</th>
+                    <th>Controls</th>
+                  </tr>
+                </thead>
+                <tbody id="accountsBody">
+                  <tr>
+                    <td colspan="6" class="empty">No accounts yet.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+
+          <aside class="panel log-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="panel-kicker">Audit</p>
+                <h2>Activity</h2>
+              </div>
+              <span class="panel-code">local UI log</span>
+            </div>
+            <div id="activityLog" class="activity-log" aria-live="polite">
+              <p>Waiting for operator action.</p>
+            </div>
+          </aside>
+        </section>
+
+        <footer class="footer-panel" data-reveal>
+          <div>
+            <p class="panel-kicker">Safety model</p>
+            <h2>Sessions are treated like credentials.</h2>
+          </div>
+          <p>
+            Keep <code>sessions/</code> private. Future bulk actions should use
+            confirmations, queues, rate limits, and logs before they touch
+            selected accounts.
+          </p>
+        </footer>
+
+        <div id="toast" class="toast hidden"></div>
+      </main>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
