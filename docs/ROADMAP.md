@@ -44,7 +44,7 @@ TeleManager is now organized around stored Telegram sessions and guarded one-off
 
 ## Next Hardening Work
 
-- Install dev dependencies and run the full pytest suite locally with `python -m pip install -e .[dev]` then `PYTHONPATH=src python -m pytest`.
+- Dev dependencies are installed in the current agent environment and the current suite passes with `PYTHONPATH=src python -m pytest`.
 - Add mocked Telethon tests for live dialog fetch, session validation, and Telegram action execution paths.
 - Improve Telegram error taxonomy for flood waits, revoked sessions, invalid invites, unauthorized sessions, and network timeouts.
 - Add optional local app password, CSRF protection, and stricter localhost-only enforcement before any non-local exposure.
@@ -61,6 +61,28 @@ TeleManager is now organized around stored Telegram sessions and guarded one-off
 ## Manual Validation
 
 Use `docs/REAL_TELEGRAM_TEST_CHECKLIST.md` with owned test accounts before relying on the app for important sessions. Do not commit checklist annotations containing private phone numbers, targets, API hashes, or session data.
+
+## Session Handoff
+
+Status at handoff:
+
+- Branch: `main`.
+- Last pushed commit before this handoff work: `37a3f0e Build guarded queue workflow`.
+- Part 1 is complete: `pytest`/`httpx` dev dependencies are available in the agent environment and `PYTHONPATH=src python -m pytest -q` reports `18 passed`.
+- Pi-lens false-positive for `pytest` in `tests/conftest.py` was handled with `# pyright: reportMissingImports=false` because runtime pytest import succeeds.
+- Validation command to rerun: `PYTHONPATH=src python -m pytest -q && PYTHONPATH=src python -m compileall -q src tests && node --check src/telemanager/static/app.js`.
+- Real Telegram testing has not been performed by the agent because it requires private local API credentials and owned `.session` files.
+- Use `docs/REAL_TELEGRAM_TEST_CHECKLIST.md` for the next manual pass.
+- Do not commit `data/`, `sessions/`, `.session`, `.env*`, real target lists, or local checklist notes containing private data.
+
+Recommended next steps for the next agent:
+
+1. Run the full validation command above and check `git status`.
+2. Perform or guide the real Telegram checklist with owned accounts.
+3. Add mocked Telethon tests for validation, dialog fetch, action execution, and Telegram error cases.
+4. Continue hardening with better Telegram error taxonomy and optional local auth/CSRF.
+5. Polish UX with account filters, loading states, mobile layout, and clearer empty states.
+6. Revisit `docs/NEXTJS_MIGRATION_PLAN.md` only after the static app is validated with real sessions.
 
 ## Deferred: Next.js + shadcn/ui
 

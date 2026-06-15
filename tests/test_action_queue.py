@@ -19,7 +19,7 @@ def test_queue_preview_expands_many_actions_accounts_and_targets(app_context: di
                     "message": "hello",
                 },
                 {
-                    "action_type": "leave",
+                    "action_type": "leave_chat",
                     "account_ids": ["acc-1"],
                     "targets": ["@old_group"],
                 },
@@ -42,7 +42,7 @@ def test_queue_preview_rejects_stale_account(client):
     response = client.post(
         "/api/actions/queue/preview",
         json={
-            "steps": [{"action_type": "leave", "account_ids": ["missing"], "targets": ["@group"]}],
+            "steps": [{"action_type": "leave_chat", "account_ids": ["missing"], "targets": ["@group"]}],
             "max_operations": 10,
         },
     )
@@ -54,7 +54,7 @@ def test_queue_preview_rejects_stale_account(client):
 def test_queue_request_trims_targets_and_requires_message(app_context: dict):
     main = app_context["main"]
     request = main.ActionQueueRequest(
-        steps=[{"action_type": "leave", "account_ids": ["acc-1"], "targets": [" @group ", ""]}]
+        steps=[{"action_type": "leave_chat", "account_ids": ["acc-1"], "targets": [" @group ", ""]}]
     )
     assert request.steps[0].targets == ["@group"]
 
@@ -72,7 +72,7 @@ def test_queue_request_rejects_operation_count_above_limit(app_context: dict):
     main = app_context["main"]
     try:
         main.ActionQueueRequest(
-            steps=[{"action_type": "leave", "account_ids": ["a", "b"], "targets": ["one", "two", "three"]}],
+            steps=[{"action_type": "leave_chat", "account_ids": ["a", "b"], "targets": ["one", "two", "three"]}],
             max_operations=5,
         )
     except ValidationError as exc:

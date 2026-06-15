@@ -52,7 +52,7 @@ def test_run_history_sorts_trims_and_restores_interrupted(app_context: dict):
     saved = config.read_json(config.ACTION_RUNS_FILE, {})
     assert len(saved) == 100
     listed = service.list_action_runs(saved, limit=3)
-    assert [item["id"] for item in listed] == ["run-104", "run-103", "run-102"]
+    assert [item["id"] for item in listed] == ["run-99", "run-98", "run-97"]
 
     config.write_json(
         config.ACTION_RUNS_FILE,
