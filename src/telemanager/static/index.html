@@ -7,263 +7,714 @@
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
-    <div class="page-shell">
-      <nav class="topbar" data-reveal>
-        <a class="brand" href="/" aria-label="TeleManager home">
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a
+          class="brand"
+          href="#command"
+          data-nav="command"
+          aria-label="TeleManager home"
+        >
           <span class="brand-mark">TM</span>
           <span>
             <strong>TeleManager</strong>
-            <small>Local session command</small>
+            <small>Local session ops</small>
           </span>
         </a>
-        <div class="topbar-actions">
+
+        <nav class="side-nav" aria-label="Main navigation">
+          <p>Workspace</p>
+          <button class="nav-item active" type="button" data-nav="command">
+            Command Center
+          </button>
+          <button class="nav-item" type="button" data-nav="actions">
+            Actions
+          </button>
+          <button class="nav-item" type="button" data-nav="dialogs">
+            Dialogs
+          </button>
+          <p>Management</p>
+          <button class="nav-item" type="button" data-nav="accounts">
+            Accounts
+          </button>
+          <button class="nav-item" type="button" data-nav="sessions">
+            Import / Export
+          </button>
+          <button class="nav-item" type="button" data-nav="activity">
+            Activity
+          </button>
+          <p>System</p>
+          <button class="nav-item" type="button" data-nav="settings">
+            Settings
+          </button>
+        </nav>
+
+        <div class="sidebar-footer">
           <span class="local-chip">127.0.0.1 only</span>
           <button id="refreshButton" class="button ghost" type="button">
-            Refresh State
+            Refresh
           </button>
         </div>
-      </nav>
+      </aside>
 
-      <main class="shell">
-        <section class="hero-grid" data-reveal>
-          <div class="hero-copy">
-            <p class="eyebrow">Telegram account operations</p>
-            <h1>Session control for every account.</h1>
-            <p class="lede">
-              Create Telethon <code>.session</code> files, keep accounts stopped
-              by default, and start only the selected sessions when you need
-              them.
-            </p>
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow" id="viewKicker">Workspace</p>
+            <h1 id="viewTitle">Command Center</h1>
+          </div>
+          <div class="topbar-actions">
+            <span class="selected-meter" id="selectedCount">0 selected</span>
+            <button
+              class="button ghost"
+              type="button"
+              data-open-view="settings"
+            >
+              Settings
+            </button>
+            <button class="button" type="button" data-open-view="accounts">
+              Add Account
+            </button>
+          </div>
+        </header>
+
+        <section
+          id="view-command"
+          class="view active"
+          data-title="Command Center"
+          data-kicker="Workspace"
+        >
+          <div class="metric-grid">
+            <div class="metric primary">
+              <span>Total sessions</span><strong id="totalAccounts">0</strong>
+            </div>
+            <div class="metric">
+              <span>Ready</span><strong id="readyAccounts">0</strong>
+            </div>
+            <div class="metric">
+              <span>Needs attention</span
+              ><strong id="attentionAccounts">0</strong>
+            </div>
+            <div class="metric">
+              <span>Known dialogs</span><strong id="knownDialogs">0</strong>
+            </div>
           </div>
 
-          <aside class="status-rail" aria-label="Account status summary">
-            <div class="metric primary">
-              <span>Total Accounts</span>
-              <strong id="totalAccounts">0</strong>
+          <article class="panel fleet-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="panel-kicker">Daily workspace</p>
+                <h2>Session Fleet</h2>
+              </div>
+              <div class="header-actions">
+                <button
+                  class="button ghost"
+                  type="button"
+                  data-open-view="dialogs"
+                >
+                  Fetch Dialogs
+                </button>
+                <button class="button" type="button" data-open-view="actions">
+                  Run Action
+                </button>
+              </div>
             </div>
-            <div class="metric">
-              <span>Running</span>
-              <strong id="runningAccounts">0</strong>
-            </div>
-            <div class="metric">
-              <span>Stopped</span>
-              <strong id="stoppedAccounts">0</strong>
-            </div>
-          </aside>
+            <p class="hint">
+              Select stored sessions, then run one-off commands. The app
+              connects, executes, logs, and disconnects.
+            </p>
+            <div class="table-wrap account-table-wrap"></div>
+          </article>
         </section>
 
-        <section class="control-grid" data-reveal>
-          <article class="panel api-panel">
+        <section
+          id="view-accounts"
+          class="view"
+          data-title="Accounts"
+          data-kicker="Management"
+        >
+          <div class="split-grid">
+            <article class="panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="panel-kicker">Enrollment</p>
+                  <h2>Add Account</h2>
+                </div>
+                <span class="panel-code">saved as ready</span>
+              </div>
+              <p class="hint">
+                Log in once, create a local Telethon session, then disconnect
+                immediately.
+              </p>
+              <form id="loginForm" class="stack">
+                <label
+                  >Label<input name="label" placeholder="Main account"
+                /></label>
+                <label
+                  >Phone<input name="phone" required placeholder="+15551234567"
+                /></label>
+                <button class="button full" type="submit">
+                  Send Login Code
+                </button>
+              </form>
+            </article>
+
+            <article id="challengePanel" class="panel hidden">
+              <div class="panel-heading">
+                <div>
+                  <p class="panel-kicker">Authentication</p>
+                  <h2>Finish Login</h2>
+                </div>
+                <span class="panel-code">Telegram challenge</span>
+              </div>
+              <p class="hint" id="challengeHint">
+                Enter the code Telegram sent to the selected account.
+              </p>
+              <div class="challenge-forms">
+                <form id="codeForm" class="inline-form">
+                  <input name="code" required placeholder="Login code" />
+                  <button class="button" type="submit">Confirm Code</button>
+                </form>
+                <form id="passwordForm" class="inline-form hidden">
+                  <input
+                    name="password"
+                    type="password"
+                    required
+                    placeholder="2FA password"
+                  />
+                  <button class="button" type="submit">Confirm Password</button>
+                </form>
+              </div>
+            </article>
+          </div>
+
+          <article class="panel">
             <div class="panel-heading">
               <div>
-                <p class="panel-kicker">Credentials</p>
-                <h2>Telegram API</h2>
+                <p class="panel-kicker">Inventory</p>
+                <h2>Accounts</h2>
               </div>
-              <span class="panel-code">data/config.json</span>
+              <span class="panel-code">rename, validate, export</span>
             </div>
-            <p class="hint">
-              Use your own API ID and API hash from
-              <code>my.telegram.org</code>. The hash stays local and is not
-              rendered back into the UI.
-            </p>
-            <form id="configForm" class="stack">
-              <label>
-                API ID
-                <input
-                  name="api_id"
-                  type="number"
-                  min="1"
-                  required
-                  placeholder="123456"
-                />
-              </label>
-              <label>
-                API Hash
-                <input
-                  name="api_hash"
-                  type="password"
-                  required
-                  placeholder="Telegram API hash"
-                />
-              </label>
-              <button class="button full" type="submit">
-                Save API Settings
+            <div class="table-wrap account-table-wrap"></div>
+          </article>
+        </section>
+
+        <section
+          id="view-actions"
+          class="view"
+          data-title="Actions"
+          data-kicker="Workspace"
+        >
+          <div class="ops-layout">
+            <aside class="panel selector-panel">
+              <div class="panel-heading compact-heading">
+                <div>
+                  <p class="panel-kicker">Per-page selection</p>
+                  <h2>Action Accounts</h2>
+                </div>
+                <span id="actionSelectionCount" class="panel-code"
+                  >0 selected</span
+                >
+              </div>
+              <div class="mini-actions">
+                <button
+                  id="selectReadyActionAccounts"
+                  class="button ghost"
+                  type="button"
+                >
+                  Select Ready
+                </button>
+                <button
+                  id="clearActionAccounts"
+                  class="button ghost"
+                  type="button"
+                >
+                  Clear
+                </button>
+              </div>
+              <div id="actionAccountList" class="compact-list"></div>
+
+              <div class="preset-box">
+                <div class="panel-heading compact-heading">
+                  <div>
+                    <p class="panel-kicker">Reusable queues</p>
+                    <h2>Presets</h2>
+                  </div>
+                </div>
+                <div class="mini-actions">
+                  <button
+                    id="savePresetButton"
+                    class="button ghost"
+                    type="button"
+                  >
+                    Save Queue
+                  </button>
+                  <button
+                    id="refreshPresetsButton"
+                    class="button ghost"
+                    type="button"
+                  >
+                    Refresh
+                  </button>
+                </div>
+                <div id="presetList" class="compact-list"></div>
+              </div>
+            </aside>
+
+            <article class="panel action-panel">
+              <div class="panel-heading compact-heading">
+                <div>
+                  <p class="panel-kicker">Build then run</p>
+                  <h2>Action Queue</h2>
+                </div>
+                <span class="panel-code">many actions × many accounts</span>
+              </div>
+              <p class="hint">
+                Select accounts for this page, add one or more queued steps,
+                preview, then run with conservative delays.
+              </p>
+              <form id="actionForm" class="action-form compact-form">
+                <label
+                  >Action<select name="action_type" id="actionType" required>
+                    <option value="join_chat">Join group or channel</option>
+                    <option value="leave_chat">Leave group or channel</option>
+                    <option value="send_message">Send message</option>
+                    <option value="start_bot">Start bot referral link</option>
+                    <option value="delete_chat">Delete dialog locally</option>
+                    <option value="clear_chat">
+                      Clear chat history locally
+                    </option>
+                  </select></label
+                >
+                <label
+                  >Targets<input
+                    id="actionTarget"
+                    name="target"
+                    required
+                    placeholder="One or many targets, separated by commas or new lines"
+                /></label>
+                <label class="message-field"
+                  >Message text<textarea
+                    name="message"
+                    id="actionMessage"
+                    rows="3"
+                    placeholder="Required only for Send message"
+                  ></textarea>
+                </label>
+                <div class="action-submit-row">
+                  <button id="addQueueStepButton" class="button" type="button">
+                    Add To Queue
+                  </button>
+                  <button
+                    id="clearQueueButton"
+                    class="button ghost"
+                    type="button"
+                  >
+                    Clear Queue
+                  </button>
+                </div>
+              </form>
+
+              <div class="queue-settings">
+                <label
+                  >Account delay<input
+                    id="queueAccountDelay"
+                    type="number"
+                    min="1"
+                    max="60"
+                    step="1"
+                    value="4"
+                /></label>
+                <label
+                  >Action delay<input
+                    id="queueActionDelay"
+                    type="number"
+                    min="1"
+                    max="120"
+                    step="1"
+                    value="8"
+                /></label>
+                <label
+                  >Max operations<input
+                    id="queueMaxOperations"
+                    type="number"
+                    min="1"
+                    max="250"
+                    step="1"
+                    value="100"
+                /></label>
+              </div>
+
+              <div
+                id="actionQueue"
+                class="queue-table"
+                aria-live="polite"
+              ></div>
+              <label class="confirm-row"
+                ><input id="queueConfirm" type="checkbox" /><span
+                  >I reviewed the queue and confirm it should run only on the
+                  selected sessions and targets.</span
+                ></label
+              >
+              <div class="action-submit-row">
+                <button
+                  id="previewActionButton"
+                  class="button ghost"
+                  type="button"
+                >
+                  Preview Queue
+                </button>
+                <button id="runQueueButton" class="button" type="button">
+                  Run Queue
+                </button>
+              </div>
+              <div
+                id="actionPreview"
+                class="action-preview"
+                aria-live="polite"
+              ></div>
+              <div
+                id="actionResults"
+                class="action-results"
+                aria-live="polite"
+              ></div>
+              <div class="run-history-box">
+                <div class="panel-heading compact-heading">
+                  <div>
+                    <p class="panel-kicker">History</p>
+                    <h2>Recent Queue Runs</h2>
+                  </div>
+                  <div class="row-actions">
+                    <button
+                      id="refreshRunsButton"
+                      class="button ghost"
+                      type="button"
+                    >
+                      Refresh
+                    </button>
+                    <button
+                      id="clearRunsButton"
+                      class="button ghost danger"
+                      type="button"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+                <div id="queueRunHistory" class="compact-list"></div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section
+          id="view-dialogs"
+          class="view"
+          data-title="Dialogs"
+          data-kicker="Workspace"
+        >
+          <div class="ops-layout">
+            <aside class="panel selector-panel">
+              <div class="panel-heading compact-heading">
+                <div>
+                  <p class="panel-kicker">Discovery</p>
+                  <h2>Dialog Source</h2>
+                </div>
+                <span id="dialogSelectionCount" class="panel-code"
+                  >0 selected</span
+                >
+              </div>
+              <form id="dialogFetchForm" class="stack compact-stack">
+                <label
+                  >Account<select
+                    id="dialogAccountSelect"
+                    name="account_id"
+                    required
+                  ></select
+                ></label>
+                <label
+                  >Fetch limit<input
+                    name="limit"
+                    type="number"
+                    min="1"
+                    max="1000"
+                    value="500"
+                /></label>
+                <button class="button full" type="submit">Fetch Dialogs</button>
+              </form>
+              <p class="hint" id="dialogFetchStatus">
+                Choose an account to view cached dialogs or fetch fresh data.
+              </p>
+              <div class="mini-actions">
+                <button
+                  id="useSelectedDialogsButton"
+                  class="button ghost"
+                  type="button"
+                >
+                  Use Selected In Actions
+                </button>
+                <button
+                  id="clearDialogSelectionButton"
+                  class="button ghost"
+                  type="button"
+                >
+                  Clear
+                </button>
+              </div>
+            </aside>
+
+            <article class="panel">
+              <div class="panel-heading compact-heading">
+                <div>
+                  <p class="panel-kicker">Targets</p>
+                  <h2>Dialogs</h2>
+                </div>
+                <span class="panel-code">manual or selected targets</span>
+              </div>
+              <div class="dialog-filters compact-filters">
+                <button
+                  class="button ghost active"
+                  type="button"
+                  data-dialog-filter="all"
+                >
+                  All
+                </button>
+                <button
+                  class="button ghost"
+                  type="button"
+                  data-dialog-filter="personal"
+                >
+                  Personal
+                </button>
+                <button
+                  class="button ghost"
+                  type="button"
+                  data-dialog-filter="bot"
+                >
+                  Bots
+                </button>
+                <button
+                  class="button ghost"
+                  type="button"
+                  data-dialog-filter="group"
+                >
+                  Groups
+                </button>
+                <button
+                  class="button ghost"
+                  type="button"
+                  data-dialog-filter="channel"
+                >
+                  Channels
+                </button>
+                <input id="dialogSearch" placeholder="Search dialogs" />
+              </div>
+              <div id="dialogsTable" class="table-wrap compact-table"></div>
+            </article>
+          </div>
+        </section>
+
+        <section
+          id="view-sessions"
+          class="view"
+          data-title="Import / Export"
+          data-kicker="Management"
+        >
+          <div class="split-grid">
+            <article class="panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="panel-kicker">Import</p>
+                  <h2>Import .session File</h2>
+                </div>
+                <span class="panel-code">copy + validate</span>
+              </div>
+              <p class="hint">
+                Copy an existing Telethon `.session` file into TeleManager and
+                validate it locally.
+              </p>
+              <form id="sessionImportForm" class="stack">
+                <label
+                  >Label<input
+                    name="label"
+                    required
+                    placeholder="Imported account"
+                /></label>
+                <label
+                  >Session file<input
+                    name="file"
+                    type="file"
+                    accept=".session"
+                    required
+                /></label>
+                <button class="button full" type="submit">
+                  Import Session
+                </button>
+              </form>
+            </article>
+            <article class="panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="panel-kicker">Export</p>
+                  <h2>Export Selected Sessions</h2>
+                </div>
+                <span class="panel-code">sensitive zip</span>
+              </div>
+              <p class="hint">
+                Exports selected `.session` files as a ZIP. Keep the export
+                private.
+              </p>
+              <button
+                id="exportSessionsButton"
+                class="button full"
+                type="button"
+              >
+                Export Selected Sessions
               </button>
-            </form>
-            <p id="configStatus" class="status"></p>
-          </article>
+            </article>
+          </div>
+        </section>
 
-          <article class="panel login-panel">
+        <section
+          id="view-activity"
+          class="view"
+          data-title="Activity"
+          data-kicker="Management"
+        >
+          <article class="panel log-panel wide">
             <div class="panel-heading">
               <div>
-                <p class="panel-kicker">Enrollment</p>
-                <h2>Add Account</h2>
+                <p class="panel-kicker">Audit</p>
+                <h2>Local Activity</h2>
               </div>
-              <span class="panel-code">stopped after login</span>
+              <span class="panel-code">current browser session</span>
             </div>
-            <p class="hint">
-              Enter a phone number in international format. After the login code
-              is confirmed, the session is saved and disconnected.
-            </p>
-            <form id="loginForm" class="stack">
-              <label>
-                Label
-                <input name="label" placeholder="Main account" />
-              </label>
-              <label>
-                Phone
-                <input name="phone" required placeholder="+15551234567" />
-              </label>
-              <button class="button full" type="submit">Send Login Code</button>
-            </form>
-          </article>
-
-          <article class="panel queue-panel">
-            <div class="panel-heading">
-              <div>
-                <p class="panel-kicker">Next module</p>
-                <h2>Action Queue</h2>
-              </div>
-              <span class="panel-code">planned</span>
-            </div>
-            <div class="queue-list">
-              <div><span>Join link</span><small>selected accounts</small></div>
-              <div><span>Start bot</span><small>rate limited</small></div>
-              <div>
-                <span>Leave channel</span><small>confirmed action</small>
-              </div>
-              <div><span>Delete chat</span><small>audit logged</small></div>
+            <div id="activityLog" class="activity-log" aria-live="polite">
+              <p>Waiting for operator action.</p>
             </div>
           </article>
         </section>
 
         <section
-          id="challengePanel"
-          class="panel challenge-panel hidden"
-          data-reveal
+          id="view-settings"
+          class="view"
+          data-title="Settings"
+          data-kicker="System"
         >
-          <div class="panel-heading">
-            <div>
-              <p class="panel-kicker">Authentication</p>
-              <h2>Finish Login</h2>
-            </div>
-            <span class="panel-code">Telegram challenge</span>
-          </div>
-          <p class="hint" id="challengeHint">
-            Enter the code Telegram sent to the selected account.
-          </p>
-          <div class="challenge-forms">
-            <form id="codeForm" class="inline-form">
-              <input name="code" required placeholder="Login code" />
-              <button class="button" type="submit">Confirm Code</button>
-            </form>
-            <form id="passwordForm" class="inline-form hidden">
-              <input
-                name="password"
-                type="password"
-                required
-                placeholder="2FA password"
-              />
-              <button class="button" type="submit">Confirm Password</button>
-            </form>
+          <div class="split-grid">
+            <article class="panel api-panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="panel-kicker">Credentials</p>
+                  <h2>Telegram API</h2>
+                </div>
+                <span class="panel-code">data/config.json</span>
+              </div>
+              <p class="hint">
+                Use your own API ID and API hash from
+                <code>my.telegram.org</code>. The hash stays local and is not
+                rendered back into the UI.
+              </p>
+              <form id="configForm" class="stack">
+                <label
+                  >API ID<input
+                    name="api_id"
+                    type="number"
+                    min="1"
+                    required
+                    placeholder="123456"
+                /></label>
+                <label
+                  >API Hash<input
+                    name="api_hash"
+                    type="password"
+                    required
+                    placeholder="Telegram API hash"
+                /></label>
+                <button class="button full" type="submit">
+                  Save API Settings
+                </button>
+              </form>
+              <p id="configStatus" class="status"></p>
+            </article>
+            <article class="panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="panel-kicker">Guardrails</p>
+                  <h2>Safety Defaults</h2>
+                </div>
+                <span class="panel-code">data/safety_settings.json</span>
+              </div>
+              <p class="hint">
+                These defaults prefill new action queues and are also enforced
+                by the backend when a request omits values.
+              </p>
+              <form id="safetyForm" class="stack">
+                <label
+                  >Account delay<input
+                    name="delay_between_accounts"
+                    type="number"
+                    min="1"
+                    max="60"
+                    step="1"
+                    required
+                /></label>
+                <label
+                  >Action delay<input
+                    name="delay_between_actions"
+                    type="number"
+                    min="1"
+                    max="120"
+                    step="1"
+                    required
+                /></label>
+                <label
+                  >Max operations<input
+                    name="max_operations"
+                    type="number"
+                    min="1"
+                    max="250"
+                    step="1"
+                    required
+                /></label>
+                <button class="button full" type="submit">
+                  Save Safety Defaults
+                </button>
+              </form>
+            </article>
           </div>
         </section>
-
-        <section class="operations-grid" data-reveal>
-          <article class="panel fleet-panel">
-            <div class="toolbar">
-              <div>
-                <p class="panel-kicker">Fleet</p>
-                <h2>Accounts</h2>
-                <p class="hint">
-                  Select accounts, then start or stop only those sessions.
-                </p>
-              </div>
-              <div class="selected-meter">
-                <span id="selectedCount">0 selected</span>
-              </div>
-            </div>
-
-            <div class="bulk-actions">
-              <button id="startSelectedButton" class="button" type="button">
-                Start Selected
-              </button>
-              <button
-                id="stopSelectedButton"
-                class="button ghost"
-                type="button"
-              >
-                Stop Selected
-              </button>
-              <button
-                id="startAllButton"
-                class="button secondary"
-                type="button"
-              >
-                Start All
-              </button>
-              <button id="stopAllButton" class="button secondary" type="button">
-                Stop All
-              </button>
-            </div>
-
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>
-                      <input
-                        id="selectAll"
-                        type="checkbox"
-                        aria-label="Select all accounts"
-                      />
-                    </th>
-                    <th>Account</th>
-                    <th>Phone</th>
-                    <th>Status</th>
-                    <th>Session</th>
-                    <th>Controls</th>
-                  </tr>
-                </thead>
-                <tbody id="accountsBody">
-                  <tr>
-                    <td colspan="6" class="empty">No accounts yet.</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </article>
-
-          <aside class="panel log-panel">
-            <div class="panel-heading">
-              <div>
-                <p class="panel-kicker">Audit</p>
-                <h2>Activity</h2>
-              </div>
-              <span class="panel-code">local UI log</span>
-            </div>
-            <div id="activityLog" class="activity-log" aria-live="polite">
-              <p>Waiting for operator action.</p>
-            </div>
-          </aside>
-        </section>
-
-        <footer class="footer-panel" data-reveal>
-          <div>
-            <p class="panel-kicker">Safety model</p>
-            <h2>Sessions are treated like credentials.</h2>
-          </div>
-          <p>
-            Keep <code>sessions/</code> private. Future bulk actions should use
-            confirmations, queues, rate limits, and logs before they touch
-            selected accounts.
-          </p>
-        </footer>
 
         <div id="toast" class="toast hidden"></div>
       </main>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+
+    <div id="modalOverlay" class="modal-overlay hidden" role="presentation">
+      <section
+        class="modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modalTitle"
+        aria-describedby="modalDescription"
+      >
+        <p id="modalKicker" class="panel-kicker">Confirm</p>
+        <h2 id="modalTitle">Confirm action</h2>
+        <p id="modalDescription" class="hint"></p>
+        <label id="modalInputWrap" class="modal-input hidden"
+          ><span id="modalInputLabel">Value</span><input id="modalInput" />
+        </label>
+        <div class="modal-actions">
+          <button id="modalCancel" class="button ghost" type="button">
+            Cancel
+          </button>
+          <button id="modalConfirm" class="button" type="button">
+            Continue
+          </button>
+        </div>
+      </section>
+    </div>
+
     <script src="/static/app.js"></script>
   </body>
 </html>

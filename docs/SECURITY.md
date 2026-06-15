@@ -1,38 +1,77 @@
 # Security Guide
 
-TeleManager handles Telegram user sessions. Treat every local session file as sensitive authentication material.
+TeleManager handles Telegram user sessions. Treat every local session file and export as sensitive authentication material.
 
-## Sensitive files
+## Sensitive Files
 
 Never commit or share:
 
 - `sessions/`
 - `data/config.json`
 - `data/accounts.json`
+- `data/action_presets.json`
+- `data/action_runs.json`
+- `data/safety_settings.json`
+- `data/dialogs/`
+- `data/exports/`
 - `*.session`
 - `*.session-journal`
 - `.env` or `.env.*`
 - local phone-number/account test lists
+- real Telegram target inventories
 - `AGENTS.md`
 
-## Session risk
+## Session Risk
 
-A Telethon `.session` file can allow access to the Telegram account it belongs to. If a session file is leaked, revoke it from an official Telegram client by terminating the active session.
+A Telethon `.session` file can allow access to the Telegram account it belongs to. If a session file or export ZIP is leaked, revoke it from an official Telegram client by terminating the active session.
 
-## Local-only default
+Session exports contain Telegram authentication material. Keep them private, move them only through trusted storage, and delete temporary copies when finished.
+
+## Local-Only Default
 
 The app is intended to run on `127.0.0.1`. Do not expose it to a LAN or public network until authentication, HTTPS, CSRF protection, and user access controls are added.
 
-## Bulk action policy
+The recommended local command is:
 
-Future bulk Telegram actions should use:
+```bash
+python -m uvicorn telemanager.main:app --app-dir src --reload
+```
 
-- explicit account selection
-- confirmation dialogs
-- dry-run previews
-- per-account rate limits
-- action queues
-- durable audit logs
-- clear failure reporting
+Do not change the host to `0.0.0.0` unless the app has been secured for remote access.
 
-Do not use this project for spam, scams, impersonation, unsolicited messaging, or evading Telegram limits.
+## Queue Safety Model
+
+TeleManager uses guarded action queues instead of unlimited direct automation:
+
+- Account selection is explicit and scoped to the Actions page.
+- Queue preview shows operation count, estimated duration, and warnings before execution.
+- Queue execution requires confirmation.
+- Delays and max operations are server-validated.
+- Safety defaults are stored locally in `data/safety_settings.json`.
+- Queue runs store operation-level status and results in `data/action_runs.json`.
+- Cancellation is cooperative and stops before the next operation; it does not forcibly interrupt an in-flight Telegram request.
+
+Use conservative defaults, especially with older accounts or any action involving joins, messages, bot starts, or many targets.
+
+## Run History and Exports
+
+Queue run history can include Telegram targets, action names, result details, and message text for failed or completed operations. Treat exported queue run JSON files as sensitive operational records.
+
+Before sharing logs or bug reports, remove:
+
+- phone numbers
+- usernames and invite links
+- message contents
+- API IDs/hashes
+- `.session` files or export ZIPs
+- account labels that identify real people
+
+## Responsible Use
+
+Do not use this project for spam, scams, impersonation, unsolicited messaging, ban evasion, flood-limit evasion, or any activity that violates Telegram rules or harms other users.
+
+Only message people or chats where you have permission or a clear expectation of contact. Only join, leave, clear, or delete dialogs for accounts and chats you own or are authorized to manage.
+
+## Manual Testing Safety
+
+Use `docs/REAL_TELEGRAM_TEST_CHECKLIST.md` for real-session testing. Keep checklist notes local if they contain private test targets, phone numbers, or account identifiers.

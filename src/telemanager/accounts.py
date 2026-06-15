@@ -11,7 +11,9 @@ from telethon import TelegramClient
 from telethon.errors import PhoneCodeExpiredError, PhoneCodeInvalidError, SessionPasswordNeededError
 
 from .config import ACCOUNTS_FILE, CONFIG_FILE, SESSIONS_DIR, read_json, write_json
+from .telegram_actions import TelegramAction, TelegramActionResult, run_telegram_action, safe_delay
 
+CONNECT_TIMEOUT_SECONDS = 25
 RuntimeStatus = Literal["stopped", "running", "login_pending", "password_pending", "error"]
 
 
@@ -27,6 +29,11 @@ class AccountRecord:
     first_name: str | None = None
     last_name: str | None = None
     last_error: str | None = None
+    source: str = "login"
+    created_at: str | None = None
+    last_validated_at: str | None = None
+    last_dialog_fetch_at: str | None = None
+    dialog_count: int = 0
 
 
 @dataclass
@@ -132,6 +139,30 @@ class AccountManager:
             await self._complete_login(account, login_state.client)
             return account
 
+    async def validate_account(self, account_id: str) -> AccountRecord:
+        async with self.lock:
+            account = self._get_account(account_id)
+            api_id, api_hash = self.get_api_credentials()
+            client = self._new_client(account.session_name, api_id, api_hash)
+            try:
+                await self._connect_client(client)
+                authorized = await self._is_user_authorized(client)
+                if not authorized:
+                    account.authorized = False
+                    account.status = "stopped"
+                    account.last_error = "Session is not authorized. Log in again."
+                    self._save_accounts()
+                    return account
+                await self._refresh_account_identity(account, client)
+                account.authorized = True
+                account.status = "stopped"
+                account.last_error = None
+                account.last_validated_at = self._now_iso()
+                self._save_accounts()
+                return account
+            finally:
+                client.disconnect()
+
     async def start_account(self, account_id: str) -> AccountRecord:
         async with self.lock:
             account = self._get_account(account_id)
@@ -141,8 +172,16 @@ class AccountManager:
                 return account
             api_id, api_hash = self.get_api_credentials()
             client = self._new_client(account.session_name, api_id, api_hash)
-            await client.connect()
-            if not await client.is_user_authorized():
+            try:
+                await self._connect_client(client)
+                authorized = await self._is_user_authorized(client)
+            except TimeoutError as exc:
+                client.disconnect()
+                account.status = "stopped"
+                account.last_error = str(exc)
+                self._save_accounts()
+                raise ValueError(account.last_error) from exc
+            if not authorized:
                 client.disconnect()
                 account.authorized = False
                 account.status = "stopped"
@@ -199,6 +238,61 @@ class AccountManager:
             results.append(await self.stop_account(account_id))
         return results
 
+    async def run_action(self, action: TelegramAction) -> list[TelegramActionResult]:
+        if not action.confirm:
+            raise ValueError("Action confirmation is required.")
+        if not action.account_ids:
+            raise ValueError("Select at least one account.")
+
+        results: list[TelegramActionResult] = []
+        for index, account_id in enumerate(action.account_ids):
+            account = self._get_account(account_id)
+            if index > 0:
+                await safe_delay(action.delay_seconds)
+            result = await self._run_action_for_account(account, action)
+            results.append(result)
+        return results
+
+    async def _run_action_for_account(self, account: AccountRecord, action: TelegramAction) -> TelegramActionResult:
+        api_id, api_hash = self.get_api_credentials()
+        client = self.clients.get(account.id)
+        owns_client = False
+        if client is None or not client.is_connected():
+            client = self._new_client(account.session_name, api_id, api_hash)
+            try:
+                await self._connect_client(client)
+            except TimeoutError as exc:
+                account.last_error = str(exc)
+                self._save_accounts()
+                return TelegramActionResult(account.id, account.label, False, action.action_type, str(exc))
+            owns_client = True
+
+        try:
+            try:
+                authorized = await self._is_user_authorized(client)
+            except TimeoutError as exc:
+                account.last_error = str(exc)
+                self._save_accounts()
+                return TelegramActionResult(account.id, account.label, False, action.action_type, str(exc))
+            if not authorized:
+                account.authorized = False
+                account.last_error = "Session is not authorized. Log in again."
+                self._save_accounts()
+                return TelegramActionResult(account.id, account.label, False, action.action_type, account.last_error)
+
+            detail = await run_telegram_action(client, action)
+            account.authorized = True
+            account.last_error = None
+            self._save_accounts()
+            return TelegramActionResult(account.id, account.label, True, action.action_type, detail)
+        except Exception as exc:
+            account.last_error = str(exc)
+            self._save_accounts()
+            return TelegramActionResult(account.id, account.label, False, action.action_type, str(exc))
+        finally:
+            if owns_client:
+                client.disconnect()
+
     async def shutdown(self) -> None:
         for client in list(self.clients.values()):
             client.disconnect()
@@ -252,11 +346,36 @@ class AccountManager:
             raise ValueError("Account was not found.")
         return account
 
+    async def _connect_client(self, client: TelegramClient) -> None:
+        try:
+            await asyncio.wait_for(client.connect(), timeout=CONNECT_TIMEOUT_SECONDS)
+        except TimeoutError as exc:
+            raise TimeoutError(
+                "Telegram connection timed out. Check Windows date/time sync, timezone, and network."
+            ) from exc
+
+    async def _is_user_authorized(self, client: TelegramClient) -> bool:
+        try:
+            return await asyncio.wait_for(client.is_user_authorized(), timeout=CONNECT_TIMEOUT_SECONDS)
+        except TimeoutError as exc:
+            raise TimeoutError(
+                "Telegram authorization check timed out. Check Windows date/time sync, timezone, and network."
+            ) from exc
+
+    def _now_iso(self) -> str:
+        from datetime import UTC, datetime
+
+        return datetime.now(UTC).isoformat()
+
     def _new_client(self, session_name: str, api_id: int, api_hash: str) -> TelegramClient:
         return TelegramClient(
             self._session_path(session_name),
             api_id,
             api_hash,
+            timeout=10,
+            request_retries=1,
+            connection_retries=1,
+            retry_delay=1,
             receive_updates=False,
             catch_up=False,
         )
