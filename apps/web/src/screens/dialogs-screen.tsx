@@ -156,7 +156,11 @@ export function DialogsScreen(props: DialogsScreenProps) {
       flash("Select one or more dialogs first.")
       return
     }
-    applyQuickAction(actionType, dialogs, `${dialogs.length} selected dialog(s)`)
+    applyQuickAction(
+      actionType,
+      dialogs,
+      `${dialogs.length} selected dialog(s)`
+    )
   }
 
   return (
