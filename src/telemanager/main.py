@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import Body, FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 
@@ -27,6 +27,7 @@ from .sessions_service import (
 from .telegram_actions import TelegramAction, TelegramActionType
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+FRONTEND_DIST_DIR = Path(__file__).resolve().parents[2] / "apps" / "web" / "dist"
 ACCOUNT_IDS_BODY = Body(...)
 FILE_BODY = File(...)
 manager = AccountManager()
@@ -112,11 +113,32 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="TeleManager", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+if (FRONTEND_DIST_DIR / "assets").exists():
+    app.mount("/assets", StaticFiles(directory=FRONTEND_DIST_DIR / "assets"), name="frontend-assets")
 
 
-@app.get("/", response_class=HTMLResponse)
-def index() -> HTMLResponse:
-    return HTMLResponse((STATIC_DIR / "index.html").read_text(encoding="utf-8"))
+@app.get("/")
+def index() -> FileResponse:
+    dist_index = FRONTEND_DIST_DIR / "index.html"
+    if dist_index.exists():
+        return FileResponse(dist_index)
+    return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/favicon.ico")
+def favicon_ico() -> Response:
+    dist_favicon = FRONTEND_DIST_DIR / "favicon.ico"
+    if dist_favicon.exists():
+        return Response(content=dist_favicon.read_bytes(), media_type="image/x-icon")
+    return Response(content=(STATIC_DIR / "favicon.ico").read_bytes(), media_type="image/x-icon")
+
+
+@app.get("/favicon.svg")
+def favicon_svg() -> Response:
+    dist_favicon = FRONTEND_DIST_DIR / "favicon.svg"
+    if dist_favicon.exists():
+        return Response(content=dist_favicon.read_text(encoding="utf-8"), media_type="image/svg+xml")
+    return Response(content=(STATIC_DIR / "favicon.svg").read_text(encoding="utf-8"), media_type="image/svg+xml")
 
 
 @app.get("/api/config")

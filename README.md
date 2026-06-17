@@ -77,6 +77,21 @@ python -m uvicorn telemanager.main:app --app-dir src --reload
 
 Open `http://127.0.0.1:8000`.
 
+## Frontend development
+
+The React frontend lives in `apps/web` and uses the shared shadcn/Base UI package in `packages/ui`.
+
+```bash
+npm install
+npm run build
+```
+
+The FastAPI app serves `apps/web/dist` when it exists, and falls back to the legacy static UI under `src/telemanager/static` otherwise. For frontend-only iteration, run:
+
+```bash
+npm run dev -- --filter web
+```
+
 ## Telegram API credentials
 
 Create your API ID and API hash at `https://my.telegram.org` using your own Telegram developer account. The app stores them locally in `data/config.json`, which is ignored by Git.

@@ -23,3 +23,8 @@ tmp/
 .ruff_cache/
 .pytest_cache/
 *.egg-info/
+node_modules/
+.turbo/
+apps/web/dist/
+apps/web/node_modules/
+packages/ui/node_modules/

@@ -1,0 +1,57 @@
+import * as React from "react"
+
+import { cn } from "@workspace/ui/lib/utils"
+
+function Field({ className, ...props }: React.ComponentProps<"label">) {
+  return (
+    <label
+      data-slot="field"
+      className={cn(
+        "grid gap-2 text-xs font-medium tracking-[0.16em] text-muted-foreground uppercase",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function Input({ className, ...props }: React.ComponentProps<"input">) {
+  return (
+    <input
+      data-slot="input"
+      className={cn(
+        "h-9 border border-input bg-background px-3 text-sm text-foreground transition-colors outline-none file:border-0 file:bg-transparent file:text-sm file:text-foreground placeholder:text-muted-foreground focus:border-primary disabled:cursor-not-allowed disabled:opacity-50",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function Select({ className, ...props }: React.ComponentProps<"select">) {
+  return (
+    <select
+      data-slot="select"
+      className={cn(
+        "h-9 border border-input bg-background px-3 text-sm text-foreground transition-colors outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
+  return (
+    <textarea
+      data-slot="textarea"
+      className={cn(
+        "min-h-24 border border-input bg-background p-3 text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus:border-primary disabled:cursor-not-allowed disabled:opacity-50",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+export { Field, Input, Select, Textarea }
