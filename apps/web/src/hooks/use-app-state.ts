@@ -1,7 +1,8 @@
 import * as React from "react"
 
 import { api } from "../lib/api"
-import { emptySafety } from "../lib/constants"
+import { actionMeta, emptySafety } from "../lib/constants"
+import { validateTargets } from "../components/target-preview"
 import { splitTargets } from "../lib/helpers"
 import type {
   Account,
@@ -224,6 +225,8 @@ function useQueueState(
     if (!account_ids.length) return flash("Select action accounts first.")
     if (!targets.length) return flash("Add at least one target.")
     if (messageIsMissing(actionDraft)) return flash("Message text is required.")
+    const targetError = validateTargets(targets, actionDraft.action_type)
+    if (targetError) return flash(targetError)
 
     setQueue((current) => [
       ...current,
@@ -326,9 +329,8 @@ function messageIsMissing(actionDraft: {
   action_type: ActionType
   message: string
 }) {
-  return (
-    actionDraft.action_type === "send_message" && !actionDraft.message.trim()
-  )
+  const meta = actionMeta[actionDraft.action_type]
+  return meta.needsMessage && !actionDraft.message.trim()
 }
 
 function queueStepFromDraft(

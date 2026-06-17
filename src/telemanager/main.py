@@ -26,7 +26,7 @@ from .sessions_service import (
     rename_account,
     rename_session_file,
 )
-from .telegram_actions import TelegramAction, TelegramActionType
+from .telegram_actions import TelegramAction, TelegramActionType, validate_target_for_action
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 FRONTEND_DIST_DIR = Path(__file__).resolve().parents[2] / "apps" / "web" / "dist"
@@ -58,8 +58,12 @@ class ActionQueueStep(BaseModel):
         if not clean_targets:
             raise ValueError("At least one target is required.")
         self.targets = clean_targets
-        if self.action_type == "send_message" and not (self.message or "").strip():
-            raise ValueError("Message text is required for messaging actions.")
+        if self.action_type in {"send_message", "forward_message"} and not (self.message or "").strip():
+            raise ValueError("Message text is required for this action.")
+        for target in self.targets:
+            error = validate_target_for_action(self.action_type, target)
+            if error:
+                raise ValueError(error)
         return self
 
 

@@ -13,9 +13,18 @@ export type ActionType =
   | "join_chat"
   | "leave_chat"
   | "send_message"
+  | "forward_message"
   | "start_bot"
   | "delete_chat"
   | "clear_chat"
+  | "block_user"
+  | "unblock_user"
+  | "archive_chat"
+  | "unarchive_chat"
+  | "mute_chat"
+  | "unmute_chat"
+  | "read_chat"
+  | "report_spam"
 
 export type Account = {
   id: string

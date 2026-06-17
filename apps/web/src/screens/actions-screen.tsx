@@ -14,11 +14,10 @@ import {
   Input,
   Panel,
   SectionTitle,
-  Select,
   Textarea,
 } from "../components/ui"
 import { api } from "../lib/api"
-import { actionLabels } from "../lib/constants"
+import { actionMeta, categoryLabels, categoryOrder } from "../lib/constants"
 import { accountStatus, statusTone } from "../lib/helpers"
 import type { ActionType, QueueRun } from "../types"
 import type { ActionsScreenProps } from "./screen-props"
@@ -31,6 +30,17 @@ type QueuePreview = {
   estimated_seconds: number
   warnings?: string[]
 }
+
+const groupedActions = categoryOrder.map((category) => ({
+  category,
+  label: categoryLabels[category],
+  actions: (
+    Object.entries(actionMeta) as [
+      ActionType,
+      (typeof actionMeta)[ActionType],
+    ][]
+  ).filter(([, meta]) => meta.category === category),
+}))
 
 export function ActionsScreen(props: ActionsScreenProps) {
   const {
@@ -59,6 +69,8 @@ export function ActionsScreen(props: ActionsScreenProps) {
   } = props
   const [preview, setPreview] = React.useState<QueuePreview | null>(null)
   const activeRunIdRef = React.useRef<string | null>(null)
+
+  const currentMeta = actionMeta[actionDraft.action_type]
 
   async function pollQueueRun(runId: string) {
     activeRunIdRef.current = runId
@@ -221,21 +233,27 @@ export function ActionsScreen(props: ActionsScreenProps) {
         />
         <div className="grid gap-3 lg:grid-cols-2">
           <Field label="Action">
-            <Select
+            <select
+              className="w-full border border-border bg-background px-3 py-2 text-sm"
               value={actionDraft.action_type}
               onChange={(e) =>
                 setActionDraft({
                   ...actionDraft,
                   action_type: e.target.value as ActionType,
+                  message: "",
                 })
               }
             >
-              {Object.entries(actionLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
+              {groupedActions.map((group) => (
+                <optgroup key={group.category} label={group.label}>
+                  {group.actions.map(([value, meta]) => (
+                    <option key={value} value={value}>
+                      {meta.label}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
-            </Select>
+            </select>
           </Field>
           <Field label="Targets">
             <Input
@@ -248,26 +266,40 @@ export function ActionsScreen(props: ActionsScreenProps) {
                   target: e.target.value,
                 })
               }
-              placeholder="Comma or newline separated targets"
+              placeholder={currentMeta.targetHint}
             />
           </Field>
-          <div className="col-span-2">
-            <TargetPreview value={actionDraft.target} />
+          <div className="col-span-full">
+            <p className="mb-1 text-xs text-muted-foreground">
+              {currentMeta.description}
+            </p>
+            <TargetPreview
+              value={actionDraft.target}
+              actionType={actionDraft.action_type}
+            />
           </div>
-          <Field label="Message text">
-            <Textarea
-              value={actionDraft.message}
-              maxLength={4000}
-              autoComplete="off"
-              onChange={(e) =>
-                setActionDraft({
-                  ...actionDraft,
-                  message: e.target.value,
-                })
+          {currentMeta.needsMessage ? (
+            <Field
+              label={
+                actionDraft.action_type === "forward_message"
+                  ? "Source (chat:message_id)"
+                  : "Message text"
               }
-              placeholder="Required only for Send message"
-            />
-          </Field>
+            >
+              <Textarea
+                value={actionDraft.message}
+                maxLength={4000}
+                autoComplete="off"
+                onChange={(e) =>
+                  setActionDraft({
+                    ...actionDraft,
+                    message: e.target.value,
+                  })
+                }
+                placeholder={currentMeta.messagePlaceholder || "Message text"}
+              />
+            </Field>
+          ) : null}
           <div className="grid content-end gap-2">
             <Button type="button" onClick={addQueueStep} disabled={loading}>
               {loading ? (
