@@ -1,3 +1,5 @@
+import * as React from "react"
+
 import { IconDownload, IconLoader2, IconUpload } from "@tabler/icons-react"
 
 import { Button } from "@workspace/ui/components/button"
@@ -7,7 +9,8 @@ import { api } from "../lib/api"
 import type { SessionsScreenProps } from "./screen-props"
 
 export function SessionsScreen(props: SessionsScreenProps) {
-  const { selectedIds, guarded, refresh, flash, loading } = props
+  const { selectedIds, guarded, refresh, flash, loading, askDialog } = props
+  const importFormRef = React.useRef<HTMLFormElement>(null)
 
   return (
     <div className="grid gap-4 xl:grid-cols-2">
@@ -18,18 +21,21 @@ export function SessionsScreen(props: SessionsScreenProps) {
           detail="Copy an existing Telethon .session file into TeleManager and validate it locally."
         />
         <form
+          ref={importFormRef}
           className="grid gap-3"
-          onSubmit={(event) =>
+          onSubmit={(event) => {
+            event.preventDefault()
+            const formData = new FormData(event.currentTarget)
             guarded(async () => {
-              event.preventDefault()
               await api("/api/sessions/import-file", {
                 method: "POST",
-                body: new FormData(event.currentTarget),
+                body: formData,
               })
+              importFormRef.current?.reset()
               flash("Session imported.")
               await refresh()
             })
-          }
+          }}
         >
           <Field label="Label">
             <Input
@@ -63,6 +69,18 @@ export function SessionsScreen(props: SessionsScreenProps) {
           disabled={loading}
           onClick={() =>
             guarded(async () => {
+              if (!selectedIds.size) {
+                flash("Select at least one session.")
+                return
+              }
+              const confirmed = await askDialog({
+                title: "Export session credentials?",
+                description:
+                  "Exported session files can access Telegram accounts. Keep the ZIP private and do not upload it anywhere.",
+                confirmLabel: "Export ZIP",
+                danger: true,
+              })
+              if (!confirmed) return
               const response = await fetch("/api/sessions/export", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },

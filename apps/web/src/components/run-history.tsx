@@ -17,6 +17,10 @@ import { humanTime, statusTone } from "../lib/helpers"
 import type { AskDialog, QueueRun } from "../types"
 import { Badge, SectionTitle } from "./ui"
 
+function isTerminal(status: string) {
+  return ["completed", "failed", "canceled", "interrupted"].includes(status)
+}
+
 export function RunHistory({
   runs,
   guarded,
@@ -117,60 +121,65 @@ export function RunHistory({
               >
                 Export
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  guarded(async () => {
-                    await api(
-                      `/api/actions/queue/runs/${run.id}/retry-failed`,
-                      { method: "POST" }
-                    )
-                    flash("Retry queued.")
-                    await loadRuns()
-                  })
-                }
-              >
-                Retry Failed
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() =>
-                  guarded(async () => {
-                    await api(`/api/actions/queue/runs/${run.id}/cancel`, {
-                      method: "POST",
+              {isTerminal(run.status) ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    guarded(async () => {
+                      await api(
+                        `/api/actions/queue/runs/${run.id}/retry-failed`,
+                        { method: "POST" }
+                      )
+                      flash("Retry queued.")
+                      await loadRuns()
                     })
-                    flash("Cancel requested.")
-                    await loadRuns()
-                  })
-                }
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() =>
-                  guarded(async () => {
-                    const confirmed = await askDialog({
-                      title: "Delete queue run?",
-                      description:
-                        "This removes the local history record for this queue run.",
-                      confirmLabel: "Delete Run",
-                      danger: true,
+                  }
+                >
+                  Retry Failed
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() =>
+                    guarded(async () => {
+                      await api(`/api/actions/queue/runs/${run.id}/cancel`, {
+                        method: "POST",
+                      })
+                      flash("Cancel requested.")
+                      await loadRuns()
                     })
-                    if (!confirmed) return
-                    await api(`/api/actions/queue/runs/${run.id}`, {
-                      method: "DELETE",
+                  }
+                >
+                  Cancel
+                </Button>
+              )}
+              {isTerminal(run.status) ? (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() =>
+                    guarded(async () => {
+                      const confirmed = await askDialog({
+                        title: "Delete queue run?",
+                        description:
+                          "This removes the local history record for this queue run.",
+                        confirmLabel: "Delete Run",
+                        danger: true,
+                      })
+                      if (!confirmed) return
+                      await api(`/api/actions/queue/runs/${run.id}`, {
+                        method: "DELETE",
+                      })
+                      flash("Queue run deleted.")
+                      await loadRuns()
                     })
-                    flash("Queue run deleted.")
-                    await loadRuns()
-                  })
-                }
-              >
-                Delete
-              </Button>
+                  }
+                >
+                  Delete
+                </Button>
+              ) : null}
             </div>
           </div>
         ))
@@ -203,6 +212,17 @@ function RunDetailsDialog({
   run: QueueRun | null
   onClose: () => void
 }) {
+  React.useEffect(() => {
+    if (!run) return undefined
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose()
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [run, onClose])
+
   if (!run) return null
 
   const operations = run.operations || []
@@ -219,7 +239,12 @@ function RunDetailsDialog({
   ).current
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-background/80 p-4 backdrop-blur-sm">
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-background/80 p-4 backdrop-blur-sm"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
       <section
         role="dialog"
         aria-modal="true"

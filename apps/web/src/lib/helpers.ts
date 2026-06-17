@@ -20,7 +20,14 @@ export function statusTone(status: string) {
     return "text-primary border-primary/30 bg-primary/10"
   }
   if (
-    ["error", "failed", "canceled", "needs login", "needs 2FA"].includes(status)
+    [
+      "error",
+      "failed",
+      "canceled",
+      "interrupted",
+      "needs login",
+      "needs 2FA",
+    ].includes(status)
   ) {
     return "text-destructive border-destructive/30 bg-destructive/10"
   }

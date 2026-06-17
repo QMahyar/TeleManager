@@ -1,3 +1,5 @@
+import * as React from "react"
+
 import { IconLoader2, IconMessageCircle, IconSearch } from "@tabler/icons-react"
 
 import { Button } from "@workspace/ui/components/button"
@@ -44,6 +46,15 @@ export function DialogsScreen(props: DialogsScreenProps) {
     setActionDraft,
     toggleSelected,
   } = props
+
+  React.useEffect(() => {
+    if (!dialogAccountId) return
+    api<{ dialogs: TelegramDialog[] }>(
+      `/api/accounts/${dialogAccountId}/dialogs`
+    )
+      .then((payload) => setDialogs(payload.dialogs || []))
+      .catch(() => setDialogs([]))
+  }, [dialogAccountId, setDialogs])
 
   return (
     <div className="grid gap-4 xl:grid-cols-[22rem_1fr]">
@@ -109,6 +120,10 @@ export function DialogsScreen(props: DialogsScreenProps) {
           variant="outline"
           className="w-full"
           onClick={() => {
+            if (!selectedDialogTargets.size) {
+              flash("Select one or more dialogs first.")
+              return
+            }
             setActionDraft((current) => ({
               ...current,
               target: [...selectedDialogTargets].join("\n"),
@@ -157,12 +172,13 @@ export function DialogsScreen(props: DialogsScreenProps) {
           />
         </div>
         <TableWrap>
-          <Table className="min-w-[46rem]">
+          <Table className="min-w-[52rem]">
             <TableHeader>
               <TableRow>
                 <TableHead></TableHead>
                 <TableHead>Dialog</TableHead>
                 <TableHead>Kind</TableHead>
+                <TableHead>Unread</TableHead>
                 <TableHead>Target</TableHead>
               </TableRow>
             </TableHeader>
@@ -193,6 +209,7 @@ export function DialogsScreen(props: DialogsScreenProps) {
                           "unknown"}
                       </Badge>
                     </TableCell>
+                    <TableCell>{dialog.unread_count || 0}</TableCell>
                     <TableCell className="font-mono text-xs">
                       {target}
                     </TableCell>
@@ -201,7 +218,7 @@ export function DialogsScreen(props: DialogsScreenProps) {
               })}
               {filteredDialogs.length === 0 ? (
                 <TableRow>
-                  <TableCell className="p-0" colSpan={4}>
+                  <TableCell className="p-0" colSpan={5}>
                     <div className="flex flex-col items-center justify-center gap-3 border border-dashed border-border bg-muted/20 px-6 py-10 text-center">
                       <IconMessageCircle className="size-8 text-muted-foreground/50" />
                       <div className="space-y-1">

@@ -20,7 +20,7 @@ import {
 import { api } from "../lib/api"
 import { actionLabels } from "../lib/constants"
 import { accountStatus, statusTone } from "../lib/helpers"
-import type { ActionType } from "../types"
+import type { ActionType, QueueRun } from "../types"
 import type { ActionsScreenProps } from "./screen-props"
 
 type QueuePreview = {
@@ -58,6 +58,34 @@ export function ActionsScreen(props: ActionsScreenProps) {
     loading,
   } = props
   const [preview, setPreview] = React.useState<QueuePreview | null>(null)
+  const activeRunIdRef = React.useRef<string | null>(null)
+
+  async function pollQueueRun(runId: string) {
+    activeRunIdRef.current = runId
+    try {
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const payload = await api<{ run: QueueRun }>(
+          `/api/actions/queue/runs/${runId}`
+        )
+        const run = payload.run
+        await loadRuns()
+        if (
+          ["completed", "failed", "canceled", "interrupted"].includes(
+            run.status
+          )
+        ) {
+          flash(
+            `Queue ${run.status}: ${run.completed_count || 0}/${run.operation_count || 0} succeeded.`
+          )
+          break
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 1200))
+      }
+    } finally {
+      activeRunIdRef.current = null
+    }
+  }
 
   return (
     <div className="grid gap-4 xl:grid-cols-[22rem_1fr]">
@@ -117,6 +145,10 @@ export function ActionsScreen(props: ActionsScreenProps) {
             variant="outline"
             onClick={() =>
               guarded(async () => {
+                if (!queue.length) {
+                  flash("Add at least one queued step first.")
+                  return
+                }
                 const name = await askDialog({
                   title: "Save queue preset",
                   description:
@@ -148,7 +180,18 @@ export function ActionsScreen(props: ActionsScreenProps) {
             >
               <button
                 className="flex-1 text-left"
-                onClick={() => setQueue(preset.queue.steps || [])}
+                onClick={() => {
+                  setQueue(preset.queue.steps || [])
+                  const pq = preset.queue
+                  setSafety((s) => ({
+                    delay_between_accounts:
+                      pq.delay_between_accounts ?? s.delay_between_accounts,
+                    delay_between_actions:
+                      pq.delay_between_actions ?? s.delay_between_actions,
+                    max_operations: pq.max_operations ?? s.max_operations,
+                  }))
+                  setConfirmed(false)
+                }}
               >
                 {preset.name}
               </button>
@@ -298,13 +341,17 @@ export function ActionsScreen(props: ActionsScreenProps) {
               guarded(async () => {
                 if (!confirmed)
                   return flash("Confirm the reviewed queue first.")
-                await api("/api/actions/queue/run", {
+                const response = await api<{
+                  run_id: string
+                  status: string
+                  operation_count: number
+                }>("/api/actions/queue/run", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify(queuePayload),
                 })
-                flash("Queue started.")
-                await loadRuns()
+                flash(`Queue started: ${response.operation_count} operations.`)
+                await pollQueueRun(response.run_id)
               })
             }
           >

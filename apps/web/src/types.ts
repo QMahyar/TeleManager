@@ -37,6 +37,7 @@ export type TelegramDialog = {
   kind?: string
   type?: string
   entity_type?: string
+  unread_count?: number
 }
 
 export type ActivityEvent = {
@@ -69,7 +70,12 @@ export type QueueRun = {
 export type Preset = {
   id: string
   name: string
-  queue: { steps: QueueStep[] }
+  queue: {
+    steps: QueueStep[]
+    delay_between_accounts?: number
+    delay_between_actions?: number
+    max_operations?: number
+  }
 }
 
 export type SafetySettings = {
