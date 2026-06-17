@@ -1,6 +1,10 @@
 import * as React from "react"
 
-import { IconPlayerPlay } from "@tabler/icons-react"
+import {
+  IconAlertTriangle,
+  IconPlayerPlay,
+  IconProgressCheck,
+} from "@tabler/icons-react"
 import { Button } from "@workspace/ui/components/button"
 import {
   Table,
@@ -16,7 +20,7 @@ import { api } from "../lib/api"
 import { actionMeta } from "../lib/constants"
 import { humanTime, statusTone } from "../lib/helpers"
 import type { AskDialog, ActionType, QueueRun } from "../types"
-import { Badge, SectionTitle } from "./ui"
+import { Badge, EmptyState, SectionTitle } from "./ui"
 
 function isTerminal(status: string) {
   return ["completed", "failed", "canceled", "interrupted"].includes(status)
@@ -73,22 +77,42 @@ export function RunHistory({
         </div>
       </div>
       {runs.length ? (
-        runs.map((run) => (
-          <div
-            key={run.id}
-            className="grid gap-3 border border-border p-3 text-sm md:grid-cols-[1fr_auto]"
-          >
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <strong>{run.id}</strong>
-                <Badge tone={statusTone(run.status)}>{run.status}</Badge>
+        runs.map((run) => {
+          const operationCount = run.operation_count || 0
+          const completedCount = run.completed_count || 0
+          const failedCount = run.failed_count || 0
+          const progress = operationCount
+            ? Math.min(100, Math.round((completedCount / operationCount) * 100))
+            : 0
+          const canRetry = isTerminal(run.status) && failedCount > 0
+
+          return (
+            <div
+              key={run.id}
+              className="grid gap-3 border border-border p-3 text-sm md:grid-cols-[1fr_auto]"
+            >
+              <div className="space-y-3">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <strong>{run.id}</strong>
+                    <Badge tone={statusTone(run.status)}>{run.status}</Badge>
+                    {failedCount > 0 ? (
+                      <Badge tone="text-destructive border-destructive/30 bg-destructive/10">
+                        {failedCount} failed
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {humanTime(run.created_at)} / {completedCount} done / {failedCount} failed / {operationCount} total
+                  </p>
+                </div>
+                <RunProgressBar
+                  completedCount={completedCount}
+                  operationCount={operationCount}
+                  progress={progress}
+                />
               </div>
-              <p className="text-xs text-muted-foreground">
-                {humanTime(run.created_at)} / {run.completed_count || 0} done /{" "}
-                {run.failed_count || 0} failed
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2 md:justify-end">
+              <div className="flex flex-wrap gap-2 md:justify-end">
               <Button
                 size="sm"
                 variant="outline"
@@ -124,7 +148,7 @@ export function RunHistory({
               >
                 Export
               </Button>
-              {isTerminal(run.status) ? (
+              {canRetry ? (
                 <Button
                   size="sm"
                   variant="outline"
@@ -152,7 +176,8 @@ export function RunHistory({
                 >
                   Retry Failed
                 </Button>
-              ) : (
+              ) : null}
+              {!isTerminal(run.status) ? (
                 <Button
                   size="sm"
                   variant="destructive"
@@ -168,7 +193,7 @@ export function RunHistory({
                 >
                   Cancel
                 </Button>
-              )}
+              ) : null}
               {isTerminal(run.status) ? (
                 <Button
                   size="sm"
@@ -196,20 +221,13 @@ export function RunHistory({
               ) : null}
             </div>
           </div>
-        ))
+        )})
       ) : (
-        <div className="flex flex-col items-center justify-center gap-3 border border-dashed border-border bg-muted/20 px-6 py-10 text-center">
-          <IconPlayerPlay className="size-8 text-muted-foreground/50" />
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-foreground">
-              No queue runs yet
-            </p>
-            <p className="max-w-sm text-xs leading-5 text-muted-foreground">
-              Build a queue in the Action Queue panel and run it. Completed and
-              canceled runs appear here.
-            </p>
-          </div>
-        </div>
+        <EmptyState
+          icon={IconPlayerPlay}
+          title="No queue runs yet"
+          detail="Build a queue in the Action Queue panel and run it. Completed, failed, and canceled runs appear here."
+        />
       )}
       <RunDetailsDialog
         run={selectedRun}
@@ -295,18 +313,43 @@ function RunDetailsDialog({
               value={run.operation_count || operations.length}
             />
           </div>
+          <RunProgressBar
+            completedCount={run.completed_count || 0}
+            operationCount={run.operation_count || operations.length}
+            progress={
+              (run.operation_count || operations.length) > 0
+                ? Math.min(
+                    100,
+                    Math.round(
+                      ((run.completed_count || 0) /
+                        (run.operation_count || operations.length)) *
+                        100
+                    )
+                  )
+                : 0
+            }
+          />
           {current ? (
             <div className="border border-primary/30 bg-primary/10 p-3 text-sm">
-              <strong>Current operation</strong>
+              <div className="flex items-center gap-2">
+                <IconProgressCheck className="size-4 text-primary" />
+                <strong>Current operation</strong>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {actionLabel(String(current.action_type || ""))}
+              </p>
               <p className="mt-1 font-mono text-xs text-muted-foreground">
-                {String(current.action_type || "operation")} →{" "}
                 {String(current.target || "target")}
               </p>
             </div>
           ) : null}
           {error ? (
             <div className="border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-              {error}
+              <div className="flex items-center gap-2">
+                <IconAlertTriangle className="size-4" />
+                <strong>Run error</strong>
+              </div>
+              <p className="mt-1">{error}</p>
             </div>
           ) : null}
           <TableWrap>
@@ -393,6 +436,33 @@ function RunStat({ label, value }: { label: string; value: number }) {
         {label}
       </span>
       <strong className="mt-2 block font-heading text-2xl">{value}</strong>
+    </div>
+  )
+}
+
+function RunProgressBar({
+  completedCount,
+  operationCount,
+  progress,
+}: {
+  completedCount: number
+  operationCount: number
+  progress: number
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>
+          {completedCount}/{operationCount || 0} complete
+        </span>
+        <span>{progress}%</span>
+      </div>
+      <div className="h-2 overflow-hidden border border-border bg-muted/40">
+        <div
+          className="h-full bg-primary transition-[width] duration-300"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
     </div>
   )
 }
