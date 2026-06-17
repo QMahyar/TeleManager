@@ -13,8 +13,9 @@ import {
 } from "@workspace/ui/components/table"
 
 import { api } from "../lib/api"
+import { actionMeta } from "../lib/constants"
 import { humanTime, statusTone } from "../lib/helpers"
-import type { AskDialog, QueueRun } from "../types"
+import type { AskDialog, ActionType, QueueRun } from "../types"
 import { Badge, SectionTitle } from "./ui"
 
 function isTerminal(status: string) {
@@ -329,7 +330,7 @@ function RunDetailsDialog({
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {String(operation.action_type || "—")}
+                          {actionLabel(String(operation.action_type || ""))}
                         </TableCell>
                         <TableCell className="font-mono text-xs">
                           {String(operation.target || "—")}
@@ -381,4 +382,9 @@ function RunStat({ label, value }: { label: string; value: number }) {
       <strong className="mt-2 block font-heading text-2xl">{value}</strong>
     </div>
   )
+}
+
+function actionLabel(actionType: string) {
+  const meta = actionMeta[actionType as ActionType]
+  return meta?.label || actionType || "—"
 }
