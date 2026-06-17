@@ -5,6 +5,7 @@ import {
   IconMenu2,
   IconMoon,
   IconRefresh,
+  IconSearch,
   IconSun,
   IconX,
 } from "@tabler/icons-react"
@@ -15,7 +16,7 @@ import { cn } from "@workspace/ui/lib/utils"
 import { useTheme } from "../components/theme-provider"
 import { navItems } from "../lib/constants"
 import type { View } from "../types"
-import { Badge } from "./ui"
+import { Badge, Input } from "./ui"
 
 type AppShellProps = React.PropsWithChildren<{
   view: View
@@ -41,6 +42,7 @@ export function AppShell({
   const { theme, setTheme } = useTheme()
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
   const [paletteOpen, setPaletteOpen] = React.useState(false)
+  const [paletteQuery, setPaletteQuery] = React.useState("")
   const activeItem = navItems.find((item) => item.id === view)
 
   const openView = React.useCallback(
@@ -48,6 +50,7 @@ export function AppShell({
       setView(nextView)
       setSidebarOpen(false)
       setPaletteOpen(false)
+      setPaletteQuery("")
     },
     [setView]
   )
@@ -56,16 +59,26 @@ export function AppShell({
     setTheme(theme === "dark" ? "light" : "dark")
   }, [setTheme, theme])
 
+  const filteredPaletteItems = React.useMemo(() => {
+    const query = paletteQuery.trim().toLowerCase()
+    if (!query) return navItems
+    return navItems.filter((item) =>
+      `${item.label} ${item.group}`.toLowerCase().includes(query)
+    )
+  }, [paletteQuery])
+
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.repeat || isEditableTarget(event.target)) return
       if (event.key === "Escape") {
         setPaletteOpen(false)
+        setPaletteQuery("")
         return
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault()
         setPaletteOpen((current) => !current)
+        if (paletteOpen) setPaletteQuery("")
         return
       }
       if (event.altKey) {
@@ -80,7 +93,7 @@ export function AppShell({
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [openView])
+  }, [openView, paletteOpen])
 
   const sidebar = (
     <aside
@@ -228,28 +241,49 @@ export function AppShell({
               <Button
                 variant="ghost"
                 size="icon-sm"
-                onClick={() => setPaletteOpen(false)}
+                onClick={() => {
+                  setPaletteOpen(false)
+                  setPaletteQuery("")
+                }}
               >
                 <IconX />
               </Button>
             </div>
+            <div className="relative mb-3">
+              <IconSearch className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                autoFocus
+                className="pl-9"
+                value={paletteQuery}
+                onChange={(e) => setPaletteQuery(e.target.value)}
+                placeholder="Search screens"
+                aria-label="Search command palette"
+              />
+            </div>
             <div className="space-y-1">
-              {navItems.map((item, index) => {
-                const Icon = item.icon
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => openView(item.id)}
-                    className="flex w-full items-center gap-3 border border-transparent px-3 py-2 text-left text-sm hover:border-border hover:bg-muted/40"
-                  >
-                    <Icon className="size-4" />
-                    <span className="flex-1">{item.label}</span>
-                    <kbd className="text-xs text-muted-foreground">
-                      Alt+{index + 1}
-                    </kbd>
-                  </button>
-                )
-              })}
+              {filteredPaletteItems.length ? (
+                filteredPaletteItems.map((item) => {
+                  const Icon = item.icon
+                  const index = navItems.findIndex((nav) => nav.id === item.id)
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => openView(item.id)}
+                      className="flex w-full items-center gap-3 border border-transparent px-3 py-2 text-left text-sm hover:border-border hover:bg-muted/40"
+                    >
+                      <Icon className="size-4" />
+                      <span className="flex-1">{item.label}</span>
+                      <kbd className="text-xs text-muted-foreground">
+                        Alt+{index + 1}
+                      </kbd>
+                    </button>
+                  )
+                })
+              ) : (
+                <div className="border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+                  No screens match that search.
+                </div>
+              )}
             </div>
           </section>
         </div>

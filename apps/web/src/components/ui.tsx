@@ -95,3 +95,32 @@ export function Metric({
     </div>
   )
 }
+
+export function EmptyState({
+  icon: Icon,
+  title,
+  detail,
+  className,
+}: {
+  icon?: React.ElementType
+  title: string
+  detail: string
+  className?: string
+}) {
+  return (
+    <div
+      className={cn(
+        "flex flex-col items-center justify-center gap-3 border border-dashed border-border bg-muted/20 px-6 py-10 text-center",
+        className
+      )}
+    >
+      {Icon ? <Icon className="size-8 text-muted-foreground/50" /> : null}
+      <div className="space-y-1">
+        <p className="text-sm font-medium text-foreground">{title}</p>
+        <p className="max-w-sm text-xs leading-5 text-muted-foreground">
+          {detail}
+        </p>
+      </div>
+    </div>
+  )
+}

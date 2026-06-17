@@ -14,7 +14,7 @@ import {
 import { api, toForm } from "../lib/api"
 import { accountStatus, statusTone } from "../lib/helpers"
 import type { Account, AskDialog } from "../types"
-import { Badge } from "./ui"
+import { Badge, EmptyState } from "./ui"
 
 type AccountsTableProps = {
   accounts: Account[]
@@ -51,6 +51,9 @@ export function AccountsTable(props: AccountsTableProps) {
             <TableHead>
               <input
                 type="checkbox"
+                aria-label={
+                  allSelected ? "Deselect all accounts" : "Select all accounts"
+                }
                 checked={allSelected}
                 onChange={(event) =>
                   setSelectedIds(
@@ -79,8 +82,12 @@ function AccountsTableBody(props: AccountsTableProps) {
     return (
       <TableBody>
         <TableRow>
-          <TableCell className="p-6 text-muted-foreground" colSpan={6}>
-            No accounts yet.
+          <TableCell className="p-0" colSpan={6}>
+            <EmptyState
+              title="No accounts yet"
+              detail="Add or import a Telegram session to start managing accounts, dialogs, and action queues."
+              className="border-0 bg-transparent"
+            />
           </TableCell>
         </TableRow>
       </TableBody>
@@ -107,6 +114,7 @@ function AccountRow({
       <TableCell>
         <input
           type="checkbox"
+          aria-label={`Select ${account.label || account.session_name}`}
           checked={selectedIds.has(account.id)}
           onChange={() => toggleAccountSelection(account.id, setSelectedIds)}
         />

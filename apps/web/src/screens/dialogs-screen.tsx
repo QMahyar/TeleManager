@@ -20,6 +20,7 @@ import {
 
 import {
   Badge,
+  EmptyState,
   Field,
   Input,
   Panel,
@@ -79,7 +80,9 @@ export function DialogsScreen(props: DialogsScreenProps) {
       .catch((error) => {
         setDialogs([])
         setFetchStatus(
-          error instanceof Error ? error.message : "Failed to load cached dialogs."
+          error instanceof Error
+            ? error.message
+            : "Failed to load cached dialogs."
         )
       })
   }, [dialogAccountId, setDialogs])
@@ -267,6 +270,7 @@ export function DialogsScreen(props: DialogsScreenProps) {
                 <TableHead>
                   <input
                     type="checkbox"
+                    aria-label={allFilteredSelected ? "Deselect filtered dialogs" : "Select filtered dialogs"}
                     checked={allFilteredSelected}
                     onChange={toggleSelectAll}
                   />
@@ -287,6 +291,7 @@ export function DialogsScreen(props: DialogsScreenProps) {
                     <TableCell>
                       <input
                         type="checkbox"
+                        aria-label={`Select ${dialog.title}`}
                         checked={selectedDialogTargets.has(target)}
                         onChange={() =>
                           toggleSelected(target, setSelectedDialogTargets)
@@ -327,18 +332,12 @@ export function DialogsScreen(props: DialogsScreenProps) {
               {filteredDialogs.length === 0 ? (
                 <TableRow>
                   <TableCell className="p-0" colSpan={7}>
-                    <div className="flex flex-col items-center justify-center gap-3 border border-dashed border-border bg-muted/20 px-6 py-10 text-center">
-                      <IconMessageCircle className="size-8 text-muted-foreground/50" />
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium text-foreground">
-                          No dialogs
-                        </p>
-                        <p className="max-w-sm text-xs leading-5 text-muted-foreground">
-                          Select an account above and click Fetch Dialogs to
-                          load your chats, groups, and channels.
-                        </p>
-                      </div>
-                    </div>
+                    <EmptyState
+                      icon={IconMessageCircle}
+                      title="No dialogs"
+                      detail="Select an account above and click Fetch Dialogs to load your chats, groups, and channels."
+                      className="border-0 bg-transparent"
+                    />
                   </TableCell>
                 </TableRow>
               ) : null}
