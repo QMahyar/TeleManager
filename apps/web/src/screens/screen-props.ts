@@ -56,12 +56,16 @@ export type AppScreenProps = {
     target: string
     message: string
   }
+  quickActionContext: import("../types").QuickActionContext | null
   setActionDraft: React.Dispatch<
     React.SetStateAction<{
       action_type: ActionType
       target: string
       message: string
     }>
+  >
+  setQuickActionContext: React.Dispatch<
+    React.SetStateAction<import("../types").QuickActionContext | null>
   >
   confirmed: boolean
   setConfirmed: React.Dispatch<React.SetStateAction<boolean>>
@@ -126,7 +130,9 @@ export type ActionsScreenProps = Pick<
   | "safety"
   | "setSafety"
   | "actionDraft"
+  | "quickActionContext"
   | "setActionDraft"
+  | "setQuickActionContext"
   | "confirmed"
   | "setConfirmed"
   | "addQueueStep"
@@ -158,6 +164,7 @@ export type DialogsScreenProps = Pick<
   | "setSelectedDialogTargets"
   | "filteredDialogs"
   | "setActionDraft"
+  | "setQuickActionContext"
   | "toggleSelected"
 >
 

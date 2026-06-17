@@ -65,6 +65,15 @@ export type QueueStep = {
   message?: string
 }
 
+export type QuickActionContext = {
+  source: "dialog"
+  actionType: ActionType
+  title: string
+  targetSummary: string
+  count: number
+  dialogKinds: string[]
+}
+
 export type QueueRun = {
   id: string
   status: string

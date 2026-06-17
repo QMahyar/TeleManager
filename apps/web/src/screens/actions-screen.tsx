@@ -58,7 +58,9 @@ export function ActionsScreen(props: ActionsScreenProps) {
     safety,
     setSafety,
     actionDraft,
+    quickActionContext,
     setActionDraft,
+    setQuickActionContext,
     confirmed,
     setConfirmed,
     addQueueStep,
@@ -264,17 +266,37 @@ export function ActionsScreen(props: ActionsScreenProps) {
           title="Action Queue"
           detail="Select accounts, add one or more queued steps, preview, then run with conservative delays."
         />
+        {quickActionContext ? (
+          <div className="border border-primary/30 bg-primary/10 p-3 text-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <strong>{quickActionContext.title}</strong>
+              <Badge tone="border-primary/30 bg-background text-primary">
+                from dialogs
+              </Badge>
+              <Badge tone="border-border bg-background text-muted-foreground">
+                {quickActionContext.count} target(s)
+              </Badge>
+            </div>
+            <p className="mt-1 text-muted-foreground">
+              Source: {quickActionContext.targetSummary}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Dialog kinds: {quickActionContext.dialogKinds.join(", ")}
+            </p>
+          </div>
+        ) : null}
         <div className="grid gap-3 lg:grid-cols-2">
           <Field label="Action">
             <Select
               value={actionDraft.action_type}
-              onChange={(e) =>
+              onChange={(e) => {
+                setQuickActionContext(null)
                 setActionDraft({
                   ...actionDraft,
                   action_type: e.target.value as ActionType,
                   message: "",
                 })
-              }
+              }}
             >
               {groupedActions.map((group) => (
                 <optgroup key={group.category} label={group.label}>

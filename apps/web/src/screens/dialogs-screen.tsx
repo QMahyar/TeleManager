@@ -2,6 +2,7 @@ import * as React from "react"
 
 import {
   IconArrowRight,
+  IconDotsVertical,
   IconLoader2,
   IconMessageCircle,
   IconSearch,
@@ -28,8 +29,9 @@ import {
   Select,
 } from "../components/ui"
 import { api } from "../lib/api"
+import { actionMeta } from "../lib/constants"
 import { humanTime } from "../lib/helpers"
-import type { TelegramDialog } from "../types"
+import type { ActionType, TelegramDialog } from "../types"
 import type { DialogsScreenProps } from "./screen-props"
 
 const FILTER_LABELS: Record<string, string> = {
@@ -59,6 +61,7 @@ export function DialogsScreen(props: DialogsScreenProps) {
     setSelectedDialogTargets,
     filteredDialogs,
     setActionDraft,
+    setQuickActionContext,
     toggleSelected,
   } = props
 
@@ -115,9 +118,45 @@ export function DialogsScreen(props: DialogsScreenProps) {
   }
 
   function useTarget(target: string) {
+    setQuickActionContext(null)
     setActionDraft((current) => ({ ...current, target }))
     setView("actions")
     flash("Dialog target copied into Actions.")
+  }
+
+  function applyQuickAction(
+    actionType: ActionType,
+    dialogs: TelegramDialog[],
+    sourceLabel: string
+  ) {
+    const targets = dialogs.map(dialogTarget)
+    const kinds = [...new Set(dialogs.map(dialogKind))]
+    setActionDraft({
+      action_type: actionType,
+      target: targets.join("\n"),
+      message: "",
+    })
+    setQuickActionContext({
+      source: "dialog",
+      actionType,
+      title: actionMeta[actionType].label,
+      targetSummary: sourceLabel,
+      count: targets.length,
+      dialogKinds: kinds,
+    })
+    setView("actions")
+    flash(`${actionMeta[actionType].label} preset prepared in Actions.`)
+  }
+
+  function bulkQuickAction(actionType: ActionType) {
+    const dialogs = filteredDialogs.filter((dialog) =>
+      selectedDialogTargets.has(dialogTarget(dialog))
+    )
+    if (!dialogs.length) {
+      flash("Select one or more dialogs first.")
+      return
+    }
+    applyQuickAction(actionType, dialogs, `${dialogs.length} selected dialog(s)`)
   }
 
   return (
@@ -215,6 +254,7 @@ export function DialogsScreen(props: DialogsScreenProps) {
               flash("Select one or more dialogs first.")
               return
             }
+            setQuickActionContext(null)
             setActionDraft((current) => ({
               ...current,
               target: [...selectedDialogTargets].join("\n"),
@@ -225,6 +265,36 @@ export function DialogsScreen(props: DialogsScreenProps) {
         >
           Use Selected In Actions
         </Button>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => bulkQuickAction("delete_chat")}
+          >
+            Delete Selected
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => bulkQuickAction("leave_chat")}
+          >
+            Leave Selected
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => bulkQuickAction("clear_chat")}
+          >
+            Clear Selected
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => bulkQuickAction("mute_chat")}
+          >
+            Mute Selected
+          </Button>
+        </div>
         <Button
           variant="outline"
           className="w-full"
@@ -321,14 +391,39 @@ export function DialogsScreen(props: DialogsScreenProps) {
                       {target}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => useTarget(target)}
-                      >
-                        <IconArrowRight className="size-3" />
-                        Use
-                      </Button>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => useTarget(target)}
+                        >
+                          <IconArrowRight className="size-3" />
+                          Use
+                        </Button>
+                        <details className="relative">
+                          <summary className="flex h-8 cursor-pointer list-none items-center justify-center border border-border bg-background px-2 text-sm text-foreground hover:bg-muted/40">
+                            <IconDotsVertical className="size-4" />
+                          </summary>
+                          <div className="absolute right-0 z-10 mt-2 grid min-w-44 gap-1 border border-border bg-card p-2 shadow-xl">
+                            {quickActionsForDialog(dialog).map((actionType) => (
+                              <Button
+                                key={actionType}
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  applyQuickAction(
+                                    actionType,
+                                    [dialog],
+                                    dialog.title || target
+                                  )
+                                }
+                              >
+                                {actionMeta[actionType].label}
+                              </Button>
+                            ))}
+                          </div>
+                        </details>
+                      </div>
                     </TableCell>
                   </TableRow>
                 )
@@ -355,4 +450,54 @@ export function DialogsScreen(props: DialogsScreenProps) {
 
 function dialogTarget(dialog: TelegramDialog) {
   return dialog.username ? `@${dialog.username}` : String(dialog.id)
+}
+
+function dialogKind(dialog: TelegramDialog) {
+  return dialog.dialog_type || dialog.kind || dialog.type || "unknown"
+}
+
+function quickActionsForDialog(dialog: TelegramDialog): ActionType[] {
+  const kind = dialogKind(dialog)
+  if (kind === "bot") {
+    return [
+      "start_bot",
+      "delete_chat",
+      "clear_chat",
+      "mute_chat",
+      "archive_chat",
+      "block_user",
+    ]
+  }
+  if (kind === "personal") {
+    return [
+      "send_message",
+      "delete_chat",
+      "clear_chat",
+      "mute_chat",
+      "archive_chat",
+      "block_user",
+    ]
+  }
+  if (kind === "group" || kind === "supergroup") {
+    return [
+      "leave_chat",
+      "delete_chat",
+      "clear_chat",
+      "mute_chat",
+      "archive_chat",
+      "read_chat",
+      "report_spam",
+    ]
+  }
+  if (kind === "channel") {
+    return [
+      "leave_chat",
+      "delete_chat",
+      "mute_chat",
+      "archive_chat",
+      "read_chat",
+      "report_spam",
+    ]
+  }
+  return ["delete_chat", "clear_chat", "mute_chat", "archive_chat"]
 }

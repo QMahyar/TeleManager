@@ -9,9 +9,12 @@ import { api } from "../lib/api"
 import type { SessionsScreenProps } from "./screen-props"
 
 export function SessionsScreen(props: SessionsScreenProps) {
-  const { accounts, selectedIds, guarded, refresh, flash, loading, askDialog } = props
+  const { accounts, selectedIds, guarded, refresh, flash, loading, askDialog } =
+    props
   const importFormRef = React.useRef<HTMLFormElement>(null)
-  const selectedAccounts = accounts.filter((account) => selectedIds.has(account.id))
+  const selectedAccounts = accounts.filter((account) =>
+    selectedIds.has(account.id)
+  )
 
   return (
     <div className="grid gap-4 xl:grid-cols-2">
@@ -70,12 +73,15 @@ export function SessionsScreen(props: SessionsScreenProps) {
           <div className="space-y-2 border border-border bg-background/60 p-3 text-sm">
             <div className="flex items-center justify-between gap-3">
               <strong>{selectedAccounts.length} session(s) selected</strong>
-              <span className="text-xs text-muted-foreground">Ready to export</span>
+              <span className="text-xs text-muted-foreground">
+                Ready to export
+              </span>
             </div>
             <div className="space-y-1 text-xs text-muted-foreground">
               {selectedAccounts.slice(0, 5).map((account) => (
                 <p key={account.id}>
-                  {account.label || account.session_name} · {account.session_name}.session
+                  {account.label || account.session_name} ·{" "}
+                  {account.session_name}.session
                 </p>
               ))}
               {selectedAccounts.length > 5 ? (

@@ -663,8 +663,17 @@ async def process_action_queue(run_id: str, request: ActionQueueRequest, expande
                 confirm=True,
                 delay_seconds=delay_between_accounts,
             )
-            result = (await manager.run_action(action))[0]
-            result_payload = result.to_dict()
+            try:
+                result = (await manager.run_action(action))[0]
+                result_payload = result.to_dict()
+            except Exception as exc:
+                result_payload = {
+                    "account_id": operation["account_id"],
+                    "label": operation.get("account_label") or operation["account_id"],
+                    "ok": False,
+                    "action_type": operation["action_type"],
+                    "detail": str(exc),
+                }
             result_payload["target"] = operation["target"]
             result_payload["step_index"] = operation["step_index"]
             operation["status"] = "ok" if result_payload["ok"] else "failed"

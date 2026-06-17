@@ -11,6 +11,7 @@ import type {
   Preset,
   QueueRun,
   QueueStep,
+  QuickActionContext,
   SafetySettings,
   TelegramDialog,
   View,
@@ -227,6 +228,8 @@ function useQueueState(
     target: string
     message: string
   }>({ action_type: "join_chat", target: "", message: "" })
+  const [quickActionContext, setQuickActionContext] =
+    React.useState<QuickActionContext | null>(null)
   const [confirmed, setConfirmed] = React.useState(false)
 
   function addQueueStep() {
@@ -243,6 +246,7 @@ function useQueueState(
       queueStepFromDraft(actionDraft, targets, account_ids),
     ])
     setActionDraft((current) => ({ ...current, target: "", message: "" }))
+    setQuickActionContext(null)
     setConfirmed(false)
     flash("Action step added to queue.")
   }
@@ -254,10 +258,12 @@ function useQueueState(
     pendingAccountId,
     queue,
     queuePayload: { steps: queue, confirm: confirmed, ...safety },
+    quickActionContext,
     setActionDraft,
     setConfirmed,
     setPendingAccountId,
     setQueue,
+    setQuickActionContext,
   }
 }
 
