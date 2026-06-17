@@ -270,7 +270,11 @@ export function DialogsScreen(props: DialogsScreenProps) {
                 <TableHead>
                   <input
                     type="checkbox"
-                    aria-label={allFilteredSelected ? "Deselect filtered dialogs" : "Select filtered dialogs"}
+                    aria-label={
+                      allFilteredSelected
+                        ? "Deselect filtered dialogs"
+                        : "Select filtered dialogs"
+                    }
                     checked={allFilteredSelected}
                     onChange={toggleSelectAll}
                   />

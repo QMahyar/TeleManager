@@ -201,8 +201,6 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
     destructive: true,
   },
 }
-
-
 export const categoryLabels: Record<ActionCategory, string> = {
   joining: "Joining",
   messaging: "Messaging",

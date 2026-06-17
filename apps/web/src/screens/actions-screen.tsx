@@ -10,10 +10,12 @@ import { SafetyEditor } from "../components/safety-editor"
 import { TargetPreview } from "../components/target-preview"
 import {
   Badge,
+  EmptyState,
   Field,
   Input,
   Panel,
   SectionTitle,
+  Select,
   Textarea,
 } from "../components/ui"
 import { api } from "../lib/api"
@@ -137,7 +139,11 @@ export function ActionsScreen(props: ActionsScreenProps) {
         </div>
         <div className="max-h-72 space-y-2 overflow-auto">
           {accounts.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Add accounts first.</p>
+            <EmptyState
+              title="No action accounts"
+              detail="Add or import accounts first, then select the sessions that should run the queue."
+              className="px-4 py-8"
+            />
           ) : null}
           {accounts.map((account) => (
             <label
@@ -146,6 +152,7 @@ export function ActionsScreen(props: ActionsScreenProps) {
             >
               <input
                 type="checkbox"
+                aria-label={`Use ${account.label || account.session_name} for queued actions`}
                 checked={actionAccountIds.has(account.id)}
                 onChange={() => toggleSelected(account.id, setActionAccountIds)}
               />
@@ -243,9 +250,11 @@ export function ActionsScreen(props: ActionsScreenProps) {
             </div>
           ))}
           {presets.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No saved presets yet.
-            </p>
+            <EmptyState
+              title="No saved presets"
+              detail="Build a queue and save it here so repeated Telegram workflows can be reused quickly."
+              className="px-4 py-8"
+            />
           ) : null}
         </div>
       </Panel>
@@ -257,8 +266,7 @@ export function ActionsScreen(props: ActionsScreenProps) {
         />
         <div className="grid gap-3 lg:grid-cols-2">
           <Field label="Action">
-            <select
-              className="w-full border border-border bg-background px-3 py-2 text-sm"
+            <Select
               value={actionDraft.action_type}
               onChange={(e) =>
                 setActionDraft({
@@ -277,7 +285,7 @@ export function ActionsScreen(props: ActionsScreenProps) {
                   ))}
                 </optgroup>
               ))}
-            </select>
+            </Select>
           </Field>
           <Field label="Targets">
             <Input
@@ -360,6 +368,7 @@ export function ActionsScreen(props: ActionsScreenProps) {
         <label className="flex gap-3 border border-border bg-muted/30 p-3 text-sm">
           <input
             type="checkbox"
+            aria-label="Confirm reviewed queue"
             checked={confirmed}
             onChange={(e) => setConfirmed(e.target.checked)}
           />
