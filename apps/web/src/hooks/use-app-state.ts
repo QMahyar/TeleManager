@@ -80,7 +80,9 @@ function useAccountState() {
     setAccounts(nextAccounts)
     setSelectedIds((current) => filterKnownIds(current, known))
     setActionAccountIds((current) => filterKnownIds(current, known))
-    setDialogAccountId((current) => current || nextAccounts[0]?.id || "")
+    setDialogAccountId((current) =>
+      current && known.has(current) ? current : nextAccounts[0]?.id || ""
+    )
     setConfigStatus(configStatusLabel(config))
     setApiConfigured(Boolean(config.api_hash_configured))
     setConfigApiId(config.api_id || null)
@@ -116,6 +118,14 @@ function useDialogState() {
     () => filterDialogs(dialogs, dialogFilter, dialogSearch),
     [dialogFilter, dialogSearch, dialogs]
   )
+
+  React.useEffect(() => {
+    const knownTargets = new Set(dialogs.map(dialogTarget))
+    setSelectedDialogTargets(
+      (current) =>
+        new Set([...current].filter((target) => knownTargets.has(target)))
+    )
+  }, [dialogs])
 
   return {
     dialogFilter,
@@ -324,6 +334,10 @@ function dialogKind(dialog: TelegramDialog) {
     dialog.entity_type ||
     "unknown"
   )
+}
+
+function dialogTarget(dialog: TelegramDialog) {
+  return dialog.username ? `@${dialog.username}` : String(dialog.id)
 }
 
 function messageIsMissing(actionDraft: {

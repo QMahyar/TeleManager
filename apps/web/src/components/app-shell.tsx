@@ -43,6 +43,7 @@ export function AppShell({
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
   const [paletteOpen, setPaletteOpen] = React.useState(false)
   const [paletteQuery, setPaletteQuery] = React.useState("")
+  const [paletteIndex, setPaletteIndex] = React.useState(0)
   const activeItem = navItems.find((item) => item.id === view)
 
   const openView = React.useCallback(
@@ -51,6 +52,7 @@ export function AppShell({
       setSidebarOpen(false)
       setPaletteOpen(false)
       setPaletteQuery("")
+      setPaletteIndex(0)
     },
     [setView]
   )
@@ -68,11 +70,19 @@ export function AppShell({
   }, [paletteQuery])
 
   React.useEffect(() => {
+    if (!paletteOpen) return
+    setPaletteIndex((current) =>
+      Math.min(current, Math.max(filteredPaletteItems.length - 1, 0))
+    )
+  }, [filteredPaletteItems.length, paletteOpen])
+
+  React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.repeat || isEditableTarget(event.target)) return
       if (event.key === "Escape") {
         setPaletteOpen(false)
         setPaletteQuery("")
+        setPaletteIndex(0)
         return
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
@@ -80,10 +90,32 @@ export function AppShell({
         if (paletteOpen) {
           setPaletteOpen(false)
           setPaletteQuery("")
+          setPaletteIndex(0)
         } else {
           setPaletteOpen(true)
+          setPaletteIndex(0)
         }
         return
+      }
+      if (paletteOpen && filteredPaletteItems.length > 0) {
+        if (event.key === "ArrowDown") {
+          event.preventDefault()
+          setPaletteIndex((current) =>
+            Math.min(current + 1, filteredPaletteItems.length - 1)
+          )
+          return
+        }
+        if (event.key === "ArrowUp") {
+          event.preventDefault()
+          setPaletteIndex((current) => Math.max(current - 1, 0))
+          return
+        }
+        if (event.key === "Enter") {
+          event.preventDefault()
+          const item = filteredPaletteItems[paletteIndex]
+          if (item) openView(item.id)
+          return
+        }
       }
       if (event.altKey) {
         const index = Number(event.key)
@@ -97,7 +129,7 @@ export function AppShell({
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [openView, paletteOpen])
+  }, [filteredPaletteItems, openView, paletteIndex, paletteOpen])
 
   const sidebar = (
     <aside
@@ -258,6 +290,7 @@ export function AppShell({
                 onClick={() => {
                   setPaletteOpen(false)
                   setPaletteQuery("")
+                  setPaletteIndex(0)
                 }}
               >
                 <IconX />
@@ -269,21 +302,30 @@ export function AppShell({
                 autoFocus
                 className="pl-9"
                 value={paletteQuery}
-                onChange={(e) => setPaletteQuery(e.target.value)}
+                onChange={(e) => {
+                  setPaletteQuery(e.target.value)
+                  setPaletteIndex(0)
+                }}
                 placeholder="Search screens"
                 aria-label="Search command palette"
               />
             </div>
             <div className="space-y-1">
               {filteredPaletteItems.length ? (
-                filteredPaletteItems.map((item) => {
+                filteredPaletteItems.map((item, filteredIndex) => {
                   const Icon = item.icon
                   const index = navItems.findIndex((nav) => nav.id === item.id)
+                  const isActive = filteredIndex === paletteIndex
                   return (
                     <button
                       key={item.id}
                       onClick={() => openView(item.id)}
-                      className="flex w-full items-center gap-3 border border-transparent px-3 py-2 text-left text-sm hover:border-border hover:bg-muted/40"
+                      className={cn(
+                        "flex w-full items-center gap-3 border px-3 py-2 text-left text-sm",
+                        isActive
+                          ? "border-border bg-muted/40"
+                          : "border-transparent hover:border-border hover:bg-muted/40"
+                      )}
                     >
                       <Icon className="size-4" />
                       <span className="flex-1">{item.label}</span>

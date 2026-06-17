@@ -1,9 +1,21 @@
 import * as React from "react"
 
+import {
+  IconKey,
+  IconLockPassword,
+  IconMessage2Bolt,
+} from "@tabler/icons-react"
 import { Button } from "@workspace/ui/components/button"
 
 import { AccountsTable } from "../components/accounts-table"
-import { Field, Input, Panel, SectionTitle, Select } from "../components/ui"
+import {
+  EmptyState,
+  Field,
+  Input,
+  Panel,
+  SectionTitle,
+  Select,
+} from "../components/ui"
 import { api, toForm } from "../lib/api"
 import type { Account } from "../types"
 import type { AccountsScreenProps } from "./screen-props"
@@ -224,12 +236,19 @@ function FinishLoginPanel({
   onCodeSubmit: (event: FormSubmitEvent) => Promise<void>
   onPasswordSubmit: (event: FormSubmitEvent) => Promise<void>
 }) {
+  const pendingAccounts = accounts.filter(
+    (account) =>
+      account.status === "login_pending" ||
+      account.status === "password_pending"
+  )
+  const needsPassword = pendingAccount?.status === "password_pending"
+
   return (
     <Panel className="space-y-4">
       <SectionTitle
         kicker="Step 2"
         title="Finish Login"
-        detail="Select the pending session, enter the login code, then only enter a 2FA password if Telegram asks for it."
+        detail="Select the pending session, enter the Telegram code, and only use the 2FA form when Telegram asks for the account password."
       />
       <Field label="Pending Account">
         <Select
@@ -237,7 +256,7 @@ function FinishLoginPanel({
           onChange={(event) => setPendingAccountId(event.target.value)}
         >
           <option value="">Choose pending account</option>
-          {accounts.map((account) => (
+          {pendingAccounts.map((account) => (
             <option key={account.id} value={account.id}>
               {account.label || account.session_name} ·{" "}
               {accountStatusText(account)}
@@ -246,38 +265,81 @@ function FinishLoginPanel({
         </Select>
       </Field>
       <PendingAccountCard account={pendingAccount} />
-      <div className="grid gap-3 lg:grid-cols-2">
-        <form className="grid gap-2" onSubmit={onCodeSubmit}>
-          <Field label="Telegram Code">
-            <Input
-              ref={codeInputRef}
-              name="code"
-              required
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              placeholder="12345"
-            />
-          </Field>
-          <Button type="submit" disabled={!pendingAccountId} loading={loading}>
-            Confirm Code
-          </Button>
-        </form>
-        <form className="grid gap-2" onSubmit={onPasswordSubmit}>
-          <Field label="2FA Password">
-            <Input
-              ref={passwordInputRef}
-              name="password"
-              type="password"
-              required
-              autoComplete="current-password"
-              placeholder="Only if Telegram asks"
-            />
-          </Field>
-          <Button type="submit" disabled={!pendingAccountId} loading={loading}>
-            Confirm 2FA
-          </Button>
-        </form>
-      </div>
+      {!pendingAccount ? (
+        <EmptyState
+          title="No login challenge selected"
+          detail="Request a code first, or pick a pending session above to continue the Telegram login flow."
+          className="px-4 py-8"
+        />
+      ) : (
+        <div className="grid gap-3 lg:grid-cols-2">
+          <form
+            className="grid gap-2 border border-border p-3"
+            onSubmit={onCodeSubmit}
+          >
+            <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <IconMessage2Bolt className="size-4 text-primary" />
+              Telegram code
+            </div>
+            <Field label="Telegram Code">
+              <Input
+                ref={codeInputRef}
+                name="code"
+                required
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="12345"
+              />
+            </Field>
+            <p className="text-xs text-muted-foreground">
+              Use the login code Telegram sent to the official app for this
+              account.
+            </p>
+            <Button
+              type="submit"
+              disabled={!pendingAccountId}
+              loading={loading}
+            >
+              <IconKey className="size-4" />
+              Confirm Code
+            </Button>
+          </form>
+          <form
+            className="grid gap-2 border border-border p-3"
+            onSubmit={onPasswordSubmit}
+          >
+            <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <IconLockPassword className="size-4 text-primary" />
+              Two-factor password
+            </div>
+            <Field label="2FA Password">
+              <Input
+                ref={passwordInputRef}
+                name="password"
+                type="password"
+                required={needsPassword}
+                autoComplete="current-password"
+                placeholder={
+                  needsPassword
+                    ? "Telegram is asking for the 2FA password"
+                    : "Only use this if Telegram asks"
+                }
+              />
+            </Field>
+            <p className="text-xs text-muted-foreground">
+              Leave this alone unless the selected account says it needs 2FA.
+            </p>
+            <Button
+              type="submit"
+              disabled={!pendingAccountId}
+              loading={loading}
+            >
+              <IconLockPassword className="size-4" />
+              Confirm 2FA
+            </Button>
+          </form>
+        </div>
+      )}
     </Panel>
   )
 }
@@ -294,13 +356,7 @@ function LoginChecklist() {
 }
 
 function PendingAccountCard({ account }: { account?: Account }) {
-  if (!account) {
-    return (
-      <div className="border border-dashed border-border p-4 text-sm text-muted-foreground">
-        Request a code or choose an account that is waiting for login.
-      </div>
-    )
-  }
+  if (!account) return null
 
   return (
     <div className="border border-border bg-background/70 p-4 text-sm">

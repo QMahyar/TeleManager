@@ -4,13 +4,14 @@ import { IconDownload, IconLoader2, IconUpload } from "@tabler/icons-react"
 
 import { Button } from "@workspace/ui/components/button"
 
-import { Field, Input, Panel, SectionTitle } from "../components/ui"
+import { EmptyState, Field, Input, Panel, SectionTitle } from "../components/ui"
 import { api } from "../lib/api"
 import type { SessionsScreenProps } from "./screen-props"
 
 export function SessionsScreen(props: SessionsScreenProps) {
-  const { selectedIds, guarded, refresh, flash, loading, askDialog } = props
+  const { accounts, selectedIds, guarded, refresh, flash, loading, askDialog } = props
   const importFormRef = React.useRef<HTMLFormElement>(null)
+  const selectedAccounts = accounts.filter((account) => selectedIds.has(account.id))
 
   return (
     <div className="grid gap-4 xl:grid-cols-2">
@@ -65,6 +66,30 @@ export function SessionsScreen(props: SessionsScreenProps) {
           title="Export Selected Sessions"
           detail="Exports selected .session files as a ZIP. Keep the export private."
         />
+        {selectedAccounts.length ? (
+          <div className="space-y-2 border border-border bg-background/60 p-3 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <strong>{selectedAccounts.length} session(s) selected</strong>
+              <span className="text-xs text-muted-foreground">Ready to export</span>
+            </div>
+            <div className="space-y-1 text-xs text-muted-foreground">
+              {selectedAccounts.slice(0, 5).map((account) => (
+                <p key={account.id}>
+                  {account.label || account.session_name} · {account.session_name}.session
+                </p>
+              ))}
+              {selectedAccounts.length > 5 ? (
+                <p>+{selectedAccounts.length - 5} more selected session(s)</p>
+              ) : null}
+            </div>
+          </div>
+        ) : (
+          <EmptyState
+            title="No sessions selected"
+            detail="Select one or more sessions from the dashboard or accounts inventory before exporting them here."
+            className="border-0 bg-transparent px-4 py-8"
+          />
+        )}
         <Button
           disabled={loading}
           onClick={() =>
@@ -89,7 +114,14 @@ export function SessionsScreen(props: SessionsScreenProps) {
                   redact_phone: true,
                 }),
               })
-              if (!response.ok) throw new Error("Export failed")
+              if (!response.ok) {
+                try {
+                  const payload = (await response.json()) as { detail?: string }
+                  throw new Error(payload.detail || "Export failed")
+                } catch {
+                  throw new Error("Export failed")
+                }
+              }
               const blob = await response.blob()
               const url = URL.createObjectURL(blob)
               const link = document.createElement("a")

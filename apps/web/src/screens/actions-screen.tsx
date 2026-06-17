@@ -401,7 +401,7 @@ export function ActionsScreen(props: ActionsScreenProps) {
             Preview Queue
           </Button>
           <Button
-            disabled={loading}
+            disabled={loading || Boolean(activeRunIdRef.current)}
             onClick={() =>
               guarded(async () => {
                 if (activeRunIdRef.current) {
@@ -419,7 +419,7 @@ export function ActionsScreen(props: ActionsScreenProps) {
                   body: JSON.stringify(queuePayload),
                 })
                 flash(`Queue started: ${response.operation_count} operations.`)
-                await pollQueueRun(response.run_id)
+                void pollQueueRun(response.run_id)
               })
             }
           >

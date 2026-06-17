@@ -51,11 +51,15 @@ export function QueueTable({
                   ) : null}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {step.account_ids.length} accounts × {step.targets.length} targets
+                  {step.account_ids.length} accounts × {step.targets.length}{" "}
+                  targets
                 </p>
                 <div className="space-y-1">
                   {step.targets.slice(0, 4).map((target) => (
-                    <p key={target} className="font-mono text-xs text-muted-foreground">
+                    <p
+                      key={target}
+                      className="font-mono text-xs text-muted-foreground"
+                    >
                       {target}
                     </p>
                   ))}

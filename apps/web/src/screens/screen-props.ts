@@ -163,5 +163,11 @@ export type DialogsScreenProps = Pick<
 
 export type SessionsScreenProps = Pick<
   AppScreenProps,
-  "selectedIds" | "guarded" | "refresh" | "flash" | "loading" | "askDialog"
+  | "accounts"
+  | "selectedIds"
+  | "guarded"
+  | "refresh"
+  | "flash"
+  | "loading"
+  | "askDialog"
 >

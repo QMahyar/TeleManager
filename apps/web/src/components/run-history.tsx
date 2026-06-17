@@ -103,7 +103,8 @@ export function RunHistory({
                     ) : null}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {humanTime(run.created_at)} / {completedCount} done / {failedCount} failed / {operationCount} total
+                    {humanTime(run.created_at)} / {completedCount} done /{" "}
+                    {failedCount} failed / {operationCount} total
                   </p>
                 </div>
                 <RunProgressBar
@@ -113,115 +114,125 @@ export function RunHistory({
                 />
               </div>
               <div className="flex flex-wrap gap-2 md:justify-end">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  guarded(async () => {
-                    const payload = await api<{ run: QueueRun }>(
-                      `/api/actions/queue/runs/${run.id}`
-                    )
-                    setSelectedRun(payload.run)
-                  })
-                }
-              >
-                View
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  guarded(async () => {
-                    const response = await fetch(
-                      `/api/actions/queue/runs/${run.id}/export`
-                    )
-                    if (!response.ok) throw new Error("Export failed")
-                    const blob = await response.blob()
-                    const url = URL.createObjectURL(blob)
-                    const link = document.createElement("a")
-                    link.href = url
-                    link.download = `queue-run-${run.id}.json`
-                    link.click()
-                    URL.revokeObjectURL(url)
-                  })
-                }
-              >
-                Export
-              </Button>
-              {canRetry ? (
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() =>
                     guarded(async () => {
-                      const confirmed = await askDialog({
-                        title: "Retry failed operations?",
-                        description:
-                          "This creates a new queue run containing only the failed operations from this run.",
-                        confirmLabel: "Retry Failed",
-                      })
-                      if (!confirmed) return
-                      const payload = await api<{
-                        run_id: string
-                        status: string
-                        operation_count: number
-                      }>(`/api/actions/queue/runs/${run.id}/retry-failed`, {
-                        method: "POST",
-                      })
-                      flash("Retry queued.")
-                      await loadRuns()
-                      if (onRetryQueued) await onRetryQueued(payload.run_id)
+                      const payload = await api<{ run: QueueRun }>(
+                        `/api/actions/queue/runs/${run.id}`
+                      )
+                      setSelectedRun(payload.run)
                     })
                   }
                 >
-                  Retry Failed
+                  View
                 </Button>
-              ) : null}
-              {!isTerminal(run.status) ? (
                 <Button
                   size="sm"
-                  variant="destructive"
+                  variant="outline"
                   onClick={() =>
                     guarded(async () => {
-                      await api(`/api/actions/queue/runs/${run.id}/cancel`, {
-                        method: "POST",
-                      })
-                      flash("Cancel requested.")
-                      await loadRuns()
+                      const response = await fetch(
+                        `/api/actions/queue/runs/${run.id}/export`
+                      )
+                      if (!response.ok) {
+                        try {
+                          const payload = (await response.json()) as {
+                            detail?: string
+                          }
+                          throw new Error(payload.detail || "Export failed")
+                        } catch {
+                          throw new Error("Export failed")
+                        }
+                      }
+                      const blob = await response.blob()
+                      const url = URL.createObjectURL(blob)
+                      const link = document.createElement("a")
+                      link.href = url
+                      link.download = `queue-run-${run.id}.json`
+                      link.click()
+                      URL.revokeObjectURL(url)
                     })
                   }
                 >
-                  Cancel
+                  Export
                 </Button>
-              ) : null}
-              {isTerminal(run.status) ? (
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  onClick={() =>
-                    guarded(async () => {
-                      const confirmed = await askDialog({
-                        title: "Delete queue run?",
-                        description:
-                          "This removes the local history record for this queue run.",
-                        confirmLabel: "Delete Run",
-                        danger: true,
+                {canRetry ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      guarded(async () => {
+                        const confirmed = await askDialog({
+                          title: "Retry failed operations?",
+                          description:
+                            "This creates a new queue run containing only the failed operations from this run.",
+                          confirmLabel: "Retry Failed",
+                        })
+                        if (!confirmed) return
+                        const payload = await api<{
+                          run_id: string
+                          status: string
+                          operation_count: number
+                        }>(`/api/actions/queue/runs/${run.id}/retry-failed`, {
+                          method: "POST",
+                        })
+                        flash("Retry queued.")
+                        await loadRuns()
+                        if (onRetryQueued) void onRetryQueued(payload.run_id)
                       })
-                      if (!confirmed) return
-                      await api(`/api/actions/queue/runs/${run.id}`, {
-                        method: "DELETE",
+                    }
+                  >
+                    Retry Failed
+                  </Button>
+                ) : null}
+                {!isTerminal(run.status) ? (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() =>
+                      guarded(async () => {
+                        await api(`/api/actions/queue/runs/${run.id}/cancel`, {
+                          method: "POST",
+                        })
+                        flash("Cancel requested.")
+                        await loadRuns()
                       })
-                      flash("Queue run deleted.")
-                      await loadRuns()
-                    })
-                  }
-                >
-                  Delete
-                </Button>
-              ) : null}
+                    }
+                  >
+                    Cancel
+                  </Button>
+                ) : null}
+                {isTerminal(run.status) ? (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() =>
+                      guarded(async () => {
+                        const confirmed = await askDialog({
+                          title: "Delete queue run?",
+                          description:
+                            "This removes the local history record for this queue run.",
+                          confirmLabel: "Delete Run",
+                          danger: true,
+                        })
+                        if (!confirmed) return
+                        await api(`/api/actions/queue/runs/${run.id}`, {
+                          method: "DELETE",
+                        })
+                        flash("Queue run deleted.")
+                        await loadRuns()
+                      })
+                    }
+                  >
+                    Delete
+                  </Button>
+                ) : null}
+              </div>
             </div>
-          </div>
-        )})
+          )
+        })
       ) : (
         <EmptyState
           icon={IconPlayerPlay}

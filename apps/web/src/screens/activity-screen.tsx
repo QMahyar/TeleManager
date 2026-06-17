@@ -1,8 +1,8 @@
-import { IconDownload } from "@tabler/icons-react"
+import { IconDownload, IconTimeline } from "@tabler/icons-react"
 
 import { Button } from "@workspace/ui/components/button"
 
-import { Panel, SectionTitle } from "../components/ui"
+import { EmptyState, Panel, SectionTitle } from "../components/ui"
 import { humanTime } from "../lib/helpers"
 import type { ActivityEvent } from "../types"
 
@@ -42,9 +42,12 @@ export function ActivityScreen({ activity }: { activity: ActivityEvent[] }) {
             </div>
           ))
         ) : (
-          <p className="text-sm text-muted-foreground">
-            Waiting for operator action.
-          </p>
+          <EmptyState
+            icon={IconTimeline}
+            title="No activity yet"
+            detail="Validated sessions, queue runs, dialog fetches, and other local events will appear here as you use TeleManager."
+            className="border-0 bg-transparent px-4 py-8"
+          />
         )}
       </div>
     </Panel>
