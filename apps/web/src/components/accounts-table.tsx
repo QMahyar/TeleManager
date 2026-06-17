@@ -195,7 +195,7 @@ function AccountActions({
         size="sm"
         variant="destructive"
         onClick={() =>
-          guarded(() => deleteLocalSession(account, refresh, askDialog))
+          guarded(() => deleteLocalSession(account, refresh, flash, askDialog))
         }
       >
         Delete Local
@@ -271,6 +271,7 @@ async function renameAccount(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ label }),
   })
+  flash("Account renamed.")
   await refresh()
 }
 
@@ -306,6 +307,7 @@ async function renameSessionFile(
 async function deleteLocalSession(
   account: Account,
   refresh: () => Promise<void>,
+  flash: (message: string) => void,
   askDialog: AskDialog
 ) {
   const confirmed = await askDialog({
@@ -317,6 +319,7 @@ async function deleteLocalSession(
   })
   if (!confirmed) return
   await api(`/api/accounts/${account.id}`, { method: "DELETE" })
+  flash("Local session deleted.")
   await refresh()
 }
 

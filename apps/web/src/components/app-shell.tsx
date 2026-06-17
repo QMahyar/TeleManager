@@ -59,6 +59,10 @@ export function AppShell({
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.repeat || isEditableTarget(event.target)) return
+      if (event.key === "Escape") {
+        setPaletteOpen(false)
+        return
+      }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault()
         setPaletteOpen((current) => !current)
@@ -212,7 +216,12 @@ export function AppShell({
         </main>
       </div>
       {paletteOpen ? (
-        <div className="fixed inset-0 z-50 grid place-items-start bg-background/80 p-4 pt-[10vh] backdrop-blur-sm">
+        <div
+          className="fixed inset-0 z-50 grid place-items-start bg-background/80 p-4 pt-[10vh] backdrop-blur-sm"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setPaletteOpen(false)
+          }}
+        >
           <section className="mx-auto w-full max-w-xl border border-border bg-card p-3 shadow-2xl">
             <div className="mb-2 flex items-center justify-between border-b border-border pb-2">
               <strong className="text-sm">Command palette</strong>
