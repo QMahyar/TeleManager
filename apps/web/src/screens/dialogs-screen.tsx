@@ -149,6 +149,8 @@ export function DialogsScreen(props: DialogsScreenProps) {
           <IconSearch className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="w-full pl-9"
+            type="search"
+            autoComplete="off"
             value={dialogSearch}
             onChange={(e) => setDialogSearch(e.target.value)}
             placeholder="Search dialogs"

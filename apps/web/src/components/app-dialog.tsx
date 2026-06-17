@@ -29,7 +29,7 @@ export function useAppDialog() {
         setAppDialog(null)
       }}
       onConfirm={(value) => {
-        appDialog?.resolve(appDialog.input ? value || null : true)
+        appDialog?.resolve(appDialog.input ? (value ?? "") : true)
         setAppDialog(null)
       }}
     />

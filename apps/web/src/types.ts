@@ -24,6 +24,7 @@ export type Account = {
   username?: string | null
   phone?: string | null
   authorized?: boolean
+  status?: string
   last_error?: string | null
   dialog_count?: number
 }

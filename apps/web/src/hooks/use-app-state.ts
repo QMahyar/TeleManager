@@ -28,10 +28,8 @@ export function useAppState(flash: (message: string) => void) {
 
   useInitialLoad({
     flash,
-    loadActivity: resourceState.loadActivity,
     loadPresets: resourceState.loadPresets,
     loadRuns: resourceState.loadRuns,
-    loadSafety: resourceState.loadSafety,
     refresh: accountState.refresh,
   })
 
@@ -67,6 +65,8 @@ function useAccountState() {
   const [configStatus, setConfigStatus] = React.useState(
     "Checking API settings..."
   )
+  const [apiConfigured, setApiConfigured] = React.useState(false)
+  const [configApiId, setConfigApiId] = React.useState<number | null>(null)
 
   const refresh = React.useCallback(async () => {
     const [config, accountPayload] = await Promise.all([
@@ -81,6 +81,8 @@ function useAccountState() {
     setActionAccountIds((current) => filterKnownIds(current, known))
     setDialogAccountId((current) => current || nextAccounts[0]?.id || "")
     setConfigStatus(configStatusLabel(config))
+    setApiConfigured(Boolean(config.api_hash_configured))
+    setConfigApiId(config.api_id || null)
   }, [])
 
   const metrics = React.useMemo(() => sessionMetrics(accounts), [accounts])
@@ -88,6 +90,8 @@ function useAccountState() {
   return {
     accounts,
     actionAccountIds,
+    apiConfigured,
+    configApiId,
     configStatus,
     dialogAccountId,
     metrics,
@@ -130,6 +134,7 @@ function useResourceState(flash: (message: string) => void, view: View) {
   const [runs, setRuns] = React.useState<QueueRun[]>([])
   const [presets, setPresets] = React.useState<Preset[]>([])
   const [safety, setSafety] = React.useState<SafetySettings>(emptySafety)
+  const safetyLoaded = React.useRef(false)
 
   const loadActivity = React.useCallback(async () => {
     const payload = await api<{ events: ActivityEvent[] }>(
@@ -155,17 +160,35 @@ function useResourceState(flash: (message: string) => void, view: View) {
       "/api/settings/safety"
     )
     setSafety(payload.settings || emptySafety)
+    safetyLoaded.current = true
   }, [])
 
   React.useEffect(() => {
     if (view !== "activity") return undefined
 
-    const task = window.setTimeout(() => {
+    const initialTask = window.setTimeout(() => {
       loadActivity().catch((error) => flash(error.message))
+    }, 0)
+    const pollTask = window.setInterval(() => {
+      loadActivity().catch((error) => flash(error.message))
+    }, 10000)
+
+    return () => {
+      window.clearTimeout(initialTask)
+      window.clearInterval(pollTask)
+    }
+  }, [flash, loadActivity, view])
+
+  React.useEffect(() => {
+    if (view !== "actions" && view !== "settings") return undefined
+    if (safetyLoaded.current) return undefined
+
+    const task = window.setTimeout(() => {
+      loadSafety().catch((error) => flash(error.message))
     }, 0)
 
     return () => window.clearTimeout(task)
-  }, [flash, loadActivity, view])
+  }, [flash, loadSafety, view])
 
   return {
     activity,
@@ -226,32 +249,24 @@ function useQueueState(
 
 function useInitialLoad({
   flash,
-  loadActivity,
   loadPresets,
   loadRuns,
-  loadSafety,
   refresh,
 }: {
   flash: (message: string) => void
-  loadActivity: () => Promise<void>
   loadPresets: () => Promise<void>
   loadRuns: () => Promise<void>
-  loadSafety: () => Promise<void>
   refresh: () => Promise<void>
 }) {
   React.useEffect(() => {
     const task = window.setTimeout(() => {
-      Promise.all([
-        refresh(),
-        loadActivity(),
-        loadRuns(),
-        loadPresets(),
-        loadSafety(),
-      ]).catch((error) => flash(error.message))
+      Promise.all([refresh(), loadRuns(), loadPresets()]).catch((error) =>
+        flash(error.message)
+      )
     }, 0)
 
     return () => window.clearTimeout(task)
-  }, [flash, loadActivity, loadPresets, loadRuns, loadSafety, refresh])
+  }, [flash, loadPresets, loadRuns, refresh])
 }
 
 function filterKnownIds(current: Set<string>, known: Set<string>) {

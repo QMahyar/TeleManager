@@ -1,4 +1,4 @@
-import { IconDownload, IconUpload } from "@tabler/icons-react"
+import { IconDownload, IconLoader2, IconUpload } from "@tabler/icons-react"
 
 import { Button } from "@workspace/ui/components/button"
 
@@ -7,7 +7,7 @@ import { api } from "../lib/api"
 import type { SessionsScreenProps } from "./screen-props"
 
 export function SessionsScreen(props: SessionsScreenProps) {
-  const { selectedIds, guarded, refresh, flash } = props
+  const { selectedIds, guarded, refresh, flash, loading } = props
 
   return (
     <div className="grid gap-4 xl:grid-cols-2">
@@ -32,13 +32,24 @@ export function SessionsScreen(props: SessionsScreenProps) {
           }
         >
           <Field label="Label">
-            <Input name="label" required placeholder="Imported account" />
+            <Input
+              name="label"
+              required
+              maxLength={120}
+              autoComplete="nickname"
+              placeholder="Imported account"
+            />
           </Field>
           <Field label="Session file">
             <Input name="file" type="file" accept=".session" required />
           </Field>
-          <Button>
-            <IconUpload /> Import Session
+          <Button type="submit" disabled={loading}>
+            {loading ? (
+              <IconLoader2 className="size-3.5 animate-spin" />
+            ) : (
+              <IconUpload />
+            )}
+            Import Session
           </Button>
         </form>
       </Panel>
@@ -49,6 +60,7 @@ export function SessionsScreen(props: SessionsScreenProps) {
           detail="Exports selected .session files as a ZIP. Keep the export private."
         />
         <Button
+          disabled={loading}
           onClick={() =>
             guarded(async () => {
               const response = await fetch("/api/sessions/export", {
@@ -70,7 +82,12 @@ export function SessionsScreen(props: SessionsScreenProps) {
             })
           }
         >
-          <IconDownload /> Export Selected Sessions
+          {loading ? (
+            <IconLoader2 className="size-3.5 animate-spin" />
+          ) : (
+            <IconDownload />
+          )}
+          Export Selected Sessions
         </Button>
       </Panel>
     </div>

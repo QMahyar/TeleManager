@@ -22,6 +22,9 @@ export type AppScreenProps = {
     attention: number
     knownDialogs: number
   }
+  apiConfigured: boolean
+  configApiId: number | null
+  configStatus: string
   guarded: (work: () => Promise<void>) => Promise<void>
   loading: boolean
   refresh: () => Promise<void>
@@ -96,6 +99,10 @@ export type AccountsScreenProps = Pick<
   | "accounts"
   | "selectedIds"
   | "setSelectedIds"
+  | "setView"
+  | "apiConfigured"
+  | "configApiId"
+  | "configStatus"
   | "guarded"
   | "loading"
   | "refresh"
@@ -155,5 +162,5 @@ export type DialogsScreenProps = Pick<
 
 export type SessionsScreenProps = Pick<
   AppScreenProps,
-  "selectedIds" | "guarded" | "refresh" | "flash"
+  "selectedIds" | "guarded" | "refresh" | "flash" | "loading"
 >

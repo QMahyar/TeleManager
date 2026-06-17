@@ -36,4 +36,7 @@ def read_json(path: Path, default: Any) -> Any:
 
 def write_json(path: Path, value: Any) -> None:
     ensure_dirs()
-    path.write_text(json.dumps(value, indent=2, sort_keys=True), encoding="utf-8")
+    payload = json.dumps(value, indent=2, sort_keys=True)
+    tmp_path = path.with_suffix(f"{path.suffix}.tmp")
+    tmp_path.write_text(payload, encoding="utf-8")
+    tmp_path.replace(path)

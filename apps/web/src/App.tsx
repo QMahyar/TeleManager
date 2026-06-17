@@ -9,13 +9,22 @@ import { AppScreens } from "./screens/app-screens"
 
 export function App() {
   const [toast, setToast] = React.useState("")
+  const toastTimer = React.useRef<number | null>(null)
   const { loading, run } = useLoading()
   const { askDialog, dialogElement } = useAppDialog()
 
   const flash = React.useCallback((message: string) => {
     setToast(message)
-    window.setTimeout(() => setToast(""), 3800)
+    if (toastTimer.current) window.clearTimeout(toastTimer.current)
+    toastTimer.current = window.setTimeout(() => setToast(""), 3800)
   }, [])
+
+  React.useEffect(
+    () => () => {
+      if (toastTimer.current) window.clearTimeout(toastTimer.current)
+    },
+    []
+  )
 
   const appState = useAppState(flash)
 

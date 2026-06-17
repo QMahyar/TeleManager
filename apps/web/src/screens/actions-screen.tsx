@@ -1,3 +1,5 @@
+import * as React from "react"
+
 import { IconLoader2, IconTrash } from "@tabler/icons-react"
 
 import { Button } from "@workspace/ui/components/button"
@@ -20,6 +22,15 @@ import { actionLabels } from "../lib/constants"
 import { accountStatus, statusTone } from "../lib/helpers"
 import type { ActionType } from "../types"
 import type { ActionsScreenProps } from "./screen-props"
+
+type QueuePreview = {
+  step_count: number
+  operation_count: number
+  authorized_count?: number
+  unauthorized_count?: number
+  estimated_seconds: number
+  warnings?: string[]
+}
 
 export function ActionsScreen(props: ActionsScreenProps) {
   const {
@@ -46,6 +57,7 @@ export function ActionsScreen(props: ActionsScreenProps) {
     askDialog,
     loading,
   } = props
+  const [preview, setPreview] = React.useState<QueuePreview | null>(null)
 
   return (
     <div className="grid gap-4 xl:grid-cols-[22rem_1fr]">
@@ -115,7 +127,8 @@ export function ActionsScreen(props: ActionsScreenProps) {
                     placeholder: "Warmup queue",
                   },
                 })
-                if (typeof name !== "string" || !name) return
+                if (typeof name !== "string") return
+                if (!name) return flash("Preset name cannot be empty.")
                 await api("/api/actions/presets", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
@@ -184,6 +197,8 @@ export function ActionsScreen(props: ActionsScreenProps) {
           <Field label="Targets">
             <Input
               value={actionDraft.target}
+              maxLength={500}
+              autoComplete="off"
               onChange={(e) =>
                 setActionDraft({
                   ...actionDraft,
@@ -199,6 +214,8 @@ export function ActionsScreen(props: ActionsScreenProps) {
           <Field label="Message text">
             <Textarea
               value={actionDraft.message}
+              maxLength={4000}
+              autoComplete="off"
               onChange={(e) =>
                 setActionDraft({
                   ...actionDraft,
@@ -218,7 +235,22 @@ export function ActionsScreen(props: ActionsScreenProps) {
             <Button
               type="button"
               variant="outline"
-              onClick={() => setQueue([])}
+              onClick={() =>
+                guarded(async () => {
+                  if (!queue.length) return flash("Queue is already empty.")
+                  const confirmedClear = await askDialog({
+                    title: "Clear action queue?",
+                    description:
+                      "This removes all queued steps from the builder. Running queue history is not affected.",
+                    confirmLabel: "Clear Queue",
+                    danger: true,
+                  })
+                  if (!confirmedClear) return
+                  setQueue([])
+                  setPreview(null)
+                  flash("Queue cleared.")
+                })
+              }
             >
               Clear Queue
             </Button>
@@ -242,7 +274,7 @@ export function ActionsScreen(props: ActionsScreenProps) {
             variant="outline"
             onClick={() =>
               guarded(async () => {
-                const payload = await api<{ operation_count: number }>(
+                const payload = await api<QueuePreview>(
                   "/api/actions/queue/preview",
                   {
                     method: "POST",
@@ -253,6 +285,7 @@ export function ActionsScreen(props: ActionsScreenProps) {
                     }),
                   }
                 )
+                setPreview(payload)
                 flash(`Preview ready: ${payload.operation_count} operations.`)
               })
             }
@@ -282,6 +315,7 @@ export function ActionsScreen(props: ActionsScreenProps) {
             Refresh Runs
           </Button>
         </div>
+        <QueuePreviewSummary preview={preview} />
         <RunHistory
           runs={runs}
           guarded={guarded}
@@ -290,6 +324,34 @@ export function ActionsScreen(props: ActionsScreenProps) {
           askDialog={askDialog}
         />
       </Panel>
+    </div>
+  )
+}
+
+function QueuePreviewSummary({ preview }: { preview: QueuePreview | null }) {
+  if (!preview) return null
+
+  return (
+    <div className="space-y-2 border border-border bg-muted/30 p-3 text-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <strong>
+          {preview.operation_count} operations · {preview.step_count} steps
+        </strong>
+        {preview.unauthorized_count ? (
+          <Badge tone="bg-warning/15 text-warning border-warning/30">
+            {preview.authorized_count || 0} ready · {preview.unauthorized_count}{" "}
+            skipped
+          </Badge>
+        ) : null}
+        <span className="text-muted-foreground">
+          Estimated {preview.estimated_seconds}s
+        </span>
+      </div>
+      {(preview.warnings || []).map((warning) => (
+        <p key={warning} className="text-muted-foreground">
+          {warning}
+        </p>
+      ))}
     </div>
   )
 }

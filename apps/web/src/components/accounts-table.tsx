@@ -177,10 +177,10 @@ function AccountActions({
         size="sm"
         variant="outline"
         onClick={() =>
-          guarded(() => renameAccount(account, refresh, askDialog))
+          guarded(() => renameAccount(account, refresh, flash, askDialog))
         }
       >
-        Rename
+        Rename Label
       </Button>
       <Button
         size="sm"
@@ -250,19 +250,22 @@ async function fetchAccountDialogs(
 async function renameAccount(
   account: Account,
   refresh: () => Promise<void>,
+  flash: (message: string) => void,
   askDialog: AskDialog
 ) {
   const label = await askDialog({
     title: "Rename account",
     description: "Update the local display label for this Telegram session.",
-    confirmLabel: "Rename",
+    confirmLabel: "Save Label",
     input: {
       label: "Account label",
       value: account.label || account.session_name,
       placeholder: "Main account",
     },
   })
-  if (typeof label !== "string" || !label) return
+  if (typeof label !== "string") return
+  if (!label) return flash("Account label cannot be empty.")
+  if (label === account.label) return
   await api(`/api/accounts/${account.id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -289,7 +292,8 @@ async function renameSessionFile(
     },
   })
   if (typeof sessionName !== "string") return
-  if (!sessionName || sessionName === account.session_name) return
+  if (!sessionName) return flash("Session filename cannot be empty.")
+  if (sessionName === account.session_name) return
   await api(`/api/sessions/${account.id}/rename-file`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

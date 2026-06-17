@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
-from fastapi import Body, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
@@ -30,6 +32,7 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 FRONTEND_DIST_DIR = Path(__file__).resolve().parents[2] / "apps" / "web" / "dist"
 ACCOUNT_IDS_BODY = Body(...)
 FILE_BODY = File(...)
+NO_STORE_HEADERS = {"Cache-Control": "no-store"}
 manager = AccountManager()
 queue_runs: dict[str, dict] = load_action_runs()
 
@@ -121,8 +124,8 @@ if (FRONTEND_DIST_DIR / "assets").exists():
 def index() -> FileResponse:
     dist_index = FRONTEND_DIST_DIR / "index.html"
     if dist_index.exists():
-        return FileResponse(dist_index)
-    return FileResponse(STATIC_DIR / "index.html")
+        return FileResponse(dist_index, headers=NO_STORE_HEADERS)
+    return FileResponse(STATIC_DIR / "index.html", headers=NO_STORE_HEADERS)
 
 
 @app.get("/favicon.ico")
@@ -148,9 +151,34 @@ def get_config() -> dict:
 
 
 @app.post("/api/config")
-def set_config(api_id: int = Form(...), api_hash: str = Form(...)) -> dict:
-    write_json(CONFIG_FILE, {"api_id": api_id, "api_hash": api_hash.strip()})
-    return {"ok": True}
+async def set_config(request: Request) -> dict:
+    payload = await config_payload(request)
+    existing = read_json(CONFIG_FILE, {})
+    api_id = parse_api_id(payload.get("api_id", existing.get("api_id")))
+    api_hash = str(payload.get("api_hash") or "").strip() or existing.get("api_hash")
+    if not api_hash:
+        raise HTTPException(status_code=400, detail="Telegram API hash is required.")
+    write_json(CONFIG_FILE, {"api_id": api_id, "api_hash": str(api_hash).strip()})
+    return {"ok": True, "api_id": api_id, "api_hash_configured": True}
+
+
+async def config_payload(request: Request) -> dict:
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        payload = await request.json()
+        return payload if isinstance(payload, dict) else {}
+    form = await request.form()
+    return dict(form)
+
+
+def parse_api_id(value: object) -> int:
+    try:
+        api_id = int(str(value or "").strip())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Telegram API ID must be a positive number.") from exc
+    if api_id < 1:
+        raise HTTPException(status_code=400, detail="Telegram API ID must be a positive number.")
+    return api_id
 
 
 @app.get("/api/settings/safety")
@@ -172,7 +200,10 @@ def list_accounts() -> dict:
 
 @app.post("/api/accounts/login")
 async def login_account(phone: str = Form(...), label: str = Form(default="")) -> dict:
-    account = await manager.start_login(phone=phone, label=label or None)
+    try:
+        account = await manager.start_login(phone=phone, label=label or None)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     log_event("login_started", "Login code requested", account.label, {"account_id": account.id})
     return {"account": account.__dict__}
 
@@ -406,11 +437,15 @@ def preview_action_queue(request: ActionQueueRequest) -> dict:
         expanded = expand_action_queue(request)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    warnings = queue_warnings(request, len(expanded))
+    authorized_count = sum(1 for op in expanded if op["status"] == "ready")
+    unauthorized_count = len(expanded) - authorized_count
+    warnings = queue_warnings(request, len(expanded), unauthorized_count)
     return {
         "step_count": len(request.steps),
         "operation_count": len(expanded),
-        "estimated_seconds": estimate_queue_seconds(request, len(expanded)),
+        "authorized_count": authorized_count,
+        "unauthorized_count": unauthorized_count,
+        "estimated_seconds": estimate_queue_seconds(request, expanded),
         "delay_between_accounts": request.delay_between_accounts,
         "delay_between_actions": request.delay_between_actions,
         "max_operations": request.max_operations,
@@ -427,6 +462,12 @@ async def run_action_queue(request: ActionQueueRequest) -> dict:
         expanded = expand_action_queue(request)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    expanded = [operation for operation in expanded if operation.get("status") == "ready"]
+    if not expanded:
+        raise HTTPException(
+            status_code=400,
+            detail="No authorized accounts selected. Log in at least one selected account first.",
+        )
 
     run_id = str(uuid.uuid4())
     for index, operation in enumerate(expanded, start=1):
@@ -564,11 +605,23 @@ def get_action_result(run_id: str) -> dict:
     return {"event": event}
 
 
+QUEUE_SAVE_INTERVAL_SECONDS = 2.0
+
+
 async def process_action_queue(run_id: str, request: ActionQueueRequest, expanded: list[dict]) -> None:
     run = queue_runs[run_id]
     run["status"] = "running"
     run["updated_at"] = now_iso()
     save_action_runs(queue_runs)
+    last_save = time.monotonic()
+
+    def throttled_save() -> None:
+        nonlocal last_save
+        now = time.monotonic()
+        if now - last_save >= QUEUE_SAVE_INTERVAL_SECONDS:
+            save_action_runs(queue_runs)
+            last_save = now
+
     delay_between_accounts = float(request.delay_between_accounts or safety_defaults()["delay_between_accounts"])
     delay_between_actions = float(request.delay_between_actions or safety_defaults()["delay_between_actions"])
     try:
@@ -578,11 +631,16 @@ async def process_action_queue(run_id: str, request: ActionQueueRequest, expande
                 run["status"] = "canceled"
                 run["error"] = "Queue canceled before the next operation started."
                 break
+            if operation.get("status") == "needs_login":
+                operation["completed_at"] = now_iso()
+                run["updated_at"] = operation["completed_at"]
+                throttled_save()
+                continue
             operation["status"] = "running"
             operation["started_at"] = now_iso()
             run["current"] = operation
             run["updated_at"] = now_iso()
-            save_action_runs(queue_runs)
+            throttled_save()
             if index > 0:
                 previous = expanded[index - 1]
                 delay = (
@@ -613,7 +671,7 @@ async def process_action_queue(run_id: str, request: ActionQueueRequest, expande
             run["ok_count"] = sum(1 for item in run["results"] if item["ok"])
             run["failed_count"] = run["completed_count"] - run["ok_count"]
             run["updated_at"] = now_iso()
-            save_action_runs(queue_runs)
+            throttled_save()
         if run.get("status") != "canceled":
             run["status"] = "completed"
         save_action_runs(queue_runs)
@@ -697,21 +755,27 @@ def expand_action_queue(request: ActionQueueRequest) -> list[dict]:
     return operations
 
 
-def estimate_queue_seconds(request: ActionQueueRequest, operation_count: int) -> float:
-    if operation_count <= 1:
+def estimate_queue_seconds(request: ActionQueueRequest, expanded: list[dict]) -> float:
+    runnable = [op for op in expanded if op.get("status") != "needs_login"]
+    if len(runnable) <= 1:
         return 0.0
     delay_between_accounts = float(request.delay_between_accounts or safety_defaults()["delay_between_accounts"])
     delay_between_actions = float(request.delay_between_actions or safety_defaults()["delay_between_actions"])
-    return round(
-        max(0, operation_count - 1) * max(delay_between_accounts, delay_between_actions),
-        1,
-    )
+    total = 0.0
+    for previous, current in zip(runnable, runnable[1:], strict=False):
+        total += delay_between_accounts if previous["account_id"] != current["account_id"] else delay_between_actions
+    return round(total, 1)
 
 
-def queue_warnings(request: ActionQueueRequest, operation_count: int) -> list[str]:
+def queue_warnings(request: ActionQueueRequest, operation_count: int, unauthorized_count: int = 0) -> list[str]:
     warnings = [
         "Default delays are intentionally conservative. Increase them for older or high-risk sessions.",
     ]
+    if unauthorized_count > 0:
+        warnings.append(
+            f"{unauthorized_count} operation(s) target accounts that are not logged in "
+            "and will be skipped. Log those accounts in first."
+        )
     if operation_count > 30:
         warnings.append("This is a large queue. Consider splitting it into smaller runs.")
     if any(step.action_type == "send_message" for step in request.steps):
@@ -734,7 +798,11 @@ def export_activity() -> FileResponse:
 
 @app.exception_handler(Exception)
 async def general_exception_handler(_: object, exc: Exception) -> JSONResponse:
-    return JSONResponse(status_code=500, content={"detail": str(exc)})
+    logging.getLogger("telemanager").exception("Unhandled error", exc_info=exc)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "An internal error occurred. Check server logs for details."},
+    )
 
 
 if __name__ == "__main__":

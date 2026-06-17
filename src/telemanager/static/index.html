@@ -4,6 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>TeleManager</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>%E2%9C%88%EF%B8%8F</text></svg>"
+    />
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
@@ -143,15 +147,39 @@
                 <span class="panel-code">saved as ready</span>
               </div>
               <p class="hint">
-                Log in once, create a local Telethon session, then disconnect
-                immediately.
+                Step 1: request a Telegram code. Codes arrive in the official
+                Telegram app for the phone number, not inside TeleManager.
               </p>
+              <div class="login-readiness">
+                <div>
+                  <strong>API readiness</strong>
+                  <span id="accountsConfigStatus"
+                    >Checking API settings...</span
+                  >
+                </div>
+                <button
+                  class="button ghost"
+                  type="button"
+                  data-open-view="settings"
+                >
+                  Open Settings
+                </button>
+              </div>
               <form id="loginForm" class="stack">
                 <label
-                  >Label<input name="label" placeholder="Main account"
+                  >Label<input
+                    name="label"
+                    maxlength="120"
+                    autocomplete="nickname"
+                    placeholder="Main account"
                 /></label>
                 <label
-                  >Phone<input name="phone" required placeholder="+15551234567"
+                  >Phone<input
+                    name="phone"
+                    type="tel"
+                    required
+                    autocomplete="tel"
+                    placeholder="+15551234567"
                 /></label>
                 <button class="button full" type="submit">
                   Send Login Code
@@ -168,11 +196,21 @@
                 <span class="panel-code">Telegram challenge</span>
               </div>
               <p class="hint" id="challengeHint">
-                Enter the code Telegram sent to the selected account.
+                Step 2: enter the code Telegram sent. If the account uses 2FA,
+                the password box appears after the code is accepted.
               </p>
+              <div id="pendingAccountSummary" class="pending-account empty">
+                Request a code to begin.
+              </div>
               <div class="challenge-forms">
                 <form id="codeForm" class="inline-form">
-                  <input name="code" required placeholder="Login code" />
+                  <input
+                    name="code"
+                    required
+                    inputmode="numeric"
+                    autocomplete="one-time-code"
+                    placeholder="Login code"
+                  />
                   <button class="button" type="submit">Confirm Code</button>
                 </form>
                 <form id="passwordForm" class="inline-form hidden">
@@ -180,6 +218,7 @@
                     name="password"
                     type="password"
                     required
+                    autocomplete="current-password"
                     placeholder="2FA password"
                   />
                   <button class="button" type="submit">Confirm Password</button>
@@ -292,6 +331,8 @@
                     id="actionTarget"
                     name="target"
                     required
+                    maxlength="500"
+                    autocomplete="off"
                     placeholder="One or many targets, separated by commas or new lines"
                 /></label>
                 <label class="message-field"
@@ -299,6 +340,8 @@
                     name="message"
                     id="actionMessage"
                     rows="3"
+                    maxlength="4000"
+                    autocomplete="off"
                     placeholder="Required only for Send message"
                   ></textarea>
                 </label>
@@ -324,6 +367,7 @@
                     min="1"
                     max="60"
                     step="1"
+                    autocomplete="off"
                     value="4"
                 /></label>
                 <label
@@ -333,6 +377,7 @@
                     min="1"
                     max="120"
                     step="1"
+                    autocomplete="off"
                     value="8"
                 /></label>
                 <label
@@ -342,6 +387,7 @@
                     min="1"
                     max="250"
                     step="1"
+                    autocomplete="off"
                     value="100"
                 /></label>
               </div>
@@ -439,6 +485,7 @@
                     type="number"
                     min="1"
                     max="1000"
+                    autocomplete="off"
                     value="500"
                 /></label>
                 <button class="button full" type="submit">Fetch Dialogs</button>
@@ -508,7 +555,12 @@
                 >
                   Channels
                 </button>
-                <input id="dialogSearch" placeholder="Search dialogs" />
+                <input
+                  id="dialogSearch"
+                  type="search"
+                  autocomplete="off"
+                  placeholder="Search dialogs"
+                />
               </div>
               <div id="dialogsTable" class="table-wrap compact-table"></div>
             </article>
@@ -539,6 +591,8 @@
                   >Label<input
                     name="label"
                     required
+                    maxlength="120"
+                    autocomplete="nickname"
                     placeholder="Imported account"
                 /></label>
                 <label
@@ -623,20 +677,35 @@
                     type="number"
                     min="1"
                     required
+                    autocomplete="off"
                     placeholder="123456"
                 /></label>
                 <label
-                  >API Hash<input
-                    name="api_hash"
-                    type="password"
-                    required
-                    placeholder="Telegram API hash"
-                /></label>
+                  >API Hash<span class="input-with-action"
+                    ><input
+                      name="api_hash"
+                      type="password"
+                      maxlength="120"
+                      autocomplete="off"
+                      placeholder="Telegram API hash"
+                    /><button
+                      id="toggleApiHash"
+                      class="button ghost"
+                      type="button"
+                    >
+                      Show
+                    </button></span
+                  ></label
+                >
                 <button class="button full" type="submit">
                   Save API Settings
                 </button>
               </form>
               <p id="configStatus" class="status"></p>
+              <p class="hint compact-hint">
+                Once configured, leave API hash blank to keep the saved hash.
+                Paste a new hash only when rotating credentials.
+              </p>
             </article>
             <article class="panel">
               <div class="panel-heading">
@@ -702,7 +771,8 @@
         <h2 id="modalTitle">Confirm action</h2>
         <p id="modalDescription" class="hint"></p>
         <label id="modalInputWrap" class="modal-input hidden"
-          ><span id="modalInputLabel">Value</span><input id="modalInput" />
+          ><span id="modalInputLabel">Value</span
+          ><input id="modalInput" autocomplete="off" />
         </label>
         <div class="modal-actions">
           <button id="modalCancel" class="button ghost" type="button">

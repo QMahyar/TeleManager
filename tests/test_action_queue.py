@@ -38,6 +38,71 @@ def test_queue_preview_expands_many_actions_accounts_and_targets(app_context: di
     assert payload["warnings"]
 
 
+def test_queue_preview_warns_about_unauthorized_accounts(app_context: dict, client):
+    add_account(app_context, "acc-ready", "Ready")
+    add_account(app_context, "acc-login", "Needs Login", authorized=False)
+
+    response = client.post(
+        "/api/actions/queue/preview",
+        json={
+            "steps": [
+                {
+                    "action_type": "leave_chat",
+                    "account_ids": ["acc-ready", "acc-login"],
+                    "targets": ["@group"],
+                }
+            ],
+            "max_operations": 10,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["operation_count"] == 2
+    assert payload["authorized_count"] == 1
+    assert payload["unauthorized_count"] == 1
+    assert any("not logged in" in warning for warning in payload["warnings"])
+
+
+def test_queue_estimate_uses_sequential_operation_delays(app_context: dict):
+    main = app_context["main"]
+    request = main.ActionQueueRequest(
+        steps=[{"action_type": "leave_chat", "account_ids": ["acc-1"], "targets": ["@a"]}],
+        delay_between_accounts=4,
+        delay_between_actions=8,
+        max_operations=10,
+    )
+    expanded = [
+        {"account_id": "acc-1", "status": "ready"},
+        {"account_id": "acc-1", "status": "ready"},
+        {"account_id": "acc-2", "status": "ready"},
+    ]
+
+    assert main.estimate_queue_seconds(request, expanded) == 12
+
+
+def test_queue_run_rejects_only_unauthorized_accounts(app_context: dict, client):
+    add_account(app_context, "acc-login", "Needs Login", authorized=False)
+
+    response = client.post(
+        "/api/actions/queue/run",
+        json={
+            "confirm": True,
+            "steps": [
+                {
+                    "action_type": "leave_chat",
+                    "account_ids": ["acc-login"],
+                    "targets": ["@group"],
+                }
+            ],
+            "max_operations": 10,
+        },
+    )
+
+    assert response.status_code == 400
+    assert "No authorized accounts" in response.json()["detail"]
+
+
 def test_queue_preview_rejects_stale_account(client):
     response = client.post(
         "/api/actions/queue/preview",

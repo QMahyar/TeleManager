@@ -17,6 +17,7 @@ export function SafetyEditor({
           type="number"
           min={1}
           max={60}
+          autoComplete="off"
           value={safety.delay_between_accounts}
           onChange={(e) =>
             setSafety({
@@ -31,6 +32,7 @@ export function SafetyEditor({
           type="number"
           min={1}
           max={120}
+          autoComplete="off"
           value={safety.delay_between_actions}
           onChange={(e) =>
             setSafety({
@@ -45,6 +47,7 @@ export function SafetyEditor({
           type="number"
           min={1}
           max={250}
+          autoComplete="off"
           value={safety.max_operations}
           onChange={(e) =>
             setSafety({ ...safety, max_operations: Number(e.target.value) })

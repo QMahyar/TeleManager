@@ -34,6 +34,8 @@ export function AppScreens({
       <SettingsScreen
         safety={safety}
         setSafety={screenProps.setSafety}
+        apiConfigured={screenProps.apiConfigured}
+        configApiId={screenProps.configApiId}
         configStatus={configStatus}
         guarded={screenProps.guarded}
         loading={screenProps.loading}

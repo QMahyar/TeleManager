@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from telethon import TelegramClient
-from telethon.errors import PhoneCodeExpiredError, PhoneCodeInvalidError, SessionPasswordNeededError
+from telethon.errors import FloodWaitError, PhoneCodeExpiredError, PhoneCodeInvalidError, SessionPasswordNeededError
 
 from .config import ACCOUNTS_FILE, CONFIG_FILE, SESSIONS_DIR, read_json, write_json
 from .telegram_actions import TelegramAction, TelegramActionResult, run_telegram_action, safe_delay
@@ -83,8 +83,8 @@ class AccountManager:
             normalized_phone = phone.strip()
             account = self._find_or_create_account(normalized_phone, label)
             client = self._new_client(account.session_name, api_id, api_hash)
-            await client.connect()
             try:
+                await self._connect_client(client)
                 if await client.is_user_authorized():
                     await self._complete_login(account, client)
                 else:
@@ -101,9 +101,9 @@ class AccountManager:
             except Exception as exc:
                 client.disconnect()
                 account.status = "error"
-                account.last_error = str(exc)
+                account.last_error = self._login_error_message(exc)
                 self._save_accounts()
-                raise
+                raise ValueError(account.last_error) from exc
 
     async def confirm_code(self, account_id: str, code: str) -> AccountRecord:
         async with self.lock:
@@ -366,6 +366,19 @@ class AccountManager:
         from datetime import UTC, datetime
 
         return datetime.now(UTC).isoformat()
+
+    def _login_error_message(self, exc: Exception) -> str:
+        if isinstance(exc, FloodWaitError):
+            return f"Telegram is rate-limiting login attempts. Wait {exc.seconds} seconds, then try again."
+        detail = str(exc).strip() or exc.__class__.__name__
+        lower_detail = detail.lower()
+        if "api_id" in lower_detail or "api hash" in lower_detail:
+            return "Telegram API ID/API hash look invalid. Recheck Settings and save them again."
+        if "phone" in lower_detail:
+            return f"Telegram rejected the phone number: {detail}"
+        if "timed out" in lower_detail or "timeout" in lower_detail:
+            return detail
+        return f"Telegram did not send a login code: {detail}"
 
     def _new_client(self, session_name: str, api_id: int, api_hash: str) -> TelegramClient:
         return TelegramClient(
