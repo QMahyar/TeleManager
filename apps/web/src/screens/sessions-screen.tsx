@@ -97,6 +97,7 @@ export function SessionsScreen(props: SessionsScreenProps) {
               link.download = "telemanager-sessions.zip"
               link.click()
               URL.revokeObjectURL(url)
+              flash("Session export created.")
             })
           }
         >

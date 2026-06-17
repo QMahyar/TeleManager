@@ -132,6 +132,7 @@ export type ActionsScreenProps = Pick<
   | "addQueueStep"
   | "runs"
   | "loadRuns"
+  | "refresh"
   | "guarded"
   | "loading"
   | "flash"

@@ -202,9 +202,6 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
   },
 }
 
-export const actionLabels: Record<ActionType, string> = Object.fromEntries(
-  Object.entries(actionMeta).map(([key, meta]) => [key, meta.label])
-) as Record<ActionType, string>
 
 export const categoryLabels: Record<ActionCategory, string> = {
   joining: "Joining",

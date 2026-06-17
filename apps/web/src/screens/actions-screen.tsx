@@ -62,6 +62,7 @@ export function ActionsScreen(props: ActionsScreenProps) {
     addQueueStep,
     runs,
     loadRuns,
+    refresh,
     guarded,
     flash,
     askDialog,
@@ -87,6 +88,7 @@ export function ActionsScreen(props: ActionsScreenProps) {
             run.status
           )
         ) {
+          await refresh()
           flash(
             `Queue ${run.status}: ${run.completed_count || 0}/${run.operation_count || 0} succeeded.`
           )
@@ -94,6 +96,8 @@ export function ActionsScreen(props: ActionsScreenProps) {
         }
         await new Promise((resolve) => window.setTimeout(resolve, 1200))
       }
+    } catch (error) {
+      flash(error instanceof Error ? error.message : "Queue polling failed.")
     } finally {
       activeRunIdRef.current = null
     }
@@ -132,6 +136,9 @@ export function ActionsScreen(props: ActionsScreenProps) {
           </Button>
         </div>
         <div className="max-h-72 space-y-2 overflow-auto">
+          {accounts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Add accounts first.</p>
+          ) : null}
           {accounts.map((account) => (
             <label
               key={account.id}
@@ -203,18 +210,30 @@ export function ActionsScreen(props: ActionsScreenProps) {
                     max_operations: pq.max_operations ?? s.max_operations,
                   }))
                   setConfirmed(false)
+                  flash(`Loaded preset: ${preset.name}`)
                 }}
               >
-                {preset.name}
+                <span className="truncate">{preset.name}</span>
+                <span className="ml-1 text-xs text-muted-foreground">
+                  {(preset.queue.steps || []).length} step(s)
+                </span>
               </button>
               <Button
                 size="icon-sm"
                 variant="ghost"
                 onClick={() =>
                   guarded(async () => {
+                    const confirmed = await askDialog({
+                      title: "Delete preset?",
+                      description: `This removes the preset \"${preset.name}\" permanently.`,
+                      confirmLabel: "Delete Preset",
+                      danger: true,
+                    })
+                    if (!confirmed) return
                     await api(`/api/actions/presets/${preset.id}`, {
                       method: "DELETE",
                     })
+                    flash("Preset deleted.")
                     await loadPresets()
                   })
                 }
@@ -223,6 +242,11 @@ export function ActionsScreen(props: ActionsScreenProps) {
               </Button>
             </div>
           ))}
+          {presets.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No saved presets yet.
+            </p>
+          ) : null}
         </div>
       </Panel>
       <Panel className="space-y-5">
@@ -371,6 +395,9 @@ export function ActionsScreen(props: ActionsScreenProps) {
             disabled={loading}
             onClick={() =>
               guarded(async () => {
+                if (activeRunIdRef.current) {
+                  return flash("A queue is already running.")
+                }
                 if (!confirmed)
                   return flash("Confirm the reviewed queue first.")
                 const response = await api<{
@@ -401,6 +428,7 @@ export function ActionsScreen(props: ActionsScreenProps) {
           loadRuns={loadRuns}
           flash={flash}
           askDialog={askDialog}
+          onRetryQueued={pollQueueRun}
         />
       </Panel>
     </div>

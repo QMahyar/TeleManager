@@ -78,6 +78,7 @@ function useAccountLoginFlow(props: AccountsScreenProps) {
       if (!form)
         return props.flash("Enter the phone number in international format.")
       const payload = await requestLoginCode(form)
+      formElement.reset()
       await props.refresh()
       handleLoginStartResponse(payload.account, props, codeInputRef)
     })

@@ -28,12 +28,14 @@ export function RunHistory({
   loadRuns,
   flash,
   askDialog,
+  onRetryQueued,
 }: {
   runs: QueueRun[]
   guarded: (work: () => Promise<void>) => Promise<void>
   loadRuns: () => Promise<void>
   flash: (message: string) => void
   askDialog: AskDialog
+  onRetryQueued?: (runId: string) => Promise<void>
 }) {
   const [selectedRun, setSelectedRun] = React.useState<QueueRun | null>(null)
 
@@ -128,12 +130,23 @@ export function RunHistory({
                   variant="outline"
                   onClick={() =>
                     guarded(async () => {
-                      await api(
-                        `/api/actions/queue/runs/${run.id}/retry-failed`,
-                        { method: "POST" }
-                      )
+                      const confirmed = await askDialog({
+                        title: "Retry failed operations?",
+                        description:
+                          "This creates a new queue run containing only the failed operations from this run.",
+                        confirmLabel: "Retry Failed",
+                      })
+                      if (!confirmed) return
+                      const payload = await api<{
+                        run_id: string
+                        status: string
+                        operation_count: number
+                      }>(`/api/actions/queue/runs/${run.id}/retry-failed`, {
+                        method: "POST",
+                      })
                       flash("Retry queued.")
                       await loadRuns()
+                      if (onRetryQueued) await onRetryQueued(payload.run_id)
                     })
                   }
                 >

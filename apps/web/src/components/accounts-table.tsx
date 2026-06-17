@@ -136,7 +136,7 @@ function AccountIdentity({ account }: { account: Account }) {
     account.username ? `@${account.username}` : null,
   ]
     .filter(Boolean)
-    .join(" / ")
+    .join(" \u00b7 ")
 
   return (
     <>
@@ -312,8 +312,7 @@ async function deleteLocalSession(
 ) {
   const confirmed = await askDialog({
     title: "Delete local session?",
-    description:
-      "This deletes the local session copy from this machine. It does not delete your Telegram account.",
+    description: `This removes ${account.label || account.session_name} from this machine. It does not delete your Telegram account.`,
     confirmLabel: "Delete Local",
     danger: true,
   })

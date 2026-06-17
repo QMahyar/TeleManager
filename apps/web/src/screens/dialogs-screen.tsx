@@ -76,9 +76,11 @@ export function DialogsScreen(props: DialogsScreenProps) {
             : ""
         )
       })
-      .catch(() => {
+      .catch((error) => {
         setDialogs([])
-        setFetchStatus("")
+        setFetchStatus(
+          error instanceof Error ? error.message : "Failed to load cached dialogs."
+        )
       })
   }, [dialogAccountId, setDialogs])
 
@@ -148,6 +150,7 @@ export function DialogsScreen(props: DialogsScreenProps) {
                   flash("Choose an account first.")
                   return
                 }
+                setFetchStatus("Fetching dialogs from Telegram...")
                 const payload = await api<{
                   dialogs: TelegramDialog[]
                   fetched_at?: string
@@ -214,6 +217,7 @@ export function DialogsScreen(props: DialogsScreenProps) {
               target: [...selectedDialogTargets].join("\n"),
             }))
             setView("actions")
+            flash("Selected dialogs copied into Actions.")
           }}
         >
           Use Selected In Actions

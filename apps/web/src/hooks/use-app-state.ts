@@ -234,6 +234,7 @@ function useQueueState(
     ])
     setActionDraft((current) => ({ ...current, target: "", message: "" }))
     setConfirmed(false)
+    flash("Action step added to queue.")
   }
 
   return {
