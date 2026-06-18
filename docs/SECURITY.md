@@ -1,6 +1,6 @@
 # Security Guide
 
-TeleManager handles Telegram user sessions. Treat every local session file and export as sensitive authentication material.
+TeleManager handles Telegram user sessions. Treat every local session file, export, run history, and cached dialog dataset as sensitive authentication or operational material.
 
 ## Sensitive Files
 
@@ -50,8 +50,20 @@ TeleManager uses guarded action queues instead of unlimited direct automation:
 - Safety defaults are stored locally in `data/safety_settings.json`.
 - Queue runs store operation-level status and results in `data/action_runs.json`.
 - Cancellation is cooperative and stops before the next operation; it does not forcibly interrupt an in-flight Telegram request.
+- Per-account failures are isolated during queue processing so one unavailable target does not abort the entire multi-account run.
 
 Use conservative defaults, especially with older accounts or any action involving joins, messages, bot starts, or many targets.
+
+## Dialog Safety Model
+
+Dialog discovery and quick actions are powerful because they let operators pivot from a real Telegram chat directly into the Actions page.
+
+Treat this workflow carefully:
+
+- Cached dialogs in `data/dialogs/` may reveal usernames, channel names, bot names, and private conversation titles.
+- Dialog quick actions can prefill destructive operations like delete, leave, clear, mute, archive, block, and report.
+- Bulk dialog quick actions can target many dialogs at once across many selected accounts.
+- Always review the action type, targets, and selected accounts before running a queue.
 
 ## Run History and Exports
 
@@ -70,7 +82,7 @@ Before sharing logs or bug reports, remove:
 
 Do not use this project for spam, scams, impersonation, unsolicited messaging, ban evasion, flood-limit evasion, or any activity that violates Telegram rules or harms other users.
 
-Only message people or chats where you have permission or a clear expectation of contact. Only join, leave, clear, or delete dialogs for accounts and chats you own or are authorized to manage.
+Only message people or chats where you have permission or a clear expectation of contact. Only join, leave, clear, delete, or moderate dialogs for accounts and chats you own or are authorized to manage.
 
 ## Manual Testing Safety
 
