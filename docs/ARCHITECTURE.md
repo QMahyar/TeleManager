@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # Architecture
 
 TeleManager is a local FastAPI application with a React frontend. It manages Telegram user sessions locally and executes one-off Telegram actions by connecting to selected sessions only when needed.
@@ -35,7 +37,6 @@ React Browser UI
 - `apps/web/src/components` contains the shared app shell, queue/run UI, account tables, dialog helpers, and reusable workspace pieces.
 - `apps/web/src/hooks/use-app-state.ts` is the central client state coordinator for accounts, dialogs, queue builder state, presets, run history, and settings.
 - `packages/ui` contains shared UI primitives and styles used by the React app.
-- `src/telemanager/static` remains as a legacy fallback/parity reference, but the React frontend is the primary UI.
 
 ## Data model
 

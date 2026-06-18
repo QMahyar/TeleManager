@@ -1,4 +1,4 @@
-import type { Account } from "../types"
+import type { Account, QueueRun, TelegramDialog } from "../types"
 
 export function splitTargets(value: string) {
   return value
@@ -37,4 +37,37 @@ export function statusTone(status: string) {
 export function humanTime(value?: string) {
   if (!value) return "Now"
   return new Date(value).toLocaleString()
+}
+
+export function dialogKind(dialog: TelegramDialog) {
+  return (
+    dialog.dialog_type ||
+    dialog.kind ||
+    dialog.type ||
+    dialog.entity_type ||
+    "unknown"
+  )
+}
+
+export function dialogTarget(dialog: TelegramDialog) {
+  return dialog.username ? `@${dialog.username}` : String(dialog.id)
+}
+
+export function queueRunProgress(run: QueueRun) {
+  const operationCount = run.operation_count || 0
+  const completedCount = run.completed_count || 0
+  const failedCount = run.failed_count || 0
+  const progress = operationCount
+    ? Math.min(100, Math.round((completedCount / operationCount) * 100))
+    : 0
+  return { operationCount, completedCount, failedCount, progress }
+}
+
+export function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
 }

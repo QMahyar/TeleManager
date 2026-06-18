@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # TeleManager
 
 TeleManager is a local Telegram session manager for people who manage multiple Telegram accounts on their own computer. It is not a Telegram clone or chat client. Its job is to create, import, export, validate, and use Telethon `.session` files from one guarded local dashboard.
@@ -110,7 +112,7 @@ npm install
 npm run build
 ```
 
-The FastAPI app serves `apps/web/dist` when it exists. A legacy static fallback still exists under `src/telemanager/static` for recovery and parity reference, but ongoing UI work should happen in the React frontend.
+The FastAPI app serves `apps/web/dist` when it exists. Build the React frontend before starting the server.
 
 For frontend-only iteration, run:
 
@@ -141,7 +143,6 @@ Do not use this project for spam, scams, impersonation, unsolicited messaging, o
 apps/web/              React frontend
 packages/ui/           Shared UI primitives and styles
 src/telemanager/       FastAPI app and backend services
-src/telemanager/static/Legacy fallback UI and assets
 docs/                  Architecture, security, roadmap, and test docs
 data/                  Local config, account metadata, dialog cache, exports, activity logs; gitignored
 sessions/              Telethon .session files; gitignored

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 import uuid
@@ -8,9 +9,8 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
-from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 
 from .accounts import AccountManager
@@ -26,11 +26,11 @@ from .sessions_service import (
     rename_account,
     rename_session_file,
 )
-from .telegram_actions import TelegramAction, TelegramActionType, validate_target_for_action
+from .telegram_actions import TelegramAction, TelegramActionType, safe_delay, validate_target_for_action
 
-STATIC_DIR = Path(__file__).resolve().parent / "static"
-FRONTEND_DIST_DIR = Path(__file__).resolve().parents[2] / "apps" / "web" / "dist"
-ACCOUNT_IDS_BODY = Body(...)
+FRONTEND_ROOT_DIR = Path(__file__).resolve().parents[2] / "apps" / "web"
+FRONTEND_DIST_DIR = FRONTEND_ROOT_DIR / "dist"
+FRONTEND_PUBLIC_DIR = FRONTEND_ROOT_DIR / "public"
 FILE_BODY = File(...)
 NO_STORE_HEADERS = {"Cache-Control": "no-store"}
 manager = AccountManager()
@@ -119,33 +119,40 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="TeleManager", lifespan=lifespan)
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 if (FRONTEND_DIST_DIR / "assets").exists():
+    from fastapi.staticfiles import StaticFiles
+
     app.mount("/assets", StaticFiles(directory=FRONTEND_DIST_DIR / "assets"), name="frontend-assets")
 
 
 @app.get("/")
-def index() -> FileResponse:
+def index() -> Response:
     dist_index = FRONTEND_DIST_DIR / "index.html"
     if dist_index.exists():
         return FileResponse(dist_index, headers=NO_STORE_HEADERS)
-    return FileResponse(STATIC_DIR / "index.html", headers=NO_STORE_HEADERS)
+    return Response(
+        content="Build the React frontend with `npm run build` before serving the UI.",
+        media_type="text/plain",
+        status_code=503,
+        headers=NO_STORE_HEADERS,
+    )
 
 
 @app.get("/favicon.ico")
-def favicon_ico() -> Response:
-    dist_favicon = FRONTEND_DIST_DIR / "favicon.ico"
-    if dist_favicon.exists():
-        return Response(content=dist_favicon.read_bytes(), media_type="image/x-icon")
-    return Response(content=(STATIC_DIR / "favicon.ico").read_bytes(), media_type="image/x-icon")
+def favicon_ico() -> FileResponse:
+    return FileResponse(first_existing(FRONTEND_DIST_DIR / "favicon.ico", FRONTEND_PUBLIC_DIR / "favicon.ico"))
 
 
 @app.get("/favicon.svg")
-def favicon_svg() -> Response:
-    dist_favicon = FRONTEND_DIST_DIR / "favicon.svg"
-    if dist_favicon.exists():
-        return Response(content=dist_favicon.read_text(encoding="utf-8"), media_type="image/svg+xml")
-    return Response(content=(STATIC_DIR / "favicon.svg").read_text(encoding="utf-8"), media_type="image/svg+xml")
+def favicon_svg() -> FileResponse:
+    return FileResponse(first_existing(FRONTEND_DIST_DIR / "favicon.svg", FRONTEND_PUBLIC_DIR / "favicon.svg"))
+
+
+def first_existing(*paths: Path) -> Path:
+    for path in paths:
+        if path.exists():
+            return path
+    raise HTTPException(status_code=404, detail="File was not found.")
 
 
 @app.get("/api/config")
@@ -232,22 +239,6 @@ async def confirm_password(account_id: str = Form(...), password: str = Form(...
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@app.post("/api/accounts/start")
-async def start_account(account_id: str = Form(...)) -> dict:
-    raise HTTPException(
-        status_code=410,
-        detail="Manual start/stop is deprecated. Use validate, dialog fetch, or action queue workflows instead.",
-    )
-
-
-@app.post("/api/accounts/stop")
-async def stop_account(account_id: str = Form(...)) -> dict:
-    raise HTTPException(
-        status_code=410,
-        detail="Manual start/stop is deprecated. Use validate, dialog fetch, or action queue workflows instead.",
-    )
-
-
 @app.post("/api/accounts/logout")
 async def logout_account(account_id: str = Form(...)) -> dict:
     try:
@@ -286,38 +277,6 @@ def delete_account(account_id: str) -> dict:
         return {"ok": True}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@app.post("/api/accounts/start-selected")
-async def start_selected(account_ids: list[str] = ACCOUNT_IDS_BODY) -> dict:
-    raise HTTPException(
-        status_code=410,
-        detail="Manual start/stop is deprecated. Use validate, dialog fetch, or action queue workflows instead.",
-    )
-
-
-@app.post("/api/accounts/stop-selected")
-async def stop_selected(account_ids: list[str] = ACCOUNT_IDS_BODY) -> dict:
-    raise HTTPException(
-        status_code=410,
-        detail="Manual start/stop is deprecated. Use validate, dialog fetch, or action queue workflows instead.",
-    )
-
-
-@app.post("/api/accounts/start-all")
-async def start_all() -> dict:
-    raise HTTPException(
-        status_code=410,
-        detail="Manual start/stop is deprecated. Use validate, dialog fetch, or action queue workflows instead.",
-    )
-
-
-@app.post("/api/accounts/stop-all")
-async def stop_all() -> dict:
-    raise HTTPException(
-        status_code=410,
-        detail="Manual start/stop is deprecated. Use validate, dialog fetch, or action queue workflows instead.",
-    )
 
 
 @app.post("/api/sessions/import-file")
@@ -543,7 +502,7 @@ def export_action_queue_run(run_id: str) -> Response:
     run = queue_runs.get(run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Queue run was not found.")
-    content = __import__("json").dumps(run, indent=2, sort_keys=True)
+    content = json.dumps(run, indent=2, sort_keys=True)
     return Response(
         content=content,
         media_type="application/json",
@@ -626,8 +585,7 @@ async def process_action_queue(run_id: str, request: ActionQueueRequest, expande
             save_action_runs(queue_runs)
             last_save = now
 
-    delay_between_accounts = float(request.delay_between_accounts or safety_defaults()["delay_between_accounts"])
-    delay_between_actions = float(request.delay_between_actions or safety_defaults()["delay_between_actions"])
+    delay_between_accounts, delay_between_actions = resolved_queue_delays(request)
     try:
         for index, operation in enumerate(expanded):
             if run.get("cancel_requested"):
@@ -652,8 +610,6 @@ async def process_action_queue(run_id: str, request: ActionQueueRequest, expande
                     if previous["account_id"] != operation["account_id"]
                     else delay_between_actions
                 )
-                from .telegram_actions import safe_delay
-
                 await safe_delay(delay)
             action = TelegramAction(
                 action_type=operation["action_type"],
@@ -768,12 +724,18 @@ def expand_action_queue(request: ActionQueueRequest) -> list[dict]:
     return operations
 
 
+def resolved_queue_delays(request: ActionQueueRequest) -> tuple[float, float]:
+    if request.delay_between_accounts is None or request.delay_between_actions is None:
+        defaults = safety_defaults()
+        return defaults["delay_between_accounts"], defaults["delay_between_actions"]
+    return request.delay_between_accounts, request.delay_between_actions
+
+
 def estimate_queue_seconds(request: ActionQueueRequest, expanded: list[dict]) -> float:
     runnable = [op for op in expanded if op.get("status") != "needs_login"]
     if len(runnable) <= 1:
         return 0.0
-    delay_between_accounts = float(request.delay_between_accounts or safety_defaults()["delay_between_accounts"])
-    delay_between_actions = float(request.delay_between_actions or safety_defaults()["delay_between_actions"])
+    delay_between_accounts, delay_between_actions = resolved_queue_delays(request)
     total = 0.0
     for previous, current in zip(runnable, runnable[1:], strict=False):
         total += delay_between_accounts if previous["account_id"] != current["account_id"] else delay_between_actions

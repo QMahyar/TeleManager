@@ -2,8 +2,8 @@ import * as React from "react"
 
 import { api } from "../lib/api"
 import { actionMeta, emptySafety } from "../lib/constants"
-import { validateTargets } from "../components/target-preview"
-import { splitTargets } from "../lib/helpers"
+import { validateTargets } from "../lib/targeting"
+import { dialogKind, dialogTarget, splitTargets } from "../lib/helpers"
 import type {
   Account,
   ActionType,
@@ -120,20 +120,26 @@ function useDialogState() {
     [dialogFilter, dialogSearch, dialogs]
   )
 
-  React.useEffect(() => {
-    const knownTargets = new Set(dialogs.map(dialogTarget))
-    setSelectedDialogTargets(
-      (current) =>
-        new Set([...current].filter((target) => knownTargets.has(target)))
-    )
-  }, [dialogs])
+  const knownDialogTargets = React.useMemo(
+    () => new Set(dialogs.map(dialogTarget)),
+    [dialogs]
+  )
+  const visibleSelectedDialogTargets = React.useMemo(
+    () =>
+      new Set(
+        [...selectedDialogTargets].filter((target) =>
+          knownDialogTargets.has(target)
+        )
+      ),
+    [knownDialogTargets, selectedDialogTargets]
+  )
 
   return {
     dialogFilter,
     dialogSearch,
     dialogs,
     filteredDialogs,
-    selectedDialogTargets,
+    selectedDialogTargets: visibleSelectedDialogTargets,
     setDialogFilter,
     setDialogSearch,
     setDialogs,
@@ -330,20 +336,6 @@ function filterDialogs(
       (dialogFilter === "group" && kind === "supergroup")
     return matchesFilter && target.includes(dialogSearch.toLowerCase())
   })
-}
-
-function dialogKind(dialog: TelegramDialog) {
-  return (
-    dialog.dialog_type ||
-    dialog.kind ||
-    dialog.type ||
-    dialog.entity_type ||
-    "unknown"
-  )
-}
-
-function dialogTarget(dialog: TelegramDialog) {
-  return dialog.username ? `@${dialog.username}` : String(dialog.id)
 }
 
 function messageIsMissing(actionDraft: {

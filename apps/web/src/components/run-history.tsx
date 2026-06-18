@@ -18,7 +18,12 @@ import {
 
 import { api } from "../lib/api"
 import { actionMeta } from "../lib/constants"
-import { humanTime, statusTone } from "../lib/helpers"
+import {
+  downloadBlob,
+  humanTime,
+  queueRunProgress,
+  statusTone,
+} from "../lib/helpers"
 import type { AskDialog, ActionType, QueueRun } from "../types"
 import { Badge, EmptyState, SectionTitle } from "./ui"
 
@@ -78,12 +83,8 @@ export function RunHistory({
       </div>
       {runs.length ? (
         runs.map((run) => {
-          const operationCount = run.operation_count || 0
-          const completedCount = run.completed_count || 0
-          const failedCount = run.failed_count || 0
-          const progress = operationCount
-            ? Math.min(100, Math.round((completedCount / operationCount) * 100))
-            : 0
+          const { operationCount, completedCount, failedCount, progress } =
+            queueRunProgress(run)
           const canRetry = isTerminal(run.status) && failedCount > 0
 
           return (
@@ -147,12 +148,7 @@ export function RunHistory({
                         }
                       }
                       const blob = await response.blob()
-                      const url = URL.createObjectURL(blob)
-                      const link = document.createElement("a")
-                      link.href = url
-                      link.download = `queue-run-${run.id}.json`
-                      link.click()
-                      URL.revokeObjectURL(url)
+                      downloadBlob(blob, `queue-run-${run.id}.json`)
                     })
                   }
                 >
@@ -269,17 +265,10 @@ function RunDetailsDialog({
   if (!run) return null
 
   const operations = run.operations || []
-  const results = Array.isArray(
-    (run as QueueRun & { results?: unknown[] }).results
-  )
-    ? ((run as QueueRun & { results?: unknown[] }).results as Array<
-        Record<string, unknown>
-      >)
-    : []
-  const error = (run as QueueRun & { error?: string | null }).error
-  const current = (
-    run as QueueRun & { current?: Record<string, unknown> | null }
-  ).current
+  const results = run.results || []
+  const error = run.error
+  const current = run.current
+  const progress = queueRunProgress(run)
 
   return (
     <div
@@ -304,7 +293,7 @@ function RunDetailsDialog({
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
               {humanTime(run.created_at)} /{" "}
-              {run.operation_count || operations.length} operation(s)
+              {progress.operationCount || operations.length} operation(s)
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 md:justify-end">
@@ -316,29 +305,18 @@ function RunDetailsDialog({
         </div>
         <div className="max-h-[calc(90vh-7rem)] space-y-4 overflow-auto p-5">
           <div className="grid gap-3 md:grid-cols-4">
-            <RunStat label="Completed" value={run.completed_count || 0} />
-            <RunStat label="Failed" value={run.failed_count || 0} />
+            <RunStat label="Completed" value={progress.completedCount} />
+            <RunStat label="Failed" value={progress.failedCount} />
             <RunStat label="Results" value={results.length} />
             <RunStat
               label="Total"
-              value={run.operation_count || operations.length}
+              value={progress.operationCount || operations.length}
             />
           </div>
           <RunProgressBar
-            completedCount={run.completed_count || 0}
-            operationCount={run.operation_count || operations.length}
-            progress={
-              (run.operation_count || operations.length) > 0
-                ? Math.min(
-                    100,
-                    Math.round(
-                      ((run.completed_count || 0) /
-                        (run.operation_count || operations.length)) *
-                        100
-                    )
-                  )
-                : 0
-            }
+            completedCount={progress.completedCount}
+            operationCount={progress.operationCount || operations.length}
+            progress={progress.progress}
           />
           {current ? (
             <div className="border border-primary/30 bg-primary/10 p-3 text-sm">

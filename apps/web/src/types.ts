@@ -83,6 +83,9 @@ export type QueueRun = {
   completed_count?: number
   failed_count?: number
   operations?: Array<Record<string, unknown>>
+  results?: Array<Record<string, unknown>>
+  error?: string | null
+  current?: Record<string, unknown> | null
 }
 
 export type Preset = {

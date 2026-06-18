@@ -4,6 +4,7 @@ import asyncio
 import re
 import uuid
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -163,48 +164,6 @@ class AccountManager:
             finally:
                 client.disconnect()
 
-    async def start_account(self, account_id: str) -> AccountRecord:
-        async with self.lock:
-            account = self._get_account(account_id)
-            if account.id in self.clients and self.clients[account.id].is_connected():
-                account.status = "running"
-                self._save_accounts()
-                return account
-            api_id, api_hash = self.get_api_credentials()
-            client = self._new_client(account.session_name, api_id, api_hash)
-            try:
-                await self._connect_client(client)
-                authorized = await self._is_user_authorized(client)
-            except TimeoutError as exc:
-                client.disconnect()
-                account.status = "stopped"
-                account.last_error = str(exc)
-                self._save_accounts()
-                raise ValueError(account.last_error) from exc
-            if not authorized:
-                client.disconnect()
-                account.authorized = False
-                account.status = "stopped"
-                account.last_error = "Session is not authorized. Log in again."
-                self._save_accounts()
-                raise ValueError(account.last_error)
-            account.authorized = True
-            account.status = "running"
-            account.last_error = None
-            self.clients[account.id] = client
-            self._save_accounts()
-            return account
-
-    async def stop_account(self, account_id: str) -> AccountRecord:
-        async with self.lock:
-            account = self._get_account(account_id)
-            client = self.clients.pop(account.id, None)
-            if client:
-                client.disconnect()
-            account.status = "stopped"
-            self._save_accounts()
-            return account
-
     async def logout_account(self, account_id: str) -> AccountRecord:
         async with self.lock:
             account = self._get_account(account_id)
@@ -223,20 +182,6 @@ class AccountManager:
             account.last_error = None
             self._save_accounts()
             return account
-
-    async def start_many(self, account_ids: list[str] | None = None) -> list[AccountRecord]:
-        target_ids = account_ids or list(self.accounts.keys())
-        results = []
-        for account_id in target_ids:
-            results.append(await self.start_account(account_id))
-        return results
-
-    async def stop_many(self, account_ids: list[str] | None = None) -> list[AccountRecord]:
-        target_ids = account_ids or list(self.accounts.keys())
-        results = []
-        for account_id in target_ids:
-            results.append(await self.stop_account(account_id))
-        return results
 
     async def run_action(self, action: TelegramAction) -> list[TelegramActionResult]:
         if not action.confirm:
@@ -363,8 +308,6 @@ class AccountManager:
             ) from exc
 
     def _now_iso(self) -> str:
-        from datetime import UTC, datetime
-
         return datetime.now(UTC).isoformat()
 
     def _login_error_message(self, exc: Exception) -> str:

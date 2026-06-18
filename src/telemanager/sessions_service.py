@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import uuid
@@ -90,7 +91,7 @@ def export_sessions(manager: AccountManager, account_ids: list[str], redact_phon
             if redact_phone:
                 record["phone"] = ""
             metadata.append(record)
-        archive.writestr("accounts-export.json", __import__("json").dumps(metadata, indent=2, sort_keys=True))
+        archive.writestr("accounts-export.json", json.dumps(metadata, indent=2, sort_keys=True))
         archive.writestr(
             "README-SECURITY.txt",
             "TeleManager session exports contain Telegram authentication material. Keep this ZIP private.\n",

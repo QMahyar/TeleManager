@@ -15,6 +15,7 @@ from telethon.tl.functions.messages import (
     DeleteHistoryRequest,
     ImportChatInviteRequest,
     ReadHistoryRequest,
+    ReportSpamRequest,
     StartBotRequest,
 )
 from telethon.tl.types import InputNotifyPeer, InputPeerNotifySettings
@@ -36,24 +37,6 @@ TelegramActionType = Literal[
     "read_chat",
     "report_spam",
 ]
-
-ACTION_HANDLERS: dict[TelegramActionType, str] = {
-    "join_chat": "join_chat",
-    "leave_chat": "leave_chat",
-    "send_message": "send_message",
-    "forward_message": "forward_message",
-    "start_bot": "start_bot",
-    "delete_chat": "delete_chat",
-    "clear_chat": "clear_chat",
-    "block_user": "block_user",
-    "unblock_user": "unblock_user",
-    "archive_chat": "archive_chat",
-    "unarchive_chat": "unarchive_chat",
-    "mute_chat": "mute_chat",
-    "unmute_chat": "unmute_chat",
-    "read_chat": "read_chat",
-    "report_spam": "report_spam",
-}
 
 
 @dataclass
@@ -83,27 +66,38 @@ async def run_telegram_action(client: TelegramClient, action: TelegramAction) ->
     if not target:
         raise ValueError("Target is required.")
 
-    handlers = {
-        "join_chat": lambda: join_chat(client, target),
-        "leave_chat": lambda: leave_chat(client, target),
-        "send_message": lambda: send_message(client, target, action.message),
-        "forward_message": lambda: forward_message(client, target, action.message),
-        "start_bot": lambda: start_bot(client, target),
-        "delete_chat": lambda: delete_chat(client, target),
-        "clear_chat": lambda: clear_chat(client, target),
-        "block_user": lambda: block_user(client, target),
-        "unblock_user": lambda: unblock_user(client, target),
-        "archive_chat": lambda: archive_chat(client, target),
-        "unarchive_chat": lambda: unarchive_chat(client, target),
-        "mute_chat": lambda: mute_chat(client, target),
-        "unmute_chat": lambda: unmute_chat(client, target),
-        "read_chat": lambda: read_chat(client, target),
-        "report_spam": lambda: report_spam(client, target),
-    }
-    handler = handlers.get(action.action_type)
-    if not handler:
-        raise ValueError(f"Unsupported action type: {action.action_type}")
-    return await handler()
+    match action.action_type:
+        case "join_chat":
+            return await join_chat(client, target)
+        case "leave_chat":
+            return await leave_chat(client, target)
+        case "send_message":
+            return await send_message(client, target, action.message)
+        case "forward_message":
+            return await forward_message(client, target, action.message)
+        case "start_bot":
+            return await start_bot(client, target)
+        case "delete_chat":
+            return await delete_chat(client, target)
+        case "clear_chat":
+            return await clear_chat(client, target)
+        case "block_user":
+            return await block_user(client, target)
+        case "unblock_user":
+            return await unblock_user(client, target)
+        case "archive_chat":
+            return await archive_chat(client, target)
+        case "unarchive_chat":
+            return await unarchive_chat(client, target)
+        case "mute_chat":
+            return await mute_chat(client, target)
+        case "unmute_chat":
+            return await unmute_chat(client, target)
+        case "read_chat":
+            return await read_chat(client, target)
+        case "report_spam":
+            return await report_spam(client, target)
+    raise ValueError(f"Unsupported action type: {action.action_type}")
 
 
 # ---------------------------------------------------------------------------
@@ -241,8 +235,6 @@ async def read_chat(client: TelegramClient, target: str) -> str:
 
 async def report_spam(client: TelegramClient, target: str) -> str:
     entity = await client.get_input_entity(normalize_entity_target(target))
-    from telethon.tl.functions.messages import ReportSpamRequest
-
     await client(ReportSpamRequest(peer=entity))
     return "Spam reported."
 

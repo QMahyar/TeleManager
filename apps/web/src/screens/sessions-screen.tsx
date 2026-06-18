@@ -6,6 +6,7 @@ import { Button } from "@workspace/ui/components/button"
 
 import { EmptyState, Field, Input, Panel, SectionTitle } from "../components/ui"
 import { api } from "../lib/api"
+import { downloadBlob } from "../lib/helpers"
 import type { SessionsScreenProps } from "./screen-props"
 
 export function SessionsScreen(props: SessionsScreenProps) {
@@ -129,12 +130,7 @@ export function SessionsScreen(props: SessionsScreenProps) {
                 }
               }
               const blob = await response.blob()
-              const url = URL.createObjectURL(blob)
-              const link = document.createElement("a")
-              link.href = url
-              link.download = "telemanager-sessions.zip"
-              link.click()
-              URL.revokeObjectURL(url)
+              downloadBlob(blob, "telemanager-sessions.zip")
               flash("Session export created.")
             })
           }
