@@ -72,6 +72,10 @@ export type ActionMeta = {
   destructive?: boolean
 }
 
+const TARGET_PUBLIC_LINK: TargetKind = "public_link"
+const TARGET_USERNAME: TargetKind = "username"
+const TARGET_NUMERIC_ID: TargetKind = "numeric_id"
+
 export const actionMeta: Record<ActionType, ActionMeta> = {
   join_chat: {
     label: "Join group or channel",
@@ -80,7 +84,7 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
       "Join a public channel/group by username or a private one via invite link.",
     needsMessage: false,
     targetHint: "@username, t.me/username, or invite link",
-    validTargets: new Set(["invite_link", "public_link", "username"]),
+    validTargets: new Set(["invite_link", TARGET_PUBLIC_LINK, TARGET_USERNAME]),
   },
   leave_chat: {
     label: "Leave group or channel",
@@ -88,7 +92,11 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
     description: "Leave a channel, supergroup, or basic group.",
     needsMessage: false,
     targetHint: "@username, numeric chat ID, or t.me link",
-    validTargets: new Set(["username", "numeric_id", "public_link"]),
+    validTargets: new Set([
+      TARGET_USERNAME,
+      TARGET_NUMERIC_ID,
+      TARGET_PUBLIC_LINK,
+    ]),
   },
   send_message: {
     label: "Send message",
@@ -97,7 +105,11 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
     needsMessage: true,
     messagePlaceholder: "Message text to send",
     targetHint: "@username, numeric ID, or t.me link (no invite links)",
-    validTargets: new Set(["username", "numeric_id", "public_link"]),
+    validTargets: new Set([
+      TARGET_USERNAME,
+      TARGET_NUMERIC_ID,
+      TARGET_PUBLIC_LINK,
+    ]),
   },
   forward_message: {
     label: "Forward message",
@@ -106,7 +118,11 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
     needsMessage: true,
     messagePlaceholder: "@source_chat:message_id (e.g. @channel:12345)",
     targetHint: "Destination: @username, numeric ID, or t.me link",
-    validTargets: new Set(["username", "numeric_id", "public_link"]),
+    validTargets: new Set([
+      TARGET_USERNAME,
+      TARGET_NUMERIC_ID,
+      TARGET_PUBLIC_LINK,
+    ]),
   },
   start_bot: {
     label: "Start bot",
@@ -114,7 +130,7 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
     description: "Send /start to a bot, optionally with a referral parameter.",
     needsMessage: false,
     targetHint: "@botname or t.me/botname?start=param",
-    validTargets: new Set(["username", "bot_link"]),
+    validTargets: new Set([TARGET_USERNAME, "bot_link"]),
   },
   block_user: {
     label: "Block user",
@@ -122,7 +138,7 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
     description: "Block a user so they can no longer contact you.",
     needsMessage: false,
     targetHint: "@username or numeric user ID",
-    validTargets: new Set(["username", "numeric_id"]),
+    validTargets: new Set([TARGET_USERNAME, TARGET_NUMERIC_ID]),
     destructive: true,
   },
   unblock_user: {
@@ -131,7 +147,7 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
     description: "Unblock a previously blocked user.",
     needsMessage: false,
     targetHint: "@username or numeric user ID",
-    validTargets: new Set(["username", "numeric_id"]),
+    validTargets: new Set([TARGET_USERNAME, TARGET_NUMERIC_ID]),
   },
   archive_chat: {
     label: "Archive chat",
@@ -139,7 +155,11 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
     description: "Move a chat to the Archive folder.",
     needsMessage: false,
     targetHint: "@username, numeric ID, or t.me link",
-    validTargets: new Set(["username", "numeric_id", "public_link"]),
+    validTargets: new Set([
+      TARGET_USERNAME,
+      TARGET_NUMERIC_ID,
+      TARGET_PUBLIC_LINK,
+    ]),
   },
   unarchive_chat: {
     label: "Unarchive chat",
@@ -147,7 +167,11 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
     description: "Move a chat out of the Archive folder.",
     needsMessage: false,
     targetHint: "@username, numeric ID, or t.me link",
-    validTargets: new Set(["username", "numeric_id", "public_link"]),
+    validTargets: new Set([
+      TARGET_USERNAME,
+      TARGET_NUMERIC_ID,
+      TARGET_PUBLIC_LINK,
+    ]),
   },
   mute_chat: {
     label: "Mute chat",
@@ -155,7 +179,11 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
     description: "Mute notifications for a chat indefinitely.",
     needsMessage: false,
     targetHint: "@username, numeric ID, or t.me link",
-    validTargets: new Set(["username", "numeric_id", "public_link"]),
+    validTargets: new Set([
+      TARGET_USERNAME,
+      TARGET_NUMERIC_ID,
+      TARGET_PUBLIC_LINK,
+    ]),
   },
   unmute_chat: {
     label: "Unmute chat",
@@ -163,7 +191,11 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
     description: "Restore notifications for a muted chat.",
     needsMessage: false,
     targetHint: "@username, numeric ID, or t.me link",
-    validTargets: new Set(["username", "numeric_id", "public_link"]),
+    validTargets: new Set([
+      TARGET_USERNAME,
+      TARGET_NUMERIC_ID,
+      TARGET_PUBLIC_LINK,
+    ]),
   },
   read_chat: {
     label: "Mark as read",
@@ -171,7 +203,11 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
     description: "Mark all messages in a chat as read.",
     needsMessage: false,
     targetHint: "@username, numeric ID, or t.me link",
-    validTargets: new Set(["username", "numeric_id", "public_link"]),
+    validTargets: new Set([
+      TARGET_USERNAME,
+      TARGET_NUMERIC_ID,
+      TARGET_PUBLIC_LINK,
+    ]),
   },
   delete_chat: {
     label: "Delete dialog",
@@ -179,7 +215,11 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
     description: "Delete a dialog from your chat list (local side only).",
     needsMessage: false,
     targetHint: "@username, numeric ID, or t.me link",
-    validTargets: new Set(["username", "numeric_id", "public_link"]),
+    validTargets: new Set([
+      TARGET_USERNAME,
+      TARGET_NUMERIC_ID,
+      TARGET_PUBLIC_LINK,
+    ]),
     destructive: true,
   },
   clear_chat: {
@@ -188,7 +228,11 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
     description: "Clear message history locally where Telegram permits.",
     needsMessage: false,
     targetHint: "@username, numeric ID, or t.me link",
-    validTargets: new Set(["username", "numeric_id", "public_link"]),
+    validTargets: new Set([
+      TARGET_USERNAME,
+      TARGET_NUMERIC_ID,
+      TARGET_PUBLIC_LINK,
+    ]),
     destructive: true,
   },
   report_spam: {
@@ -197,7 +241,11 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
     description: "Report a chat or user as spam to Telegram.",
     needsMessage: false,
     targetHint: "@username, numeric ID, or t.me link",
-    validTargets: new Set(["username", "numeric_id", "public_link"]),
+    validTargets: new Set([
+      TARGET_USERNAME,
+      TARGET_NUMERIC_ID,
+      TARGET_PUBLIC_LINK,
+    ]),
     destructive: true,
   },
 }

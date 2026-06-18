@@ -27,9 +27,12 @@ import {
 import type { AskDialog, ActionType, QueueRun } from "../types"
 import { Badge, EmptyState, SectionTitle } from "./ui"
 
-function isTerminal(status: string) {
-  return ["completed", "failed", "canceled", "interrupted"].includes(status)
-}
+const TERMINAL_RUN_STATUSES = new Set([
+  "completed",
+  "failed",
+  "canceled",
+  "interrupted",
+])
 
 export function RunHistory({
   runs,
@@ -85,7 +88,8 @@ export function RunHistory({
         runs.map((run) => {
           const { operationCount, completedCount, failedCount, progress } =
             queueRunProgress(run)
-          const canRetry = isTerminal(run.status) && failedCount > 0
+          const canRetry =
+            TERMINAL_RUN_STATUSES.has(run.status) && failedCount > 0
 
           return (
             <div
@@ -183,7 +187,7 @@ export function RunHistory({
                     Retry Failed
                   </Button>
                 ) : null}
-                {!isTerminal(run.status) ? (
+                {!TERMINAL_RUN_STATUSES.has(run.status) ? (
                   <Button
                     size="sm"
                     variant="destructive"
@@ -200,7 +204,7 @@ export function RunHistory({
                     Cancel
                   </Button>
                 ) : null}
-                {isTerminal(run.status) ? (
+                {TERMINAL_RUN_STATUSES.has(run.status) ? (
                   <Button
                     size="sm"
                     variant="destructive"
@@ -318,103 +322,122 @@ function RunDetailsDialog({
             operationCount={progress.operationCount || operations.length}
             progress={progress.progress}
           />
-          {current ? (
-            <div className="border border-primary/30 bg-primary/10 p-3 text-sm">
-              <div className="flex items-center gap-2">
-                <IconProgressCheck className="size-4 text-primary" />
-                <strong>Current operation</strong>
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {actionLabel(String(current.action_type || ""))}
-              </p>
-              <p className="mt-1 font-mono text-xs text-muted-foreground">
-                {String(current.target || "target")}
-              </p>
-            </div>
-          ) : null}
-          {error ? (
-            <div className="border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-              <div className="flex items-center gap-2">
-                <IconAlertTriangle className="size-4" />
-                <strong>Run error</strong>
-              </div>
-              <p className="mt-1">{error}</p>
-            </div>
-          ) : null}
-          <TableWrap>
-            <Table className="min-w-[52rem]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Action</TableHead>
-                  <TableHead>Target</TableHead>
-                  <TableHead>Account</TableHead>
-                  <TableHead>Detail</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {operations.length ? (
-                  operations.map((operation, index) => {
-                    const result = operation.result as
-                      | Record<string, unknown>
-                      | undefined
-                    const ok = result?.ok
-                    const detail =
-                      result?.error || result?.message || operation.error || "—"
-                    return (
-                      <TableRow
-                        key={`${operation.account_id || "account"}-${operation.target || index}-${index}`}
-                      >
-                        <TableCell>
-                          <Badge
-                            tone={statusTone(
-                              String(operation.status || "queued")
-                            )}
-                          >
-                            {String(operation.status || "queued")}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {actionLabel(String(operation.action_type || ""))}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {String(operation.target || "—")}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {String(
-                            operation.account_label ||
-                              operation.account_id ||
-                              "—"
-                          )}
-                        </TableCell>
-                        <TableCell
-                          className={
-                            ok === false
-                              ? "text-destructive"
-                              : "text-muted-foreground"
-                          }
-                        >
-                          {String(detail)}
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })
-                ) : (
-                  <TableRow>
-                    <TableCell
-                      colSpan={5}
-                      className="p-6 text-muted-foreground"
-                    >
-                      No operation details were stored for this run.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableWrap>
+          <CurrentOperationPanel current={current} />
+          <RunErrorPanel error={error} />
+          <RunOperationsTable operations={operations} />
         </div>
       </section>
     </div>
+  )
+}
+
+function CurrentOperationPanel({ current }: { current: QueueRun["current"] }) {
+  if (!current) {
+    return null
+  }
+
+  return (
+    <div className="border border-primary/30 bg-primary/10 p-3 text-sm">
+      <div className="flex items-center gap-2">
+        <IconProgressCheck className="size-4 text-primary" />
+        <strong>Current operation</strong>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {actionLabel(String(current.action_type || ""))}
+      </p>
+      <p className="mt-1 font-mono text-xs text-muted-foreground">
+        {String(current.target || "target")}
+      </p>
+    </div>
+  )
+}
+
+function RunErrorPanel({ error }: { error: QueueRun["error"] }) {
+  if (!error) {
+    return null
+  }
+
+  return (
+    <div className="border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+      <div className="flex items-center gap-2">
+        <IconAlertTriangle className="size-4" />
+        <strong>Run error</strong>
+      </div>
+      <p className="mt-1">{error}</p>
+    </div>
+  )
+}
+
+function RunOperationsTable({
+  operations,
+}: {
+  operations: NonNullable<QueueRun["operations"]>
+}) {
+  return (
+    <TableWrap>
+      <Table className="min-w-[52rem]">
+        <TableHeader>
+          <TableRow>
+            <TableHead>Status</TableHead>
+            <TableHead>Action</TableHead>
+            <TableHead>Target</TableHead>
+            <TableHead>Account</TableHead>
+            <TableHead>Detail</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {operations.length ? (
+            operations.map((operation, index) => {
+              const result = operation.result as
+                | Record<string, unknown>
+                | undefined
+              const ok = result?.ok
+              const detail =
+                result?.error || result?.message || operation.error || "—"
+              return (
+                <TableRow
+                  key={`${operation.account_id || "account"}-${operation.target || index}-${index}`}
+                >
+                  <TableCell>
+                    <Badge
+                      tone={statusTone(String(operation.status || "queued"))}
+                    >
+                      {String(operation.status || "queued")}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {actionLabel(String(operation.action_type || ""))}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">
+                    {String(operation.target || "—")}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">
+                    {String(
+                      operation.account_label || operation.account_id || "—"
+                    )}
+                  </TableCell>
+                  <TableCell
+                    className={
+                      ok === false
+                        ? "text-destructive"
+                        : "text-muted-foreground"
+                    }
+                  >
+                    {String(detail)}
+                  </TableCell>
+                </TableRow>
+              )
+            })
+          ) : (
+            <TableRow>
+              <TableCell colSpan={5} className="p-6 text-muted-foreground">
+                No operation details were stored for this run.
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </TableWrap>
   )
 }
 

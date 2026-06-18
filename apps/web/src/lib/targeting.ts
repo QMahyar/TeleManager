@@ -48,7 +48,7 @@ const kindLabels: Record<TargetKind, string> = {
   unknown: "unknown",
 }
 
-export function classifyTarget(target: string, actionType?: ActionType) {
+function classifyTarget(target: string, actionType?: ActionType) {
   const kind = classifyTargetKind(target)
   const label = kindLabels[kind]
   const meta = actionType ? actionMeta[actionType] : undefined

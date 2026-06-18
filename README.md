@@ -2,85 +2,195 @@
 
 # TeleManager
 
-TeleManager is a local Telegram session manager for people who manage multiple Telegram accounts on their own computer. It is not a Telegram clone or chat client. Its job is to create, import, export, validate, and use Telethon `.session` files from one guarded local dashboard.
+TeleManager is a **local-first Telegram session manager** for people who manage
+multiple **owned Telegram accounts** on their own machine.
 
-## Current workflow
+It is **not** a Telegram replacement, a hosted dashboard, or a bulk automation
+platform. Its job is narrower and safer:
 
-TeleManager treats accounts as stored sessions, not long-running processes:
+- create and manage local Telethon `.session` files
+- validate stored sessions
+- inspect dialogs from a selected account
+- build **guarded** one-off action queues
+- keep a local audit trail of what ran
+
+Current release: **`v1-beta`**
+
+## Why it exists
+
+When you work with Telethon directly, session files, targets, delays, and
+one-off account actions are easy to manage badly. TeleManager wraps that work in
+one dashboard so the operator can:
+
+- keep sessions in one place
+- avoid constantly re-logging accounts
+- preview actions before execution
+- queue multi-account work conservatively
+- export/import session backups safely
+- review local run history afterward
+
+## What it does
+
+TeleManager currently supports:
+
+### Session management
+
+- save Telegram API credentials locally
+- log in accounts with phone code and optional 2FA password
+- create local Telethon `.session` files under `sessions/`
+- import existing `.session` files
+- export selected sessions as a ZIP backup
+- rename account labels
+- rename local session filenames
+- validate stored sessions
+- log out sessions from Telegram
+- delete local session copies from this machine
+
+### Dialog discovery
+
+- fetch dialogs for a selected account
+- cache dialog metadata locally
+- classify dialogs as personal, bot, group, supergroup, or channel
+- search/filter cached dialogs
+- select dialogs and hand them off to the Actions screen
+- use row-level and bulk quick actions
+
+### Guarded Telegram actions
+
+- join group or channel
+- leave group or channel
+- send message
+- forward message
+- start bot
+- delete dialog
+- clear chat history
+- block user
+- unblock user
+- archive chat
+- unarchive chat
+- mute chat
+- unmute chat
+- mark chat as read
+- report spam
+
+### Queueing and audit
+
+- build multi-step action queues
+- preview queues before running them
+- enforce queue confirmation before execution
+- apply conservative delay defaults
+- cap max queued operations
+- track live queue progress
+- cancel before the next operation starts
+- store recent queue history locally
+- retry failed operations as a new run
+- export queue run data
+- write local activity events to JSONL
+
+## Core model
+
+TeleManager treats accounts as **stored sessions**, not long-running services.
+
+Normal workflow:
 
 ```text
 Select session(s) -> choose one-off action -> preview -> confirm -> execute -> disconnect -> review results
 ```
 
-There is no normal need to manually start or stop accounts. The backend connects only when it needs to validate a session, fetch dialogs, or run a Telegram action queue.
+The backend only connects when needed to:
+
+- validate a session
+- fetch dialogs
+- run a Telegram action or queue
+
+There is no normal need to manually start or stop accounts.
 
 ## What a `.session` file is
 
-Telethon stores Telegram login state in a local `.session` file. By default this is a SQLite file containing the account authorization key and Telegram data-center connection details. After an account is logged in once, the `.session` file lets Telethon reconnect without asking for a login code every time.
+Telethon stores Telegram login state in a local `.session` file.
 
-Treat `.session` files like passwords:
+In practice, that file is sensitive authentication material. Treat it like a
+password or a browser session cookie:
 
-- Do not share them.
-- Do not commit them to Git.
-- If one is leaked, revoke it from an official Telegram client by terminating that active session.
-- Keep this app bound to `127.0.0.1` unless you deliberately add authentication and HTTPS.
+- do not share it
+- do not commit it
+- do not upload exported ZIPs to cloud storage casually
+- revoke it from an official Telegram client if you think it leaked
 
-## Current capabilities
+If someone gets your `.session`, they may be able to act as that account until
+Telegram invalidates it.
 
-- Save Telegram API ID and API hash locally in Settings.
-- Log in accounts through phone code and optional 2FA password.
-- Create local Telethon `.session` files under `sessions/`.
-- Import existing `.session` files.
-- Export selected sessions as a sensitive ZIP backup.
-- Rename account labels.
-- Rename local session files.
-- Validate sessions.
-- Delete local session copies.
-- Fetch and cache dialogs/chats from an account.
-- Categorize dialogs as personal, bot, group, supergroup, or channel.
-- Trigger row-level dialog quick actions that hand off directly into the Actions page.
-- Trigger bulk dialog quick actions for selected dialogs.
-- Build guarded action queues with many actions, accounts, and targets.
-- Preview queues before running them.
-- Save and reload local queue presets.
-- Track live queue progress with per-operation statuses.
-- Cancel queues safely before the next operation starts.
-- Persist queue run history and export, delete, or retry failed runs.
-- Configure local safety defaults for queue delays and operation limits.
+## Safety model
 
-## Supported Telegram actions
+TeleManager is intentionally conservative.
 
-TeleManager currently supports these action types:
+### Built-in guardrails
 
-- Join group or channel
-- Leave group or channel
-- Send message
-- Forward message
-- Start bot
-- Delete dialog
-- Clear chat history
-- Block user
-- Unblock user
-- Archive chat
-- Unarchive chat
-- Mute chat
-- Unmute chat
-- Mark chat as read
-- Report spam
+- binds to `127.0.0.1`
+- stores data locally only
+- requires explicit queue confirmation
+- supports configurable delays between actions/accounts
+- limits total queue operations
+- logs local activity and queue history
+- tolerates per-account failures instead of crashing the whole queue
+- cancels cooperatively before the next operation starts
 
-Target validation is action-aware, and queue execution tolerates per-account failures so one missing dialog or unavailable target does not abort the full multi-account run.
+### Explicit non-goals
 
-## App sections
+This project should **not** be used for:
 
-- Command Center: daily fleet view, metrics, and session inventory.
-- Accounts: login, validation, rename, logout, and delete local sessions.
-- Actions: build, preview, run, cancel, and review guarded Telegram action queues.
-- Dialogs: fetch, search, classify, select, and launch quick actions for chats, groups, channels, and bots.
-- Import / Export: import `.session` files and export selected sessions.
-- Activity: persistent local JSONL audit log plus current browser feedback.
-- Settings: Telegram API credentials and queue safety defaults.
+- spam
+- scams
+- impersonation
+- unsolicited messaging
+- ban/limit evasion
+- mass abuse workflows
 
-## Setup
+If you need remote multi-user auth, HTTPS, roles, or hosted operation, that is
+outside the current scope.
+
+## UI sections
+
+### Command Center
+
+High-level workspace view with fleet metrics and session inventory.
+
+### Accounts
+
+Login, validation, rename, logout, and deletion of local session copies.
+
+### Actions
+
+Build, preview, run, cancel, and review guarded Telegram action queues.
+
+### Dialogs
+
+Fetch, cache, search, classify, select, and launch quick actions for chats,
+channels, groups, and bots.
+
+### Import / Export
+
+Import `.session` files and export selected sessions as a ZIP backup.
+
+### Activity
+
+View the local JSONL audit trail and export it.
+
+### Settings
+
+Save Telegram API credentials and queue safety defaults.
+
+## First-run setup
+
+### Requirements
+
+- Python 3.11+
+- Node.js 20+
+- a Telegram API ID and API hash from `https://my.telegram.org`
+
+### Backend setup
+
+Windows PowerShell / CMD:
 
 ```bash
 python -m venv .venv
@@ -89,62 +199,175 @@ python -m pip install -r requirements.txt
 run.bat
 ```
 
-Or on Git Bash / shell:
+Git Bash / shell:
 
 ```bash
+python -m venv .venv
+source .venv/Scripts/activate
+python -m pip install -r requirements.txt
 ./run.sh
 ```
 
-Or run directly:
+Direct server command:
 
 ```bash
 python -m uvicorn telemanager.main:app --app-dir src --reload
 ```
 
-Open `http://127.0.0.1:8000`.
+Open:
 
-## Frontend development
+```text
+http://127.0.0.1:8000
+```
 
-The primary frontend lives in `apps/web` and uses the shared UI package in `packages/ui`.
+### Frontend build
+
+The FastAPI app serves the React frontend from `apps/web/dist`.
+Build it before starting the server:
 
 ```bash
 npm install
 npm run build
 ```
 
-The FastAPI app serves `apps/web/dist` when it exists. Build the React frontend before starting the server.
-
-For frontend-only iteration, run:
+For frontend-only development:
 
 ```bash
 npm run dev -- --filter web
 ```
 
-## Telegram API credentials
+## First-run checklist
 
-Create your API ID and API hash at `https://my.telegram.org` using your own Telegram developer account. The app stores them locally in `data/config.json`, which is ignored by Git.
+1. Build the frontend with `npm run build`.
+2. Start the backend with `run.bat`, `run.sh`, or `uvicorn`.
+3. Open Settings.
+4. Save your Telegram API ID and API hash.
+5. Open Accounts.
+6. Request a login code for an owned Telegram account.
+7. Enter the code, and 2FA password if Telegram asks.
+8. Validate the session.
+9. Optionally fetch dialogs.
+10. Build and preview a queue before running anything multi-account.
 
-## Documentation
+## Example workflows
 
-- `docs/ARCHITECTURE.md` explains the current backend, React frontend, data files, and queue/dialog lifecycle.
-- `docs/SECURITY.md` lists sensitive files and the local-only safety model.
-- `docs/ROADMAP.md` summarizes what is shipped and what hardening work remains.
-- `docs/REAL_TELEGRAM_TEST_CHECKLIST.md` gives a local manual verification plan for owned Telegram sessions.
+### Add a fresh account
 
-## Safe usage
+1. Open Settings and save Telegram API credentials.
+2. Go to Accounts.
+3. Enter a label and phone number in international format.
+4. Request the login code.
+5. Enter the Telegram code.
+6. Enter 2FA password if needed.
+7. Validate the saved session.
 
-The app includes a guarded queue runner instead of direct unlimited bulk automation. Queues require explicit review and confirmation, use configurable conservative delays, persist run history locally, and can be canceled cooperatively before the next operation starts.
+### Import an existing Telethon session
 
-Do not use this project for spam, scams, impersonation, unsolicited messaging, or evading Telegram limits. Telegram sessions are powerful and can be restricted or banned when abused.
+1. Go to Import / Export.
+2. Upload a `.session` file.
+3. Give it a local label.
+4. Let TeleManager validate it when possible.
 
-## Project layout
+### Fetch dialogs and send them into Actions
+
+1. Open Dialogs.
+2. Select one account.
+3. Fetch dialogs.
+4. Search/filter as needed.
+5. Select one or more dialogs.
+6. Send them into the Actions builder or use a quick action.
+
+### Run a guarded action queue
+
+1. Open Actions.
+2. Select the session(s) that should act.
+3. Add one or more queue steps.
+4. Preview the queue.
+5. Review warnings, target count, and estimated time.
+6. Confirm the queue.
+7. Run it.
+8. Review run history and exported results if needed.
+
+## Data storage
+
+TeleManager stores everything locally.
+
+### Gitignored sensitive paths
+
+- `data/`
+- `sessions/`
+- `*.session`
+
+### Important files
+
+- `data/config.json` — Telegram API ID and API hash
+- `data/accounts.json` — account/session metadata
+- `data/dialogs/{account_id}.json` — cached dialogs per account
+- `data/action_presets.json` — saved queue presets
+- `data/action_runs.json` — recent queue runs and statuses
+- `data/safety_settings.json` — default delays and operation caps
+- `data/activity/events.jsonl` — local audit history
+- `data/exports/` — generated ZIP exports
+- `sessions/` — Telethon `.session` files
+
+## Development commands
+
+### Python
+
+```bash
+python -m pytest
+```
+
+### Frontend / workspace
+
+```bash
+npm run lint
+npm run typecheck
+npm run build
+```
+
+## Validation status
+
+The current codebase has been validated with:
+
+- `python -m pytest`
+- `npm run lint`
+- `npm run typecheck`
+- `pi-lens` warnings cleared for the touched codebase state
+
+## Project structure
 
 ```text
 apps/web/              React frontend
 packages/ui/           Shared UI primitives and styles
 src/telemanager/       FastAPI app and backend services
 docs/                  Architecture, security, roadmap, and test docs
-data/                  Local config, account metadata, dialog cache, exports, activity logs; gitignored
+data/                  Local config, dialog cache, exports, activity logs; gitignored
 sessions/              Telethon .session files; gitignored
 AGENTS.md              Local-only agent instructions; gitignored
 ```
+
+## Documentation
+
+- `docs/ARCHITECTURE.md` — backend/frontend/data flow overview
+- `docs/SECURITY.md` — local-only safety and sensitive-file guidance
+- `docs/ROADMAP.md` — shipped work and likely next steps
+- `docs/REAL_TELEGRAM_TEST_CHECKLIST.md` — manual validation plan for real owned accounts
+
+## Limitations
+
+Current known boundaries:
+
+- local-only by design
+- no built-in authentication layer for remote exposure
+- no HTTPS termination
+- no multi-user access model
+- queue cancellation is cooperative, not forceful mid-request interruption
+- depends on operator discipline for ethical and policy-safe usage
+
+## Repo summary
+
+Short version:
+
+> Local-first Telegram session manager for owned accounts, with safe queueing,
+> dialog discovery, session import/export, and auditable one-off actions.
