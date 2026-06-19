@@ -65,8 +65,8 @@ def test_queue_preview_warns_about_unauthorized_accounts(app_context: dict, clie
 
 
 def test_queue_estimate_uses_sequential_operation_delays(app_context: dict):
-    main = app_context["main"]
-    request = main.ActionQueueRequest(
+    queue_service = __import__("telemanager.action_queue_service", fromlist=["action_queue_service"])
+    request = queue_service.ActionQueueRequest(
         steps=[{"action_type": "leave_chat", "account_ids": ["acc-1"], "targets": ["@a"]}],
         delay_between_accounts=4,
         delay_between_actions=8,
@@ -78,7 +78,7 @@ def test_queue_estimate_uses_sequential_operation_delays(app_context: dict):
         {"account_id": "acc-2", "status": "ready"},
     ]
 
-    assert main.estimate_queue_seconds(request, expanded) == 12
+    assert queue_service.estimate_queue_seconds(request, expanded) == 12
 
 
 def test_queue_run_rejects_only_unauthorized_accounts(app_context: dict, client):

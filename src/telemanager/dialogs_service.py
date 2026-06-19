@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from telethon.tl.types import Channel, Chat, User
+from telethon.tl.types import Channel, Chat, Message, User
 
 from .accounts import AccountManager
 from .config import DIALOGS_DIR, ensure_dirs, read_json, write_json
@@ -75,6 +75,71 @@ def list_cached_dialogs(manager: AccountManager, account_id: str) -> dict:
         dialogs_path(account.id),
         {"account_id": account.id, "account_label": account.label, "fetched_at": None, "dialogs": []},
     )
+
+
+def message_to_dict(message: Message) -> dict:
+    sender = getattr(message, "sender", None)
+    sender_name = getattr(sender, "username", None) or " ".join(
+        part for part in [getattr(sender, "first_name", None), getattr(sender, "last_name", None)] if part
+    )
+    return {
+        "id": message.id,
+        "date": message.date.isoformat() if message.date else None,
+        "text": message.message or "",
+        "sender_id": getattr(message, "sender_id", None),
+        "sender_name": sender_name,
+        "out": bool(getattr(message, "out", False)),
+        "has_media": bool(getattr(message, "media", None)),
+    }
+
+
+async def fetch_messages(manager: AccountManager, account_id: str, target: str, limit: int = 50) -> dict:
+    account = manager._get_account(account_id)
+    if not account.authorized:
+        raise ValueError("Session is not authorized. Log in again.")
+    api_id, api_hash = manager.get_api_credentials()
+    client = manager._new_client(account.session_name, api_id, api_hash)
+    await manager._connect_client(client)
+    try:
+        raw_messages: Any = await client.get_messages(target.strip(), limit=max(1, min(limit, 100)))
+        if raw_messages is None:
+            messages = []
+        elif isinstance(raw_messages, list):
+            messages = raw_messages
+        else:
+            messages = list(raw_messages)
+        return {
+            "account_id": account.id,
+            "account_label": account.label,
+            "target": target,
+            "messages": [message_to_dict(message) for message in messages if message],
+        }
+    finally:
+        client.disconnect()
+
+
+async def resolve_target(manager: AccountManager, account_id: str, target: str) -> dict:
+    account = manager._get_account(account_id)
+    if not account.authorized:
+        raise ValueError("Session is not authorized. Log in again.")
+    api_id, api_hash = manager.get_api_credentials()
+    client = manager._new_client(account.session_name, api_id, api_hash)
+    await manager._connect_client(client)
+    try:
+        entity = await client.get_entity(target.strip())
+        title = getattr(entity, "title", None) or " ".join(
+            part for part in [getattr(entity, "first_name", None), getattr(entity, "last_name", None)] if part
+        )
+        return {
+            "account_id": account.id,
+            "target": target,
+            "id": getattr(entity, "id", None),
+            "title": title or getattr(entity, "username", None),
+            "username": getattr(entity, "username", None),
+            "type": entity.__class__.__name__,
+        }
+    finally:
+        client.disconnect()
 
 
 def classify_dialog(dialog: Any) -> CachedDialog:

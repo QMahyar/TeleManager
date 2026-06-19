@@ -1,12 +1,17 @@
 import * as React from "react"
 
 import { api } from "../lib/api"
-import { actionMeta, emptySafety } from "../lib/constants"
+import { emptySafety } from "../lib/constants"
+import {
+  defaultFieldValues,
+  serializeFields,
+  validateFields,
+} from "../lib/action-schema"
 import { validateTargets } from "../lib/targeting"
 import { dialogKind, dialogTarget, splitTargets } from "../lib/helpers"
 import type {
   Account,
-  ActionType,
+  ActionDraft,
   ActivityEvent,
   Preset,
   QueueRun,
@@ -229,11 +234,11 @@ function useQueueState(
 ) {
   const [queue, setQueue] = React.useState<QueueStep[]>([])
   const [pendingAccountId, setPendingAccountId] = React.useState("")
-  const [actionDraft, setActionDraft] = React.useState<{
-    action_type: ActionType
-    target: string
-    message: string
-  }>({ action_type: "join_chat", target: "", message: "" })
+  const [actionDraft, setActionDraft] = React.useState<ActionDraft>({
+    action_type: "join_chat",
+    target: "",
+    fields: defaultFieldValues("join_chat"),
+  })
   const [quickActionContext, setQuickActionContext] =
     React.useState<QuickActionContext | null>(null)
   const [confirmed, setConfirmed] = React.useState(false)
@@ -243,7 +248,8 @@ function useQueueState(
     const account_ids = [...actionAccountIds]
     if (!account_ids.length) return flash("Select action accounts first.")
     if (!targets.length) return flash("Add at least one target.")
-    if (messageIsMissing(actionDraft)) return flash("Message text is required.")
+    const blocker = actionDraftBlocker(actionDraft)
+    if (blocker) return flash(blocker)
     const targetError = validateTargets(targets, actionDraft.action_type)
     if (targetError) return flash(targetError)
 
@@ -251,7 +257,11 @@ function useQueueState(
       ...current,
       queueStepFromDraft(actionDraft, targets, account_ids),
     ])
-    setActionDraft((current) => ({ ...current, target: "", message: "" }))
+    setActionDraft((current) => ({
+      ...current,
+      target: "",
+      fields: defaultFieldValues(current.action_type),
+    }))
     setQuickActionContext(null)
     setConfirmed(false)
     flash("Action step added to queue.")
@@ -338,19 +348,15 @@ function filterDialogs(
   })
 }
 
-function messageIsMissing(actionDraft: {
-  action_type: ActionType
-  message: string
-}) {
-  const meta = actionMeta[actionDraft.action_type]
-  return meta.needsMessage && !actionDraft.message.trim()
+// Returns a user-facing reason the draft cannot be queued yet, or null if valid.
+export function actionDraftBlocker(actionDraft: ActionDraft): string | null {
+  const errors = validateFields(actionDraft.action_type, actionDraft.fields)
+  const firstError = Object.values(errors)[0]
+  return firstError || null
 }
 
 function queueStepFromDraft(
-  actionDraft: {
-    action_type: ActionType
-    message: string
-  },
+  actionDraft: ActionDraft,
   targets: string[],
   account_ids: string[]
 ): QueueStep {
@@ -358,7 +364,7 @@ function queueStepFromDraft(
     action_type: actionDraft.action_type,
     targets,
     account_ids,
-    message: actionDraft.message.trim() || undefined,
+    message: serializeFields(actionDraft.action_type, actionDraft.fields),
   }
 }
 

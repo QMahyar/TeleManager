@@ -5,7 +5,7 @@ import {
   IconPlayerPlay,
   IconProgressCheck,
 } from "@tabler/icons-react"
-import { Button } from "@workspace/ui/components/button"
+import { Button } from "../ui/button"
 import {
   Table,
   TableBody,
@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
   TableWrap,
-} from "@workspace/ui/components/table"
+} from "../ui/table"
 
 import { api } from "../lib/api"
 import { actionMeta } from "../lib/constants"
@@ -32,6 +32,7 @@ const TERMINAL_RUN_STATUSES = new Set([
   "failed",
   "canceled",
   "interrupted",
+  "flood_wait",
 ])
 
 export function RunHistory({

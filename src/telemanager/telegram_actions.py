@@ -2,29 +2,44 @@ from __future__ import annotations
 
 import asyncio
 import re
+import struct
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, cast
 from urllib.parse import parse_qs, urlparse
 
 from telethon import TelegramClient
-from telethon.tl.functions.account import UpdateNotifySettingsRequest
+from telethon.tl.functions.account import ReportPeerRequest, UpdateNotifySettingsRequest
 from telethon.tl.functions.channels import JoinChannelRequest, LeaveChannelRequest
 from telethon.tl.functions.contacts import BlockRequest, UnblockRequest
 from telethon.tl.functions.messages import (
     DeleteHistoryRequest,
     ImportChatInviteRequest,
-    ReadHistoryRequest,
-    ReportSpamRequest,
+    RequestAppWebViewRequest,
+    RequestMainWebViewRequest,
     StartBotRequest,
 )
-from telethon.tl.types import InputNotifyPeer, InputPeerNotifySettings
+from telethon.tl.types import (
+    InputBotAppShortName,
+    InputNotifyPeer,
+    InputPeerNotifySettings,
+    InputReportReasonSpam,
+)
+
+from .config import DOWNLOADS_DIR
 
 TelegramActionType = Literal[
     "join_chat",
     "leave_chat",
     "send_message",
+    "send_media",
+    "schedule_message",
     "forward_message",
+    "edit_message",
+    "delete_messages",
+    "pin_message",
+    "unpin_message",
+    "download_media",
     "start_bot",
     "delete_chat",
     "clear_chat",
@@ -61,6 +76,21 @@ class TelegramActionResult:
         return asdict(self)
 
 
+@dataclass
+class BotStartTarget:
+    """Resolved bot-start request parsed from a target plus optional options.
+
+    mode is "start" for classic messages.startBot referrals (?start=) and
+    "startapp" for mini-app referrals (?startapp=), which must go through the
+    web-view methods to actually credit the referral.
+    """
+
+    bot: str
+    param: str = ""
+    mode: Literal["start", "startapp"] = "start"
+    app_short_name: str = ""
+
+
 async def run_telegram_action(client: TelegramClient, action: TelegramAction) -> str:
     target = action.target.strip()
     if not target:
@@ -73,10 +103,24 @@ async def run_telegram_action(client: TelegramClient, action: TelegramAction) ->
             return await leave_chat(client, target)
         case "send_message":
             return await send_message(client, target, action.message)
+        case "send_media":
+            return await send_media(client, target, action.message)
+        case "schedule_message":
+            return await schedule_message(client, target, action.message)
         case "forward_message":
             return await forward_message(client, target, action.message)
+        case "edit_message":
+            return await edit_message(client, target, action.message)
+        case "delete_messages":
+            return await delete_messages(client, target, action.message)
+        case "pin_message":
+            return await pin_message(client, target, action.message)
+        case "unpin_message":
+            return await unpin_message(client, target, action.message)
+        case "download_media":
+            return await download_media(client, target, action.message)
         case "start_bot":
-            return await start_bot(client, target)
+            return await start_bot(client, target, action.message)
         case "delete_chat":
             return await delete_chat(client, target)
         case "clear_chat":
@@ -121,7 +165,9 @@ async def leave_chat(client: TelegramClient, target: str) -> str:
     try:
         await client(LeaveChannelRequest(entity))
         return "Channel or supergroup left."
-    except Exception:
+    except (TypeError, ValueError, struct.error):
+        # LeaveChannelRequest only accepts channels/supergroups. Basic groups and
+        # private dialogs raise on serialization, so fall back to leaving the dialog.
         await client.delete_dialog(entity, revoke=False)
         return "Dialog deleted or basic group left."
 
@@ -134,29 +180,133 @@ async def send_message(client: TelegramClient, target: str, message: str | None)
     return "Message sent."
 
 
+async def send_media(client: TelegramClient, target: str, message: str | None) -> str:
+    payload = parse_options(message)
+    file_path = (payload.get("file") or payload.get("path") or "").strip()
+    if not file_path:
+        raise ValueError("Media action requires file=PATH in the message/options field.")
+    caption = payload.get("caption") or payload.get("message") or ""
+    parse_mode = payload.get("parse_mode")
+    if parse_mode:
+        await client.send_file(normalize_entity_target(target), file=file_path, caption=caption, parse_mode=parse_mode)
+    else:
+        await client.send_file(normalize_entity_target(target), file=file_path, caption=caption)
+    return "Media sent."
+
+
+async def schedule_message(client: TelegramClient, target: str, message: str | None) -> str:
+    payload = parse_options(message)
+    text = (payload.get("text") or payload.get("message") or "").strip()
+    if not text:
+        raise ValueError("Scheduled messages require text=...")
+    schedule = parse_schedule(payload.get("schedule") or payload.get("at") or payload.get("when"))
+    await client.send_message(normalize_entity_target(target), text, schedule=schedule)
+    return f"Message scheduled for {schedule.isoformat()}."
+
+
+async def edit_message(client: TelegramClient, target: str, message: str | None) -> str:
+    payload = parse_options(message)
+    message_id = parse_message_id(payload.get("id") or payload.get("message_id"))
+    text = (payload.get("text") or payload.get("message") or "").strip()
+    if not text:
+        raise ValueError("Edit message requires text=...")
+    await client.edit_message(normalize_entity_target(target), cast(Any, message_id), text)
+    return f"Message {message_id} edited."
+
+
+async def delete_messages(client: TelegramClient, target: str, message: str | None) -> str:
+    payload = parse_options(message)
+    ids = parse_message_ids(payload.get("ids") or payload.get("message_ids") or payload.get("id"))
+    revoke = parse_bool(payload.get("revoke"), default=True)
+    await client.delete_messages(normalize_entity_target(target), ids, revoke=revoke)
+    return f"Deleted {len(ids)} message(s)."
+
+
+async def pin_message(client: TelegramClient, target: str, message: str | None) -> str:
+    payload = parse_options(message)
+    message_id = parse_message_id(payload.get("id") or payload.get("message_id"))
+    notify = parse_bool(payload.get("notify"), default=False)
+    await client.pin_message(normalize_entity_target(target), message_id, notify=notify)
+    return f"Message {message_id} pinned."
+
+
+async def unpin_message(client: TelegramClient, target: str, message: str | None) -> str:
+    payload = parse_options(message)
+    raw_id = payload.get("id") or payload.get("message_id")
+    message_id = parse_message_id(raw_id) if raw_id else None
+    await client.unpin_message(normalize_entity_target(target), message_id)
+    return "Message unpinned." if message_id else "All messages unpinned."
+
+
+async def download_media(client: TelegramClient, target: str, message: str | None) -> str:
+    payload = parse_options(message)
+    message_id = parse_message_id(payload.get("id") or payload.get("message_id"))
+    message_obj = await client.get_messages(normalize_entity_target(target), ids=message_id)
+    if not message_obj:
+        raise ValueError(f"Message {message_id} was not found.")
+    account_dir = DOWNLOADS_DIR / safe_path_name(target)
+    account_dir.mkdir(parents=True, exist_ok=True)
+    saved_path = await client.download_media(cast(Any, message_obj), file=str(account_dir))
+    if not saved_path:
+        raise ValueError("Message has no downloadable media.")
+    return f"Media downloaded to {saved_path}."
+
+
 async def forward_message(client: TelegramClient, target: str, message: str | None) -> str:
-    source_info = (message or "").strip()
-    if not source_info:
-        raise ValueError("Source chat and message ID are required. Format: @source_chat:message_id")
-    parts = source_info.split(":", 1)
-    if len(parts) != 2 or not parts[1].strip().isdigit():
-        raise ValueError("Format must be @source_chat:message_id (e.g. @channel:12345)")
-    source_chat = parts[0].strip()
-    message_id = int(parts[1].strip())
+    source_chat, message_ids = parse_forward_source(message)
     dest = normalize_entity_target(target)
-    await client.forward_messages(dest, message_id, source_chat)
-    return f"Message {message_id} forwarded from {source_chat}."
+    await client.forward_messages(dest, message_ids, source_chat)
+    if len(message_ids) == 1:
+        return f"Message {message_ids[0]} forwarded from {source_chat}."
+    return f"{len(message_ids)} messages forwarded from {source_chat}."
 
 
-async def start_bot(client: TelegramClient, target: str) -> str:
-    bot, start_param = parse_bot_start(target)
-    if start_param:
-        bot_entity = cast(Any, await client.get_input_entity(bot))
-        await client(StartBotRequest(bot=bot_entity, peer=bot_entity, start_param=start_param))
-        return "Bot started with start parameter."
+async def start_bot(client: TelegramClient, target: str, message: str | None = None) -> str:
+    spec = parse_bot_start(target, message)
 
-    await client.send_message(bot, "/start")
+    if spec.mode == "startapp":
+        return await start_bot_mini_app(client, spec)
+
+    if spec.param:
+        bot_entity = cast(Any, await client.get_input_entity(spec.bot))
+        await client(StartBotRequest(bot=bot_entity, peer=bot_entity, start_param=spec.param))
+        return f"Bot started with referral parameter '{spec.param}'."
+
+    await client.send_message(spec.bot, "/start")
     return "Bot started without parameter."
+
+
+async def start_bot_mini_app(client: TelegramClient, spec: BotStartTarget) -> str:
+    """Open a bot mini app so a ?startapp= referral is credited.
+
+    Referral links for tap-to-earn / Stars affiliate bots use startapp, which is
+    delivered through the web-view methods rather than messages.startBot. Calling
+    startBot for these would start the bot but never register the referral.
+    """
+    bot_entity = cast(Any, await client.get_input_entity(spec.bot))
+    if spec.app_short_name:
+        app = InputBotAppShortName(bot_id=bot_entity, short_name=spec.app_short_name)
+        await client(
+            RequestAppWebViewRequest(
+                peer=bot_entity,
+                app=cast(Any, app),
+                platform="web",
+                start_param=spec.param or None,
+            )
+        )
+        label = f"{spec.bot}/{spec.app_short_name}"
+    else:
+        await client(
+            RequestMainWebViewRequest(
+                peer=bot_entity,
+                bot=bot_entity,
+                platform="web",
+                start_param=spec.param or None,
+            )
+        )
+        label = spec.bot
+    suffix = f" with referral parameter '{spec.param}'." if spec.param else "."
+    return f"Bot mini app {label} opened{suffix}"
 
 
 async def delete_chat(client: TelegramClient, target: str) -> str:
@@ -167,10 +317,9 @@ async def delete_chat(client: TelegramClient, target: str) -> str:
 
 async def clear_chat(client: TelegramClient, target: str) -> str:
     entity = cast(Any, await client.get_input_entity(normalize_entity_target(target)))
-    try:
-        await client(DeleteHistoryRequest(peer=entity, max_id=0, revoke=False))
-    except TypeError:
-        await client.delete_dialog(entity, revoke=False)
+    # just_clear=True wipes the message history but keeps the dialog in the chat list.
+    # Without it, deleteHistory removes the dialog entirely (same as delete_chat).
+    await client(DeleteHistoryRequest(peer=entity, max_id=0, just_clear=True, revoke=False))
     return "Chat history cleared locally where Telegram permits it."
 
 
@@ -228,14 +377,22 @@ async def unmute_chat(client: TelegramClient, target: str) -> str:
 
 
 async def read_chat(client: TelegramClient, target: str) -> str:
-    entity = await client.get_input_entity(normalize_entity_target(target))
-    await client(ReadHistoryRequest(peer=entity, max_id=0))
+    # send_read_acknowledge dispatches to channels.ReadHistoryRequest for
+    # channels/supergroups and messages.ReadHistoryRequest for users/basic
+    # groups. Calling messages.ReadHistoryRequest directly fails on channels.
+    await client.send_read_acknowledge(normalize_entity_target(target))
     return "Chat marked as read."
 
 
 async def report_spam(client: TelegramClient, target: str) -> str:
     entity = await client.get_input_entity(normalize_entity_target(target))
-    await client(ReportSpamRequest(peer=entity))
+    await client(
+        ReportPeerRequest(
+            peer=entity,
+            reason=InputReportReasonSpam(),
+            message="Reported as spam from TeleManager.",
+        )
+    )
     return "Spam reported."
 
 
@@ -272,21 +429,183 @@ def extract_invite_hash(target: str) -> str | None:
     return None
 
 
-def parse_bot_start(target: str) -> tuple[str, str]:
-    clean = target.strip()
-    parsed = urlparse(clean)
-    if parsed.netloc in {"t.me", "telegram.me", "www.t.me", "www.telegram.me"}:
-        bot = parsed.path.strip("/").split("/")[0]
-        params = parse_qs(parsed.query)
-        start_param = params.get("start", [""])[0]
-        if not bot:
-            raise ValueError("Bot username was not found in the link.")
-        return bot, start_param
+START_PARAM_MAX_LENGTH = 64
+START_PARAM_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
+_TME_HOSTS = {"t.me", "telegram.me", "www.t.me", "www.telegram.me"}
 
-    match = re.match(r"^@?([A-Za-z0-9_]{5,})(?:\s+(.+))?$", clean)
+
+def validate_start_param(param: str, mode: str) -> str:
+    """Validate a referral parameter. Classic ?start= is capped at 64 base64url
+    chars by Telegram; mini-app ?startapp= has no documented charset/length limit
+    so it is passed through after a length guard only.
+    """
+    clean = param.strip()
+    if not clean:
+        return ""
+    if mode == "start":
+        if len(clean) > START_PARAM_MAX_LENGTH:
+            raise ValueError(
+                f"Referral parameter is {len(clean)} chars; Telegram allows at most {START_PARAM_MAX_LENGTH}."
+            )
+        if not START_PARAM_PATTERN.match(clean):
+            raise ValueError("Referral parameter may only contain letters, digits, '_' and '-'.")
+    elif len(clean) > 512:
+        raise ValueError("Mini app referral parameter is unusually long (over 512 chars).")
+    return clean
+
+
+def parse_bot_start(target: str, message: str | None = None) -> BotStartTarget:
+    """Resolve a bot username plus referral parameter from a target and options.
+
+    Precedence for the parameter: explicit start=/startapp= option in the message
+    field, then the link query string, then a space-separated suffix on a bare
+    username. Supports t.me, telegram.me, and tg://resolve links, including
+    named mini apps at t.me/<bot>/<app>?startapp=...
+    """
+    options = parse_options(message)
+    bot, link_param, mode, app_short_name = _parse_bot_link(target.strip())
+
+    param = link_param
+    if "startapp" in options:
+        param, mode = options["startapp"], "startapp"
+    elif "start" in options:
+        param, mode = options["start"], "start"
+    elif options.get("param"):
+        param = options["param"]
+    elif options.get("message") and not link_param:
+        # A bare value typed into the referral field with no key= prefix.
+        param = options["message"].strip()
+
+    if not bot:
+        raise ValueError("Bot username was not found in the target.")
+
+    param = validate_start_param(param, mode)
+    return BotStartTarget(bot=bot, param=param, mode=mode, app_short_name=app_short_name)
+
+
+def _parse_bot_link(clean: str) -> tuple[str, str, Literal["start", "startapp"], str]:
+    parsed = urlparse(clean)
+    mode: Literal["start", "startapp"] = "start"
+
+    if parsed.scheme == "tg" and parsed.netloc == "resolve":
+        params = parse_qs(parsed.query)
+        bot = params.get("domain", [""])[0]
+        app_short_name = params.get("appname", [""])[0]
+        if "startapp" in params or app_short_name:
+            return bot, params.get("startapp", [""])[0], "startapp", app_short_name
+        return bot, params.get("start", [""])[0], "start", ""
+
+    if parsed.netloc in _TME_HOSTS:
+        segments = [segment for segment in parsed.path.split("/") if segment]
+        bot = segments[0] if segments else ""
+        # A numeric second segment is a message id (t.me/channel/123), not an app.
+        app_short_name = segments[1] if len(segments) > 1 and not segments[1].isdigit() else ""
+        params = parse_qs(parsed.query)
+        if "startapp" in params or app_short_name:
+            return bot, params.get("startapp", [""])[0], "startapp", app_short_name
+        return bot, params.get("start", [""])[0], "start", ""
+
+    match = re.match(r"^@?([A-Za-z0-9_]{4,})(?:\s+(.+))?$", clean)
     if match:
-        return match.group(1), (match.group(2) or "").strip()
-    return clean.lstrip("@"), ""
+        return match.group(1), (match.group(2) or "").strip(), mode, ""
+    return clean.lstrip("@"), "", mode, ""
+
+
+def parse_options(message: str | None) -> dict[str, str]:
+    """Parse newline key=value options while allowing plain text as message."""
+    text = (message or "").strip()
+    if not text:
+        return {}
+    options: dict[str, str] = {}
+    plain: list[str] = []
+    for line in text.splitlines():
+        if "=" in line:
+            key, value = line.split("=", 1)
+            options[key.strip().lower()] = value.strip()
+        else:
+            plain.append(line)
+    if plain and "message" not in options and "text" not in options:
+        options["message"] = "\n".join(plain).strip()
+    return options
+
+
+def parse_message_id(value: str | None) -> int:
+    if not value or not value.strip().isdigit():
+        raise ValueError("A numeric message id is required.")
+    return int(value.strip())
+
+
+def parse_message_ids(value: str | None) -> list[int]:
+    if not value:
+        raise ValueError("One or more message ids are required.")
+    ids = [int(part.strip()) for part in re.split(r"[\s,]+", value) if part.strip().isdigit()]
+    if not ids:
+        raise ValueError("One or more numeric message ids are required.")
+    return ids
+
+
+def parse_forward_source(message: str | None) -> tuple[str, list[int]]:
+    """Resolve the forward source chat and one or more message ids.
+
+    Accepts:
+      - @source_chat:12345 or @source_chat:101,102,103
+      - a public message link https://t.me/source_chat/12345
+      - a private message link https://t.me/c/1234567890/12345
+    """
+    source_info = (message or "").strip()
+    if not source_info:
+        raise ValueError("Source is required. Use @source_chat:message_id or a t.me message link.")
+
+    link = parse_message_link(source_info)
+    if link:
+        return link
+
+    parts = source_info.rsplit(":", 1)
+    if len(parts) != 2 or not parts[0].strip():
+        raise ValueError("Format must be @source_chat:message_id (e.g. @channel:12345) or a t.me message link.")
+    source_chat = parts[0].strip()
+    return source_chat, parse_message_ids(parts[1])
+
+
+def parse_message_link(value: str) -> tuple[str, list[int]] | None:
+    parsed = urlparse(value.strip())
+    if parsed.netloc not in _TME_HOSTS:
+        return None
+    segments = [segment for segment in parsed.path.split("/") if segment]
+    # Private channel links look like t.me/c/<internal_id>/<message_id>.
+    if len(segments) >= 3 and segments[0] == "c" and segments[1].isdigit() and segments[2].isdigit():
+        return f"-100{segments[1]}", [int(segments[2])]
+    # Public links look like t.me/<username>/<message_id>.
+    if len(segments) >= 2 and segments[1].isdigit():
+        return segments[0], [int(segments[1])]
+    return None
+
+
+def parse_bool(value: str | None, default: bool = False) -> bool:
+    if value is None or value == "":
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def parse_schedule(value: str | None) -> datetime:
+    clean = (value or "").strip()
+    if not clean:
+        raise ValueError("Schedule time is required. Use ISO time or +Nm/+Nh.")
+    relative = re.match(r"^\+(\d+)([mhd])$", clean.lower())
+    if relative:
+        amount = int(relative.group(1))
+        unit = relative.group(2)
+        delta = {"m": timedelta(minutes=amount), "h": timedelta(hours=amount), "d": timedelta(days=amount)}[unit]
+        return datetime.now(UTC) + delta
+    try:
+        parsed = datetime.fromisoformat(clean.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError("Schedule time must be ISO datetime or relative +15m/+2h/+1d.") from exc
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+def safe_path_name(value: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_.-]+", "_", value.strip())[:80] or "target"
 
 
 # ---------------------------------------------------------------------------
@@ -304,14 +623,23 @@ TARGET_KIND_UNKNOWN = "unknown"
 def classify_target_kind(target: str) -> str:
     clean = target.strip()
     parsed = urlparse(clean)
-    is_tme = parsed.netloc in {"t.me", "telegram.me", "www.t.me", "www.telegram.me"}
 
-    if is_tme:
+    if parsed.scheme == "tg" and parsed.netloc == "resolve":
+        qs = parse_qs(parsed.query)
+        if qs.get("start") or qs.get("startapp") or qs.get("appname"):
+            return TARGET_KIND_BOT_LINK
+        return TARGET_KIND_PUBLIC_LINK if qs.get("domain") else TARGET_KIND_UNKNOWN
+
+    if parsed.netloc in _TME_HOSTS:
         path = parsed.path.strip("/")
         if path.startswith("+") or path.startswith("joinchat/"):
             return TARGET_KIND_INVITE_LINK
         qs = parse_qs(parsed.query)
-        if qs.get("start"):
+        segments = [segment for segment in path.split("/") if segment]
+        # A named mini app (t.me/bot/app) has a non-numeric second segment;
+        # t.me/channel/123 is a message link, so keep that as a public link.
+        is_named_app = len(segments) >= 2 and not segments[1].isdigit()
+        if qs.get("start") or qs.get("startapp") or is_named_app:
             return TARGET_KIND_BOT_LINK
         if path:
             return TARGET_KIND_PUBLIC_LINK
@@ -330,7 +658,14 @@ VALID_TARGETS: dict[TelegramActionType, set[str]] = {
     "join_chat": {TARGET_KIND_INVITE_LINK, TARGET_KIND_PUBLIC_LINK, TARGET_KIND_USERNAME},
     "leave_chat": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
     "send_message": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
+    "send_media": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
+    "schedule_message": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
     "forward_message": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
+    "edit_message": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
+    "delete_messages": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
+    "pin_message": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
+    "unpin_message": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
+    "download_media": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
     "start_bot": {TARGET_KIND_USERNAME, TARGET_KIND_BOT_LINK},
     "delete_chat": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
     "clear_chat": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},

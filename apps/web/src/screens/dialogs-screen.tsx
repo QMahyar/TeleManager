@@ -2,13 +2,13 @@ import * as React from "react"
 
 import {
   IconArrowRight,
+  IconBolt,
   IconDotsVertical,
-  IconLoader2,
   IconMessageCircle,
   IconSearch,
 } from "@tabler/icons-react"
 
-import { Button } from "@workspace/ui/components/button"
+import { Button } from "../ui/button"
 import {
   Table,
   TableBody,
@@ -17,7 +17,7 @@ import {
   TableHeader,
   TableRow,
   TableWrap,
-} from "@workspace/ui/components/table"
+} from "../ui/table"
 
 import {
   Badge,
@@ -25,13 +25,19 @@ import {
   Field,
   Input,
   Panel,
-  SectionTitle,
   Select,
+  StepHeading,
 } from "../components/ui"
 import { api } from "../lib/api"
+import { defaultFieldValues } from "../lib/action-schema"
+import {
+  bulkActionsForSelection,
+  quickActionsForDialog,
+  selectionKindCounts,
+} from "../lib/dialog-actions"
 import { actionMeta } from "../lib/constants"
 import { dialogKind, dialogTarget, humanTime } from "../lib/helpers"
-import type { ActionType, TelegramDialog } from "../types"
+import type { ActionType, TelegramDialog, TelegramMessage } from "../types"
 import type { DialogsScreenProps } from "./screen-props"
 
 const FILTER_LABELS: Record<string, string> = {
@@ -45,6 +51,10 @@ const FILTER_LABELS: Record<string, string> = {
 const OUTLINE_VARIANT = "outline"
 
 export function DialogsScreen(props: DialogsScreenProps) {
+  const [messagePanel, setMessagePanel] = React.useState<{
+    dialog: TelegramDialog
+    messages: TelegramMessage[]
+  } | null>(null)
   const fetchStatus = useCachedDialogs(props.dialogAccountId, props.setDialogs)
   const {
     allFilteredSelected,
@@ -53,7 +63,19 @@ export function DialogsScreen(props: DialogsScreenProps) {
     loadDialogs,
     toggleSelectAll,
     useSelectedTargets,
-  } = useDialogsController(props)
+  } = useDialogsController(props, fetchStatus)
+
+  async function openMessagePanel(dialog: TelegramDialog) {
+    if (!props.dialogAccountId) {
+      props.flash("Choose an account first.")
+      return
+    }
+    const target = dialogTarget(dialog)
+    const payload = await api<{ messages: TelegramMessage[] }>(
+      `/api/accounts/${props.dialogAccountId}/messages?target=${encodeURIComponent(target)}&limit=50`
+    )
+    setMessagePanel({ dialog, messages: payload.messages || [] })
+  }
 
   return (
     <div className="grid gap-4 xl:grid-cols-[22rem_1fr]">
@@ -64,6 +86,7 @@ export function DialogsScreen(props: DialogsScreenProps) {
         guarded={props.guarded}
         loading={props.loading}
         loadDialogs={loadDialogs}
+        filteredDialogs={props.filteredDialogs}
         selectedDialogTargets={props.selectedDialogTargets}
         setDialogAccountId={props.setDialogAccountId}
         setSelectedDialogTargets={props.setSelectedDialogTargets}
@@ -75,6 +98,7 @@ export function DialogsScreen(props: DialogsScreenProps) {
         applyQuickAction={applyQuickAction}
         dialogFilter={props.dialogFilter}
         dialogSearch={props.dialogSearch}
+        dialogs={props.dialogs}
         filteredDialogs={props.filteredDialogs}
         flash={props.flash}
         selectedDialogTargets={props.selectedDialogTargets}
@@ -86,6 +110,14 @@ export function DialogsScreen(props: DialogsScreenProps) {
         setSelectedDialogTargets={props.setSelectedDialogTargets}
         toggleSelectAll={toggleSelectAll}
         toggleSelected={props.toggleSelected}
+        openMessages={(dialog) => props.guarded(() => openMessagePanel(dialog))}
+      />
+      <DialogMessagesPanel
+        panel={messagePanel}
+        setActionDraft={props.setActionDraft}
+        setQuickActionContext={props.setQuickActionContext}
+        setView={props.setView}
+        onClose={() => setMessagePanel(null)}
       />
     </div>
   )
@@ -154,8 +186,10 @@ function useDialogsSelection(
   return { allFilteredSelected, toggleSelectAll }
 }
 
-function useDialogsController(props: DialogsScreenProps) {
-  const fetchStatus = useCachedDialogs(props.dialogAccountId, props.setDialogs)
+function useDialogsController(
+  props: DialogsScreenProps,
+  fetchStatus: { value: string; setValue: (value: string) => void }
+) {
   const selection = useDialogsSelection(
     props.filteredDialogs,
     props.selectedDialogTargets,
@@ -215,7 +249,7 @@ function useDialogsController(props: DialogsScreenProps) {
     props.setActionDraft({
       action_type: actionType,
       target: targets.join("\n"),
-      message: "",
+      fields: defaultFieldValues(actionType),
     })
     props.setQuickActionContext({
       source: "dialog",
@@ -275,6 +309,7 @@ function DialogsSourcePanel({
   guarded,
   loading,
   loadDialogs,
+  filteredDialogs,
   selectedDialogTargets,
   setDialogAccountId,
   setSelectedDialogTargets,
@@ -287,19 +322,44 @@ function DialogsSourcePanel({
   guarded: DialogsScreenProps["guarded"]
   loading: boolean
   loadDialogs: (mode: "cached" | "live") => Promise<void>
+  filteredDialogs: TelegramDialog[]
   selectedDialogTargets: Set<string>
   setDialogAccountId: DialogsScreenProps["setDialogAccountId"]
   setSelectedDialogTargets: DialogsScreenProps["setSelectedDialogTargets"]
   bulkQuickAction: (actionType: ActionType) => void
   useSelectedTargets: () => void
 }) {
+  const selectedAccount = accounts.find(
+    (account) => account.id === dialogAccountId
+  )
+  const selectedDialogs = filteredDialogs.filter((dialog) =>
+    selectedDialogTargets.has(dialogTarget(dialog))
+  )
+  const hasSelection = selectedDialogTargets.size > 0
+  const bulkActions = bulkActionsForSelection(selectedDialogs)
+  const kindCounts = selectionKindCounts(selectedDialogs)
+
   return (
-    <Panel className="space-y-4">
-      <SectionTitle
-        kicker="Discovery"
-        title="Dialog Source"
-        detail={`${selectedDialogTargets.size} selected`}
+    <Panel className="space-y-4 xl:sticky xl:top-6 xl:self-start">
+      <StepHeading
+        step={1}
+        title="Find dialogs"
+        detail="Pick one account, load cached or live dialogs, then stage selected chats into Actions."
       />
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        <div className="border border-border bg-muted/20 p-3">
+          <span className="text-muted-foreground">Selected</span>
+          <strong className="mt-1 block font-heading text-2xl">
+            {selectedDialogTargets.size}
+          </strong>
+        </div>
+        <div className="border border-border bg-muted/20 p-3">
+          <span className="text-muted-foreground">Source</span>
+          <strong className="mt-1 block truncate text-sm">
+            {selectedAccount?.label || selectedAccount?.session_name || "None"}
+          </strong>
+        </div>
+      </div>
       <Field label="Account">
         <Select
           value={dialogAccountId}
@@ -315,14 +375,14 @@ function DialogsSourcePanel({
           ))}
         </Select>
       </Field>
-      <div className="grid gap-2">
+      <div className="grid grid-cols-2 gap-2">
         <Button
           className="w-full"
           disabled={loading || !dialogAccountId}
+          loading={loading}
           onClick={() => guarded(() => loadDialogs("live"))}
         >
-          {loading ? <IconLoader2 className="size-3.5 animate-spin" /> : null}
-          Fetch Dialogs
+          Fetch Live
         </Button>
         <Button
           variant={OUTLINE_VARIANT}
@@ -330,57 +390,122 @@ function DialogsSourcePanel({
           disabled={!dialogAccountId}
           onClick={() => guarded(() => loadDialogs("cached"))}
         >
-          Load Cached Dialogs
+          Load Cache
         </Button>
       </div>
       {fetchStatus ? (
-        <p className="text-xs text-muted-foreground">{fetchStatus}</p>
+        <div className="border border-border bg-background p-3 text-xs leading-5 text-muted-foreground">
+          {fetchStatus}
+        </div>
       ) : null}
-      <Button
-        variant={OUTLINE_VARIANT}
-        className="w-full"
-        onClick={useSelectedTargets}
-      >
-        Use Selected In Actions
-      </Button>
-      <div className="grid gap-2 sm:grid-cols-2">
+
+      <div className="space-y-3 border-t border-border pt-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[0.65rem] font-semibold tracking-[0.2em] text-muted-foreground uppercase">
+              Selected workflow
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Bulk actions only show options valid for every selected chat.
+            </p>
+          </div>
+          <IconBolt className="size-4 text-primary" />
+        </div>
+        <SelectionBreakdown counts={kindCounts} hasSelection={hasSelection} />
         <Button
-          variant={OUTLINE_VARIANT}
           className="w-full"
-          onClick={() => bulkQuickAction("delete_chat")}
+          disabled={!hasSelection}
+          onClick={useSelectedTargets}
         >
-          Delete Selected
+          Use Selected In Actions
         </Button>
+        {hasSelection ? (
+          bulkActions.length ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {bulkActions.map((actionType) => (
+                <BulkActionButton
+                  key={actionType}
+                  actionType={actionType}
+                  onClick={bulkQuickAction}
+                  disabled={false}
+                  danger={Boolean(actionMeta[actionType].destructive)}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="border border-dashed border-border bg-muted/20 p-3 text-center text-xs text-muted-foreground">
+              No bulk action applies to all selected chat types. Narrow the
+              selection to one kind for more options.
+            </p>
+          )
+        ) : (
+          <p className="border border-dashed border-border bg-muted/20 p-3 text-center text-xs text-muted-foreground">
+            Select one or more dialogs to see bulk actions.
+          </p>
+        )}
         <Button
           variant={OUTLINE_VARIANT}
           className="w-full"
-          onClick={() => bulkQuickAction("leave_chat")}
+          disabled={!hasSelection}
+          onClick={() => setSelectedDialogTargets(new Set())}
         >
-          Leave Selected
-        </Button>
-        <Button
-          variant={OUTLINE_VARIANT}
-          className="w-full"
-          onClick={() => bulkQuickAction("clear_chat")}
-        >
-          Clear Selected
-        </Button>
-        <Button
-          variant={OUTLINE_VARIANT}
-          className="w-full"
-          onClick={() => bulkQuickAction("mute_chat")}
-        >
-          Mute Selected
+          Clear Selection
         </Button>
       </div>
-      <Button
-        variant={OUTLINE_VARIANT}
-        className="w-full"
-        onClick={() => setSelectedDialogTargets(new Set())}
-      >
-        Clear Selection
-      </Button>
     </Panel>
+  )
+}
+
+const KIND_LABELS: Record<string, string> = {
+  bot: "bot",
+  personal: "personal",
+  group: "group",
+  supergroup: "supergroup",
+  channel: "channel",
+  unknown: "other",
+}
+
+function SelectionBreakdown({
+  counts,
+  hasSelection,
+}: {
+  counts: Record<string, number>
+  hasSelection: boolean
+}) {
+  if (!hasSelection) return null
+  const parts = Object.entries(counts).filter(([, count]) => count > 0)
+  if (!parts.length) return null
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {parts.map(([kind, count]) => (
+        <Badge key={kind} tone="border-border bg-muted/40 text-muted-foreground">
+          {count} {KIND_LABELS[kind] || kind}
+        </Badge>
+      ))}
+    </div>
+  )
+}
+
+function BulkActionButton({
+  actionType,
+  onClick,
+  disabled,
+  danger = false,
+}: {
+  actionType: ActionType
+  onClick: (actionType: ActionType) => void
+  disabled: boolean
+  danger?: boolean
+}) {
+  return (
+    <Button
+      variant={danger ? "destructive" : OUTLINE_VARIANT}
+      className="w-full justify-start"
+      disabled={disabled}
+      onClick={() => onClick(actionType)}
+    >
+      {actionMeta[actionType].label}
+    </Button>
   )
 }
 
@@ -389,6 +514,7 @@ function DialogsTablePanel({
   applyQuickAction,
   dialogFilter,
   dialogSearch,
+  dialogs,
   filteredDialogs,
   flash,
   selectedDialogTargets,
@@ -400,6 +526,7 @@ function DialogsTablePanel({
   setSelectedDialogTargets,
   toggleSelectAll,
   toggleSelected,
+  openMessages,
 }: {
   allFilteredSelected: boolean
   applyQuickAction: (
@@ -409,6 +536,7 @@ function DialogsTablePanel({
   ) => void
   dialogFilter: string
   dialogSearch: string
+  dialogs: TelegramDialog[]
   filteredDialogs: TelegramDialog[]
   flash: DialogsScreenProps["flash"]
   selectedDialogTargets: Set<string>
@@ -420,40 +548,68 @@ function DialogsTablePanel({
   setSelectedDialogTargets: DialogsScreenProps["setSelectedDialogTargets"]
   toggleSelectAll: () => void
   toggleSelected: DialogsScreenProps["toggleSelected"]
+  openMessages: (dialog: TelegramDialog) => Promise<void>
 }) {
+  const filterCounts = countDialogFilters(dialogs)
+
   return (
     <Panel className="space-y-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <SectionTitle
-          kicker="Targets"
-          title="Dialogs"
+        <StepHeading
+          step={2}
+          title="Review targets"
           detail={`${filteredDialogs.length} shown · ${selectedDialogTargets.size} selected`}
         />
+        <div className="flex flex-wrap gap-2">
+          <Button variant={OUTLINE_VARIANT} onClick={toggleSelectAll}>
+            {allFilteredSelected ? "Deselect shown" : "Select shown"}
+          </Button>
+          <Button
+            variant={OUTLINE_VARIANT}
+            disabled={!selectedDialogTargets.size}
+            onClick={() => setSelectedDialogTargets(new Set())}
+          >
+            Clear selected
+          </Button>
+        </div>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        <DialogMetric label="Loaded" value={dialogs.length} />
+        <DialogMetric label="Shown" value={filteredDialogs.length} />
+        <DialogMetric label="Selected" value={selectedDialogTargets.size} />
+        <DialogMetric
+          label="Unread"
+          value={countUnreadDialogs(filteredDialogs)}
+        />
+        <DialogMetric label="Groups" value={filterCounts.group} />
+      </div>
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+        <div className="relative min-w-0 flex-1">
+          <IconSearch className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="w-full pl-9"
+            type="search"
+            autoComplete="off"
+            value={dialogSearch}
+            onChange={(event) => setDialogSearch(event.target.value)}
+            placeholder="Search title or username"
+          />
+        </div>
         <div className="flex flex-wrap gap-2">
           {Object.entries(FILTER_LABELS).map(([value, label]) => (
             <Button
               key={value}
+              size="sm"
               variant={dialogFilter === value ? "default" : OUTLINE_VARIANT}
               onClick={() => setDialogFilter(value)}
             >
-              {label}
+              {label} {filterCounts[value] || 0}
             </Button>
           ))}
         </div>
       </div>
-      <div className="relative">
-        <IconSearch className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          className="w-full pl-9"
-          type="search"
-          autoComplete="off"
-          value={dialogSearch}
-          onChange={(event) => setDialogSearch(event.target.value)}
-          placeholder="Search dialogs"
-        />
-      </div>
       <TableWrap>
-        <Table className="min-w-[58rem]">
+        <Table className="min-w-[50rem]">
           <TableHeader>
             <TableRow>
               <TableHead>
@@ -469,11 +625,10 @@ function DialogsTablePanel({
                 />
               </TableHead>
               <TableHead>Dialog</TableHead>
-              <TableHead>Kind</TableHead>
-              <TableHead>Username</TableHead>
-              <TableHead>Unread</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Activity</TableHead>
               <TableHead>Target</TableHead>
-              <TableHead></TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -489,15 +644,16 @@ function DialogsTablePanel({
                 setView={setView}
                 setSelectedDialogTargets={setSelectedDialogTargets}
                 toggleSelected={toggleSelected}
+                openMessages={openMessages}
               />
             ))}
             {filteredDialogs.length === 0 ? (
               <TableRow>
-                <TableCell className="p-0" colSpan={7}>
+                <TableCell className="p-0" colSpan={6}>
                   <EmptyState
                     icon={IconMessageCircle}
                     title="No dialogs"
-                    detail="Select an account above and click Fetch Dialogs to load your chats, groups, and channels."
+                    detail="Select an account and fetch dialogs, or adjust search and type filters."
                     className="border-0 bg-transparent"
                   />
                 </TableCell>
@@ -510,6 +666,38 @@ function DialogsTablePanel({
   )
 }
 
+function DialogMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="border border-border bg-muted/20 p-3 text-xs">
+      <span className="text-muted-foreground">{label}</span>
+      <strong className="mt-1 block font-heading text-2xl">{value}</strong>
+    </div>
+  )
+}
+
+function countDialogFilters(dialogs: TelegramDialog[]) {
+  const counts: Record<string, number> = {
+    all: dialogs.length,
+    personal: 0,
+    bot: 0,
+    group: 0,
+    channel: 0,
+  }
+  for (const dialog of dialogs) {
+    const kind = dialogKind(dialog)
+    if (kind === "supergroup") {
+      counts.group += 1
+    } else if (kind in counts) {
+      counts[kind] += 1
+    }
+  }
+  return counts
+}
+
+function countUnreadDialogs(dialogs: TelegramDialog[]) {
+  return dialogs.filter((dialog) => Number(dialog.unread_count || 0) > 0).length
+}
+
 function DialogRow({
   dialog,
   applyQuickAction,
@@ -520,6 +708,7 @@ function DialogRow({
   setView,
   setSelectedDialogTargets,
   toggleSelected,
+  openMessages,
 }: {
   dialog: TelegramDialog
   applyQuickAction: (
@@ -534,32 +723,52 @@ function DialogRow({
   setView: DialogsScreenProps["setView"]
   setSelectedDialogTargets: DialogsScreenProps["setSelectedDialogTargets"]
   toggleSelected: DialogsScreenProps["toggleSelected"]
+  openMessages: (dialog: TelegramDialog) => Promise<void>
 }) {
   const target = dialogTarget(dialog)
+  const kind = dialogKind(dialog)
+  const isSelected = selectedDialogTargets.has(target)
+  const username = dialog.username ? `@${dialog.username}` : "No username"
+  const unreadCount = Number(dialog.unread_count || 0)
 
   return (
-    <TableRow>
+    <TableRow className={isSelected ? "bg-primary/5" : "hover:bg-muted/20"}>
       <TableCell>
         <input
           type="checkbox"
           aria-label={`Select ${dialog.title}`}
-          checked={selectedDialogTargets.has(target)}
+          checked={isSelected}
           onChange={() => toggleSelected(target, setSelectedDialogTargets)}
         />
       </TableCell>
-      <TableCell className="font-medium">{dialog.title}</TableCell>
+      <TableCell>
+        <div className="min-w-0">
+          <strong className="block truncate text-sm">{dialog.title}</strong>
+          <span className="block truncate text-xs text-muted-foreground">
+            {username}
+          </span>
+        </div>
+      </TableCell>
       <TableCell>
         <Badge tone="border-border bg-muted/40 text-muted-foreground">
-          {dialog.dialog_type || dialog.kind || dialog.type || "unknown"}
+          {kind}
         </Badge>
       </TableCell>
       <TableCell className="text-xs text-muted-foreground">
-        {dialog.username ? `@${dialog.username}` : ""}
+        {unreadCount ? `${unreadCount} unread` : "read"}
       </TableCell>
-      <TableCell>{dialog.unread_count || 0}</TableCell>
-      <TableCell className="font-mono text-xs">{target}</TableCell>
+      <TableCell className="max-w-56 truncate font-mono text-xs">
+        {target}
+      </TableCell>
       <TableCell>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap justify-end gap-1">
+          <Button
+            size="sm"
+            variant={OUTLINE_VARIANT}
+            onClick={() => openMessages(dialog)}
+          >
+            Messages
+          </Button>
           <Button
             size="sm"
             variant={OUTLINE_VARIANT}
@@ -577,15 +786,19 @@ function DialogRow({
             Use
           </Button>
           <details className="relative">
-            <summary className="flex h-8 cursor-pointer list-none items-center justify-center border border-border bg-background px-2 text-sm text-foreground hover:bg-muted/40">
+            <summary className="flex h-6 cursor-pointer list-none items-center justify-center border border-border bg-background px-2 text-sm text-foreground hover:bg-muted/40">
               <IconDotsVertical className="size-4" />
             </summary>
-            <div className="absolute right-0 z-10 mt-2 grid min-w-44 gap-1 border border-border bg-card p-2 shadow-xl">
+            <div className="absolute right-0 z-10 mt-2 grid min-w-48 gap-1 border border-border bg-card p-2 shadow-xl">
               {quickActionsForDialog(dialog).map((actionType) => (
                 <Button
                   key={actionType}
                   size="sm"
-                  variant={OUTLINE_VARIANT}
+                  variant={
+                    actionMeta[actionType].destructive
+                      ? "destructive"
+                      : OUTLINE_VARIANT
+                  }
                   onClick={() =>
                     applyQuickAction(
                       actionType,
@@ -618,48 +831,152 @@ function openTargetAction(
   flash("Dialog target copied into Actions.")
 }
 
-function quickActionsForDialog(dialog: TelegramDialog): ActionType[] {
-  const kind = dialogKind(dialog)
-  if (kind === "bot") {
-    return [
-      "start_bot",
-      "delete_chat",
-      "clear_chat",
-      "mute_chat",
-      "archive_chat",
-      "block_user",
-    ]
+// Prefills the structured action form when staging a specific message from the
+// inspector, so the user lands on Actions with the id/source already filled.
+function fieldsForStagedMessage(
+  actionType: ActionType,
+  target: string,
+  messageId: number
+) {
+  const fields = defaultFieldValues(actionType)
+  if (actionType === "forward_message") {
+    return { ...fields, source: `${target}:${messageId}` }
   }
-  if (kind === "personal") {
-    return [
-      "send_message",
-      "delete_chat",
-      "clear_chat",
-      "mute_chat",
-      "archive_chat",
-      "block_user",
-    ]
+  if (actionType === "delete_messages") {
+    return { ...fields, ids: String(messageId) }
   }
-  if (kind === "group" || kind === "supergroup") {
-    return [
-      "leave_chat",
-      "delete_chat",
-      "clear_chat",
-      "mute_chat",
-      "archive_chat",
-      "read_chat",
-      "report_spam",
-    ]
+  if ("id" in fields) {
+    return { ...fields, id: String(messageId) }
   }
-  if (kind === "channel") {
-    return [
-      "leave_chat",
-      "delete_chat",
-      "mute_chat",
-      "archive_chat",
-      "read_chat",
-      "report_spam",
-    ]
+  return fields
+}
+
+function DialogMessagesPanel({
+  panel,
+  setActionDraft,
+  setQuickActionContext,
+  setView,
+  onClose,
+}: {
+  panel: { dialog: TelegramDialog; messages: TelegramMessage[] } | null
+  setActionDraft: DialogsScreenProps["setActionDraft"]
+  setQuickActionContext: DialogsScreenProps["setQuickActionContext"]
+  setView: DialogsScreenProps["setView"]
+  onClose: () => void
+}) {
+  if (!panel) {
+    return null
   }
-  return ["delete_chat", "clear_chat", "mute_chat", "archive_chat"]
+  const dialog = panel.dialog
+  const messages = panel.messages
+  const target = dialogTarget(dialog)
+
+  function stageMessage(actionType: ActionType, message: TelegramMessage) {
+    setQuickActionContext({
+      source: "dialog",
+      actionType,
+      title: actionMeta[actionType].label,
+      targetSummary: `${dialog.title} / message ${message.id}`,
+      count: 1,
+      dialogKinds: [dialogKind(dialog)],
+    })
+    setActionDraft({
+      action_type: actionType,
+      target,
+      fields: fieldsForStagedMessage(actionType, target, message.id),
+    })
+    setView("actions")
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-end bg-background/80 p-4 backdrop-blur-sm">
+      <section className="max-h-[90vh] w-full max-w-4xl overflow-hidden border border-border bg-card shadow-2xl">
+        <div className="flex items-start justify-between gap-3 border-b border-border p-4">
+          <div>
+            <p className="text-[0.65rem] font-semibold tracking-[0.24em] text-primary uppercase">
+              Message inspector
+            </p>
+            <h2 className="font-heading text-2xl">{dialog.title}</h2>
+            <p className="font-mono text-xs text-muted-foreground">{target}</p>
+          </div>
+          <Button variant={OUTLINE_VARIANT} onClick={onClose}>
+            Close
+          </Button>
+        </div>
+        <div className="max-h-[calc(90vh-6rem)] overflow-auto p-4">
+          {messages.length ? (
+            <div className="space-y-2">
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  className="border border-border p-3 text-sm"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge tone="border-border bg-muted/40 text-muted-foreground">
+                      #{message.id}
+                    </Badge>
+                    {message.out ? (
+                      <Badge tone="border-primary/30 bg-primary/10 text-primary">
+                        outgoing
+                      </Badge>
+                    ) : null}
+                    {message.has_media ? (
+                      <Badge tone="border-border bg-background text-muted-foreground">
+                        media
+                      </Badge>
+                    ) : null}
+                    <span className="text-xs text-muted-foreground">
+                      {message.sender_name || message.sender_id || "unknown"}
+                    </span>
+                  </div>
+                  <p className="mt-2 max-h-24 overflow-auto text-sm whitespace-pre-wrap">
+                    {message.text || "No text"}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant={OUTLINE_VARIANT}
+                      onClick={() => stageMessage("forward_message", message)}
+                    >
+                      Forward
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={OUTLINE_VARIANT}
+                      onClick={() => stageMessage("pin_message", message)}
+                    >
+                      Pin
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => stageMessage("delete_messages", message)}
+                    >
+                      Delete
+                    </Button>
+                    {message.has_media ? (
+                      <Button
+                        size="sm"
+                        variant={OUTLINE_VARIANT}
+                        onClick={() => stageMessage("download_media", message)}
+                      >
+                        Download media
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              icon={IconMessageCircle}
+              title="No messages loaded"
+              detail="This dialog has no recent cached messages or Telegram did not return any for this session."
+            />
+          )}
+        </div>
+      </section>
+    </div>
+  )
 }

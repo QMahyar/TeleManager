@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import { Button } from "@workspace/ui/components/button"
+import { Button } from "../ui/button"
 
 import { actionMeta, categoryLabels } from "../lib/constants"
 import type { QueueStep } from "../types"

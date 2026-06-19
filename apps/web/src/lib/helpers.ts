@@ -16,19 +16,18 @@ export function accountStatus(account: Account) {
 }
 
 export function statusTone(status: string) {
-  if (["ready", "ok", "completed", "running"].includes(status)) {
+  if (["ready", "ok", "completed"].includes(status)) {
     return "text-primary border-primary/30 bg-primary/10"
   }
+  if (["running", "queued", "canceling"].includes(status)) {
+    return "text-sky-600 border-sky-500/30 bg-sky-500/10 dark:text-sky-400"
+  }
   if (
-    [
-      "error",
-      "failed",
-      "canceled",
-      "interrupted",
-      "needs login",
-      "needs 2FA",
-    ].includes(status)
+    ["needs login", "needs 2FA", "code sent", "flood_wait"].includes(status)
   ) {
+    return "text-amber-600 border-amber-500/30 bg-amber-500/10 dark:text-amber-400"
+  }
+  if (["error", "failed", "canceled", "interrupted"].includes(status)) {
     return "text-destructive border-destructive/30 bg-destructive/10"
   }
   return "text-muted-foreground border-border bg-muted/40"

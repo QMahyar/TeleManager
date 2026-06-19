@@ -36,7 +36,7 @@ React Browser UI
 - `apps/web/src/screens` contains the major application sections: command center, accounts, actions, dialogs, sessions, activity, and settings.
 - `apps/web/src/components` contains the shared app shell, queue/run UI, account tables, dialog helpers, and reusable workspace pieces.
 - `apps/web/src/hooks/use-app-state.ts` is the central client state coordinator for accounts, dialogs, queue builder state, presets, run history, and settings.
-- `packages/ui` contains shared UI primitives and styles used by the React app.
+- `apps/web/src/ui` contains local UI primitives and styles used by the React app.
 
 ## Data model
 

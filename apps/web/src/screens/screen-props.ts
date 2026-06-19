@@ -2,7 +2,7 @@ import type * as React from "react"
 
 import type {
   Account,
-  ActionType,
+  ActionDraft,
   AskDialog,
   Preset,
   QueueRun,
@@ -51,19 +51,9 @@ export type AppScreenProps = {
   loadPresets: () => Promise<void>
   safety: SafetySettings
   setSafety: React.Dispatch<React.SetStateAction<SafetySettings>>
-  actionDraft: {
-    action_type: ActionType
-    target: string
-    message: string
-  }
+  actionDraft: ActionDraft
   quickActionContext: import("../types").QuickActionContext | null
-  setActionDraft: React.Dispatch<
-    React.SetStateAction<{
-      action_type: ActionType
-      target: string
-      message: string
-    }>
-  >
+  setActionDraft: React.Dispatch<React.SetStateAction<ActionDraft>>
   setQuickActionContext: React.Dispatch<
     React.SetStateAction<import("../types").QuickActionContext | null>
   >
@@ -153,6 +143,7 @@ export type DialogsScreenProps = Pick<
   | "loading"
   | "refresh"
   | "flash"
+  | "dialogs"
   | "dialogAccountId"
   | "setDialogAccountId"
   | "setDialogs"
@@ -172,6 +163,7 @@ export type SessionsScreenProps = Pick<
   AppScreenProps,
   | "accounts"
   | "selectedIds"
+  | "setSelectedIds"
   | "guarded"
   | "refresh"
   | "flash"

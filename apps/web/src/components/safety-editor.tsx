@@ -12,7 +12,7 @@ export function SafetyEditor({
 }) {
   return (
     <div className="grid gap-3 md:grid-cols-3">
-      <Field label="Account delay">
+      <Field label="Account delay (s)">
         <Input
           type="number"
           min={1}
@@ -26,8 +26,11 @@ export function SafetyEditor({
             })
           }
         />
+        <span className="text-xs text-muted-foreground normal-case">
+          Wait between switching accounts (1–60).
+        </span>
       </Field>
-      <Field label="Action delay">
+      <Field label="Action delay (s)">
         <Input
           type="number"
           min={1}
@@ -41,6 +44,9 @@ export function SafetyEditor({
             })
           }
         />
+        <span className="text-xs text-muted-foreground normal-case">
+          Wait between actions on one account (1–120).
+        </span>
       </Field>
       <Field label="Max operations">
         <Input
@@ -53,6 +59,9 @@ export function SafetyEditor({
             setSafety({ ...safety, max_operations: Number(e.target.value) })
           }
         />
+        <span className="text-xs text-muted-foreground normal-case">
+          Hard cap on total queued operations (1–250).
+        </span>
       </Field>
     </div>
   )

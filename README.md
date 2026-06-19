@@ -318,12 +318,34 @@ TeleManager stores everything locally.
 python -m pytest
 ```
 
-### Frontend / workspace
+### Frontend
 
 ```bash
-npm run lint
-npm run typecheck
-npm run build
+npm --prefix apps/web run lint
+npm --prefix apps/web run typecheck
+npm --prefix apps/web run build
+```
+
+### Local release package
+
+```bash
+python scripts/build-release.py --target local
+```
+
+This builds `release/telemanager-local.zip` on Windows or `release/telemanager-local.tar.gz` on Linux/macOS.
+The packaged app starts a local server, opens `http://127.0.0.1:8000`, and stores local data next to the executable.
+
+### Termux package
+
+```bash
+python scripts/build-release.py --termux
+```
+
+On Termux, unpack the archive and run:
+
+```bash
+./install-termux-alias.sh
+telemanager
 ```
 
 ## Validation status
@@ -331,15 +353,14 @@ npm run build
 The current codebase has been validated with:
 
 - `python -m pytest`
-- `npm run lint`
-- `npm run typecheck`
+- `npm --prefix apps/web run lint`
+- `npm --prefix apps/web run typecheck`
 - `pi-lens` warnings cleared for the touched codebase state
 
 ## Project structure
 
 ```text
-apps/web/              React frontend
-packages/ui/           Shared UI primitives and styles
+apps/web/              React frontend and UI primitives
 src/telemanager/       FastAPI app and backend services
 docs/                  Architecture, security, roadmap, and test docs
 data/                  Local config, dialog cache, exports, activity logs; gitignored

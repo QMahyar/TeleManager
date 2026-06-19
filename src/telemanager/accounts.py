@@ -12,7 +12,7 @@ from telethon import TelegramClient
 from telethon.errors import FloodWaitError, PhoneCodeExpiredError, PhoneCodeInvalidError, SessionPasswordNeededError
 
 from .config import ACCOUNTS_FILE, CONFIG_FILE, SESSIONS_DIR, read_json, write_json
-from .telegram_actions import TelegramAction, TelegramActionResult, run_telegram_action, safe_delay
+from .telegram_actions import TelegramAction, TelegramActionResult, run_telegram_action
 
 CONNECT_TIMEOUT_SECONDS = 25
 RuntimeStatus = Literal["stopped", "running", "login_pending", "password_pending", "error"]
@@ -183,59 +183,61 @@ class AccountManager:
             self._save_accounts()
             return account
 
-    async def run_action(self, action: TelegramAction) -> list[TelegramActionResult]:
-        if not action.confirm:
-            raise ValueError("Action confirmation is required.")
-        if not action.account_ids:
-            raise ValueError("Select at least one account.")
+    async def warm_client(self, account_id: str) -> TelegramClient:
+        """Connect and cache a client for the account for the duration of a run.
 
-        results: list[TelegramActionResult] = []
-        for index, account_id in enumerate(action.account_ids):
-            account = self._get_account(account_id)
-            if index > 0:
-                await safe_delay(action.delay_seconds)
-            result = await self._run_action_for_account(account, action)
-            results.append(result)
-        return results
-
-    async def _run_action_for_account(self, account: AccountRecord, action: TelegramAction) -> TelegramActionResult:
-        api_id, api_hash = self.get_api_credentials()
+        Raises ValueError if the session is not authorized so the caller can skip it.
+        The connection is kept open in self.clients until release_run_clients runs.
+        """
+        account = self._get_account(account_id)
         client = self.clients.get(account.id)
-        owns_client = False
-        if client is None or not client.is_connected():
-            client = self._new_client(account.session_name, api_id, api_hash)
-            try:
-                await self._connect_client(client)
-            except TimeoutError as exc:
-                account.last_error = str(exc)
-                self._save_accounts()
-                return TelegramActionResult(account.id, account.label, False, action.action_type, str(exc))
-            owns_client = True
+        if client is not None and client.is_connected():
+            return client
+        api_id, api_hash = self.get_api_credentials()
+        client = self._new_client(account.session_name, api_id, api_hash)
+        await self._connect_client(client)
+        if not await self._is_user_authorized(client):
+            client.disconnect()
+            account.authorized = False
+            account.last_error = "Session is not authorized. Log in again."
+            self._save_accounts()
+            raise ValueError(account.last_error)
+        self.clients[account.id] = client
+        return client
 
+    async def run_warm_action(self, action: TelegramAction) -> TelegramActionResult:
+        """Run one operation on a pre-warmed cached client.
+
+        FloodWaitError is allowed to propagate so the queue can back off; all other
+        exceptions are converted into a failed result for that single operation.
+        """
+        account = self._get_account(action.account_ids[0])
         try:
-            try:
-                authorized = await self._is_user_authorized(client)
-            except TimeoutError as exc:
-                account.last_error = str(exc)
-                self._save_accounts()
-                return TelegramActionResult(account.id, account.label, False, action.action_type, str(exc))
-            if not authorized:
-                account.authorized = False
-                account.last_error = "Session is not authorized. Log in again."
-                self._save_accounts()
-                return TelegramActionResult(account.id, account.label, False, action.action_type, account.last_error)
-
+            client = await self.warm_client(account.id)
+        except FloodWaitError:
+            raise
+        except Exception as exc:
+            account.last_error = str(exc)
+            self._save_accounts()
+            return TelegramActionResult(account.id, account.label, False, action.action_type, str(exc))
+        try:
             detail = await run_telegram_action(client, action)
             account.authorized = True
             account.last_error = None
             self._save_accounts()
             return TelegramActionResult(account.id, account.label, True, action.action_type, detail)
+        except FloodWaitError:
+            raise
         except Exception as exc:
             account.last_error = str(exc)
             self._save_accounts()
             return TelegramActionResult(account.id, account.label, False, action.action_type, str(exc))
-        finally:
-            if owns_client:
+
+    def release_run_clients(self, account_ids: list[str]) -> None:
+        """Disconnect and drop cached clients warmed for a run."""
+        for account_id in set(account_ids):
+            client = self.clients.pop(account_id, None)
+            if client is not None:
                 client.disconnect()
 
     async def shutdown(self) -> None:

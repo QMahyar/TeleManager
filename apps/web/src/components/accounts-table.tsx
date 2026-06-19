@@ -1,6 +1,14 @@
 import * as React from "react"
 
-import { Button } from "@workspace/ui/components/button"
+import {
+  IconDotsVertical,
+  IconFileText,
+  IconLogout,
+  IconPencil,
+  IconTrash,
+} from "@tabler/icons-react"
+
+import { Button } from "../ui/button"
 import {
   Table,
   TableBody,
@@ -9,7 +17,7 @@ import {
   TableHeader,
   TableRow,
   TableWrap,
-} from "@workspace/ui/components/table"
+} from "../ui/table"
 
 import { api, toForm } from "../lib/api"
 import { accountStatus, statusTone } from "../lib/helpers"
@@ -164,7 +172,7 @@ function AccountActions({
   askDialog,
 }: AccountActionProps) {
   return (
-    <div className="flex flex-wrap gap-1">
+    <div className="flex flex-wrap items-center justify-end gap-1">
       <Button
         size="sm"
         variant="outline"
@@ -181,42 +189,62 @@ function AccountActions({
       >
         Dialogs
       </Button>
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={() =>
-          guarded(() => renameAccount(account, refresh, flash, askDialog))
-        }
-      >
-        Rename Label
-      </Button>
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={() =>
-          guarded(() => renameSessionFile(account, refresh, flash, askDialog))
-        }
-      >
-        Rename File
-      </Button>
-      <Button
-        size="sm"
-        variant="destructive"
-        onClick={() =>
-          guarded(() => deleteLocalSession(account, refresh, flash, askDialog))
-        }
-      >
-        Delete Local
-      </Button>
-      <Button
-        size="sm"
-        variant="destructive"
-        onClick={() =>
-          guarded(() => logoutAccount(account, refresh, flash, askDialog))
-        }
-      >
-        Logout
-      </Button>
+      <details className="relative">
+        <summary className="flex h-6 cursor-pointer list-none items-center justify-center border border-border bg-background px-2 text-sm text-foreground hover:bg-muted/40">
+          <IconDotsVertical className="size-4" />
+        </summary>
+        <div className="absolute right-0 z-10 mt-2 grid min-w-44 gap-1 border border-border bg-card p-2 shadow-xl">
+          <Button
+            size="sm"
+            variant="outline"
+            className="justify-start"
+            onClick={() =>
+              guarded(() => renameAccount(account, refresh, flash, askDialog))
+            }
+          >
+            <IconPencil className="size-3.5" />
+            Rename Label
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="justify-start"
+            onClick={() =>
+              guarded(() =>
+                renameSessionFile(account, refresh, flash, askDialog)
+              )
+            }
+          >
+            <IconFileText className="size-3.5" />
+            Rename File
+          </Button>
+          <div className="my-1 border-t border-border" />
+          <Button
+            size="sm"
+            variant="destructive"
+            className="justify-start"
+            onClick={() =>
+              guarded(() => logoutAccount(account, refresh, flash, askDialog))
+            }
+          >
+            <IconLogout className="size-3.5" />
+            Logout
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            className="justify-start"
+            onClick={() =>
+              guarded(() =>
+                deleteLocalSession(account, refresh, flash, askDialog)
+              )
+            }
+          >
+            <IconTrash className="size-3.5" />
+            Delete Local
+          </Button>
+        </div>
+      </details>
     </div>
   )
 }

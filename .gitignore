@@ -28,3 +28,11 @@ node_modules/
 apps/web/dist/
 apps/web/node_modules/
 packages/ui/node_modules/
+
+# Built release artifacts (binaries/zips); release tooling stays tracked
+release/*.zip
+release/*.tar.gz
+
+# PyInstaller build output
+/build/
+/dist/

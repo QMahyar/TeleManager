@@ -49,9 +49,11 @@ export const navItems: Array<{
 export type ActionCategory =
   | "joining"
   | "messaging"
+  | "message_tools"
   | "management"
   | "cleanup"
   | "moderation"
+  | "downloads"
 
 export type TargetKind =
   | "invite_link"
@@ -66,6 +68,7 @@ export type ActionMeta = {
   category: ActionCategory
   description: string
   needsMessage: boolean
+  messageOptional?: boolean
   messagePlaceholder?: string
   targetHint: string
   validTargets: Set<TargetKind>
@@ -75,6 +78,8 @@ export type ActionMeta = {
 const TARGET_PUBLIC_LINK: TargetKind = "public_link"
 const TARGET_USERNAME: TargetKind = "username"
 const TARGET_NUMERIC_ID: TargetKind = "numeric_id"
+
+const HINT_CHAT_TARGET = "@username, numeric ID, or t.me link"
 
 export const actionMeta: Record<ActionType, ActionMeta> = {
   join_chat: {
@@ -111,12 +116,43 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
       TARGET_PUBLIC_LINK,
     ]),
   },
+  send_media: {
+    label: "Send media/file",
+    category: "messaging",
+    description:
+      "Send a local file with an optional caption. Use file=PATH and caption=... options.",
+    needsMessage: true,
+    messagePlaceholder:
+      "file=E:/path/photo.jpg\ncaption=Optional caption\nparse_mode=markdown",
+    targetHint: HINT_CHAT_TARGET,
+    validTargets: new Set([
+      TARGET_USERNAME,
+      TARGET_NUMERIC_ID,
+      TARGET_PUBLIC_LINK,
+    ]),
+  },
+  schedule_message: {
+    label: "Schedule message",
+    category: "messaging",
+    description:
+      "Schedule a message for later. Use text=... and schedule=ISO time or +15m/+2h/+1d.",
+    needsMessage: true,
+    messagePlaceholder: "text=Message to send later\nschedule=+15m",
+    targetHint: HINT_CHAT_TARGET,
+    validTargets: new Set([
+      TARGET_USERNAME,
+      TARGET_NUMERIC_ID,
+      TARGET_PUBLIC_LINK,
+    ]),
+  },
   forward_message: {
     label: "Forward message",
-    category: "messaging",
-    description: "Forward a message from one chat to another.",
+    category: "message_tools",
+    description:
+      "Forward one or more messages from a source chat to the destination. Source can be @chat:id, @chat:101,102, or a t.me message link.",
     needsMessage: true,
-    messagePlaceholder: "@source_chat:message_id (e.g. @channel:12345)",
+    messagePlaceholder:
+      "@source_chat:12345\n(or) @source_chat:101,102,103\n(or) https://t.me/source_chat/12345",
     targetHint: "Destination: @username, numeric ID, or t.me link",
     validTargets: new Set([
       TARGET_USERNAME,
@@ -124,12 +160,83 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
       TARGET_PUBLIC_LINK,
     ]),
   },
+  edit_message: {
+    label: "Edit message",
+    category: "message_tools",
+    description: "Edit one of your messages by ID.",
+    needsMessage: true,
+    messagePlaceholder: "id=12345\ntext=Updated message text",
+    targetHint: "Chat containing the message",
+    validTargets: new Set([
+      TARGET_USERNAME,
+      TARGET_NUMERIC_ID,
+      TARGET_PUBLIC_LINK,
+    ]),
+  },
+  delete_messages: {
+    label: "Delete messages",
+    category: "message_tools",
+    description:
+      "Delete selected message IDs, optionally for everyone where Telegram permits.",
+    needsMessage: true,
+    messagePlaceholder: "ids=12345,12346\nrevoke=true",
+    targetHint: "Chat containing the messages",
+    validTargets: new Set([
+      TARGET_USERNAME,
+      TARGET_NUMERIC_ID,
+      TARGET_PUBLIC_LINK,
+    ]),
+    destructive: true,
+  },
+  pin_message: {
+    label: "Pin message",
+    category: "message_tools",
+    description: "Pin a message by ID in a chat or channel you can manage.",
+    needsMessage: true,
+    messagePlaceholder: "id=12345\nnotify=false",
+    targetHint: "Chat containing the message",
+    validTargets: new Set([
+      TARGET_USERNAME,
+      TARGET_NUMERIC_ID,
+      TARGET_PUBLIC_LINK,
+    ]),
+  },
+  unpin_message: {
+    label: "Unpin message",
+    category: "message_tools",
+    description: "Unpin one message by ID, or all pins when id is omitted.",
+    needsMessage: true,
+    messagePlaceholder: "id=12345",
+    targetHint: "Chat containing the pinned message",
+    validTargets: new Set([
+      TARGET_USERNAME,
+      TARGET_NUMERIC_ID,
+      TARGET_PUBLIC_LINK,
+    ]),
+  },
+  download_media: {
+    label: "Download media",
+    category: "downloads",
+    description: "Download media from a message ID into local data/downloads.",
+    needsMessage: true,
+    messagePlaceholder: "id=12345",
+    targetHint: "Chat containing the media message",
+    validTargets: new Set([
+      TARGET_USERNAME,
+      TARGET_NUMERIC_ID,
+      TARGET_PUBLIC_LINK,
+    ]),
+  },
   start_bot: {
-    label: "Start bot",
+    label: "Start bot (referral link)",
     category: "messaging",
-    description: "Send /start to a bot, optionally with a referral parameter.",
-    needsMessage: false,
-    targetHint: "@botname or t.me/botname?start=param",
+    description:
+      "Start a bot via a referral/deep link. The parameter can come from the link (?start= or ?startapp=) or the options field below. startapp opens the bot mini app so tap-to-earn/Stars referrals are credited.",
+    needsMessage: true,
+    messageOptional: true,
+    messagePlaceholder:
+      "start=ref123\n(or) startapp=ref123\nLeave empty to just send /start",
+    targetHint: "@botname, t.me/botname?start=param, or t.me/botname?startapp=param",
     validTargets: new Set([TARGET_USERNAME, "bot_link"]),
   },
   block_user: {
@@ -154,7 +261,7 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
     category: "management",
     description: "Move a chat to the Archive folder.",
     needsMessage: false,
-    targetHint: "@username, numeric ID, or t.me link",
+    targetHint: HINT_CHAT_TARGET,
     validTargets: new Set([
       TARGET_USERNAME,
       TARGET_NUMERIC_ID,
@@ -166,7 +273,7 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
     category: "management",
     description: "Move a chat out of the Archive folder.",
     needsMessage: false,
-    targetHint: "@username, numeric ID, or t.me link",
+    targetHint: HINT_CHAT_TARGET,
     validTargets: new Set([
       TARGET_USERNAME,
       TARGET_NUMERIC_ID,
@@ -178,7 +285,7 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
     category: "management",
     description: "Mute notifications for a chat indefinitely.",
     needsMessage: false,
-    targetHint: "@username, numeric ID, or t.me link",
+    targetHint: HINT_CHAT_TARGET,
     validTargets: new Set([
       TARGET_USERNAME,
       TARGET_NUMERIC_ID,
@@ -190,7 +297,7 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
     category: "management",
     description: "Restore notifications for a muted chat.",
     needsMessage: false,
-    targetHint: "@username, numeric ID, or t.me link",
+    targetHint: HINT_CHAT_TARGET,
     validTargets: new Set([
       TARGET_USERNAME,
       TARGET_NUMERIC_ID,
@@ -202,7 +309,7 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
     category: "management",
     description: "Mark all messages in a chat as read.",
     needsMessage: false,
-    targetHint: "@username, numeric ID, or t.me link",
+    targetHint: HINT_CHAT_TARGET,
     validTargets: new Set([
       TARGET_USERNAME,
       TARGET_NUMERIC_ID,
@@ -214,7 +321,7 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
     category: "cleanup",
     description: "Delete a dialog from your chat list (local side only).",
     needsMessage: false,
-    targetHint: "@username, numeric ID, or t.me link",
+    targetHint: HINT_CHAT_TARGET,
     validTargets: new Set([
       TARGET_USERNAME,
       TARGET_NUMERIC_ID,
@@ -227,7 +334,7 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
     category: "cleanup",
     description: "Clear message history locally where Telegram permits.",
     needsMessage: false,
-    targetHint: "@username, numeric ID, or t.me link",
+    targetHint: HINT_CHAT_TARGET,
     validTargets: new Set([
       TARGET_USERNAME,
       TARGET_NUMERIC_ID,
@@ -240,7 +347,7 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
     category: "moderation",
     description: "Report a chat or user as spam to Telegram.",
     needsMessage: false,
-    targetHint: "@username, numeric ID, or t.me link",
+    targetHint: HINT_CHAT_TARGET,
     validTargets: new Set([
       TARGET_USERNAME,
       TARGET_NUMERIC_ID,
@@ -252,17 +359,21 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
 export const categoryLabels: Record<ActionCategory, string> = {
   joining: "Joining",
   messaging: "Messaging",
+  message_tools: "Message Tools",
   management: "Management",
   cleanup: "Cleanup",
   moderation: "Moderation",
+  downloads: "Downloads",
 }
 
 export const categoryOrder: ActionCategory[] = [
   "joining",
   "messaging",
+  "message_tools",
   "management",
   "cleanup",
   "moderation",
+  "downloads",
 ]
 
 export const emptySafety: SafetySettings = {

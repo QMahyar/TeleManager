@@ -4,8 +4,9 @@ import {
   IconKey,
   IconLockPassword,
   IconMessage2Bolt,
+  IconUsers,
 } from "@tabler/icons-react"
-import { Button } from "@workspace/ui/components/button"
+import { Button } from "../ui/button"
 
 import { AccountsTable } from "../components/accounts-table"
 import {
@@ -13,8 +14,8 @@ import {
   Field,
   Input,
   Panel,
-  SectionTitle,
   Select,
+  StepHeading,
 } from "../components/ui"
 import { api, toForm } from "../lib/api"
 import type { Account } from "../types"
@@ -177,9 +178,9 @@ function RequestLoginPanel({
 }) {
   return (
     <Panel className="space-y-4">
-      <SectionTitle
-        kicker="Step 1"
-        title="Request Login Code"
+      <StepHeading
+        step={1}
+        title="Request login code"
         detail="Use the same international phone format you use in Telegram, for example +15551234567."
       />
       <form className="grid gap-3" onSubmit={onSubmit}>
@@ -198,8 +199,13 @@ function RequestLoginPanel({
             required
             inputMode="tel"
             autoComplete="tel"
+            pattern="\+[0-9 ]{7,}"
+            title="Use international format with country code, e.g. +15551234567"
             placeholder="+15551234567"
           />
+          <span className="text-xs text-muted-foreground normal-case">
+            International format with country code, e.g. +15551234567.
+          </span>
         </Field>
         <Button
           type="submit"
@@ -245,9 +251,9 @@ function FinishLoginPanel({
 
   return (
     <Panel className="space-y-4">
-      <SectionTitle
-        kicker="Step 2"
-        title="Finish Login"
+      <StepHeading
+        step={2}
+        title="Finish login"
         detail="Select the pending session, enter the Telegram code, and only use the 2FA form when Telegram asks for the account password."
       />
       <Field label="Pending Account">
@@ -408,10 +414,10 @@ function AccountsInventoryPanel({
   return (
     <Panel className="space-y-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <SectionTitle
-          kicker="Inventory"
+        <StepHeading
+          step={<IconUsers />}
           title="Accounts"
-          detail={`${accounts.length} of ${totalAccounts} shown. Rename, validate, fetch dialogs, logout, or delete local sessions.`}
+          detail={`${accounts.length} of ${totalAccounts} shown. Validate, fetch dialogs, rename, logout, or delete local sessions.`}
         />
         <div className="grid gap-2 sm:grid-cols-[minmax(14rem,1fr)_10rem]">
           <Input
@@ -426,6 +432,7 @@ function AccountsInventoryPanel({
           >
             <option value="all">All statuses</option>
             <option value="ready">Ready</option>
+            <option value="pending">Pending login</option>
             <option value="needs login">Needs login</option>
             <option value="error">Error</option>
           </Select>
@@ -483,6 +490,12 @@ function accountMatchesSearch(account: Account, query: string) {
 function accountFilterStatus(account: Account) {
   if (account.last_error) return "error"
   if (account.authorized) return "ready"
+  if (
+    account.status === "login_pending" ||
+    account.status === "password_pending"
+  ) {
+    return "pending"
+  }
   return "needs login"
 }
 

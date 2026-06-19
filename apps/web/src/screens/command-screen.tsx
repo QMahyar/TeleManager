@@ -1,4 +1,4 @@
-import { Button } from "@workspace/ui/components/button"
+import { Button } from "../ui/button"
 
 import { AccountsTable } from "../components/accounts-table"
 import { Metric, Panel, SectionTitle } from "../components/ui"

@@ -4,7 +4,7 @@ from typing import Any
 
 from .config import ACTION_RUNS_FILE, read_json, write_json
 
-TERMINAL_STATUSES = {"completed", "failed", "interrupted", "canceled"}
+TERMINAL_STATUSES = {"completed", "failed", "interrupted", "canceled", "flood_wait"}
 
 
 def load_action_runs() -> dict[str, dict[str, Any]]:

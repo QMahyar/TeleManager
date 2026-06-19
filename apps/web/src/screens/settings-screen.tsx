@@ -1,10 +1,10 @@
-import { IconShieldLock } from "@tabler/icons-react"
+import { IconKey, IconShieldLock } from "@tabler/icons-react"
 import * as React from "react"
 
-import { Button } from "@workspace/ui/components/button"
+import { Button } from "../ui/button"
 
 import { SafetyEditor } from "../components/safety-editor"
-import { Field, Input, Panel, SectionTitle } from "../components/ui"
+import { Field, Input, Panel, StepHeading } from "../components/ui"
 import { api } from "../lib/api"
 import type { SafetySettings } from "../types"
 
@@ -56,8 +56,8 @@ export function SettingsScreen({
   return (
     <div className="grid gap-4 xl:grid-cols-2">
       <Panel className="space-y-4">
-        <SectionTitle
-          kicker="Credentials"
+        <StepHeading
+          step={<IconKey />}
           title="Telegram API"
           detail="Use your own API ID and API hash from my.telegram.org. The hash stays local and is not rendered back into the UI."
         />
@@ -110,9 +110,9 @@ export function SettingsScreen({
         ) : null}
       </Panel>
       <Panel className="space-y-4">
-        <SectionTitle
-          kicker="Guardrails"
-          title="Safety Defaults"
+        <StepHeading
+          step={<IconShieldLock />}
+          title="Safety defaults"
           detail="These values prefill new queues and are enforced by the backend when a request omits values."
         />
         <SafetyEditor safety={safety} setSafety={setSafety} />

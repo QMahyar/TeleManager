@@ -1,23 +1,35 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
-import time
-import uuid
+import os
+import threading
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 from .accounts import AccountManager
+from .action_queue_service import (
+    ACTIVE_RUN_STATUSES,
+    TERMINAL_RUN_STATUSES,
+    ActionQueueRequest,
+    SafetySettingsRequest,
+    now_iso,
+    retry_request_from_failed_operations,
+    safety_defaults,
+    save_safety_settings,
+    start_action_queue,
+)
+from .action_queue_service import (
+    preview_action_queue as build_queue_preview,
+)
 from .action_runs_service import list_action_runs, load_action_runs, save_action_runs
-from .audit_service import export_events_path, get_event, list_events, log_event
-from .config import CONFIG_FILE, SAFETY_SETTINGS_FILE, read_json, write_json
-from .dialogs_service import fetch_dialogs, list_cached_dialogs
+from .audit_service import export_events_path, list_events, log_event
+from .config import CONFIG_FILE, read_json, write_json
+from .dialogs_service import fetch_dialogs, fetch_messages, list_cached_dialogs, resolve_target
 from .presets_service import delete_action_preset, list_action_presets, save_action_preset
 from .sessions_service import (
     delete_local_session,
@@ -26,66 +38,14 @@ from .sessions_service import (
     rename_account,
     rename_session_file,
 )
-from .telegram_actions import TelegramAction, TelegramActionType, safe_delay, validate_target_for_action
 
 FRONTEND_ROOT_DIR = Path(__file__).resolve().parents[2] / "apps" / "web"
-FRONTEND_DIST_DIR = FRONTEND_ROOT_DIR / "dist"
-FRONTEND_PUBLIC_DIR = FRONTEND_ROOT_DIR / "public"
+FRONTEND_DIST_DIR = Path(os.getenv("TELEMANAGER_FRONTEND_DIST_DIR", FRONTEND_ROOT_DIR / "dist"))
+FRONTEND_PUBLIC_DIR = Path(os.getenv("TELEMANAGER_FRONTEND_PUBLIC_DIR", FRONTEND_ROOT_DIR / "public"))
 FILE_BODY = File(...)
 NO_STORE_HEADERS = {"Cache-Control": "no-store"}
 manager = AccountManager()
 queue_runs: dict[str, dict] = load_action_runs()
-
-
-class ActionRunRequest(BaseModel):
-    action_type: TelegramActionType
-    target: str = Field(min_length=1, max_length=500)
-    account_ids: list[str] = Field(min_length=1, max_length=100)
-    message: str | None = Field(default=None, max_length=4096)
-    confirm: bool = False
-    delay_seconds: float = Field(default=2.5, ge=0.0, le=30.0)
-
-
-class ActionQueueStep(BaseModel):
-    action_type: TelegramActionType
-    targets: list[str] = Field(min_length=1, max_length=25)
-    account_ids: list[str] = Field(min_length=1, max_length=25)
-    message: str | None = Field(default=None, max_length=4096)
-
-    @model_validator(mode="after")
-    def validate_step(self) -> ActionQueueStep:
-        clean_targets = [target.strip() for target in self.targets if target.strip()]
-        if not clean_targets:
-            raise ValueError("At least one target is required.")
-        self.targets = clean_targets
-        if self.action_type in {"send_message", "forward_message"} and not (self.message or "").strip():
-            raise ValueError("Message text is required for this action.")
-        for target in self.targets:
-            error = validate_target_for_action(self.action_type, target)
-            if error:
-                raise ValueError(error)
-        return self
-
-
-class ActionQueueRequest(BaseModel):
-    steps: list[ActionQueueStep] = Field(min_length=1, max_length=20)
-    confirm: bool = False
-    delay_between_accounts: float | None = Field(default=None, ge=1.0, le=60.0)
-    delay_between_actions: float | None = Field(default=None, ge=1.0, le=120.0)
-    max_operations: int | None = Field(default=None, ge=1, le=250)
-
-    @model_validator(mode="after")
-    def validate_queue(self) -> ActionQueueRequest:
-        defaults = safety_defaults()
-        self.delay_between_accounts = self.delay_between_accounts or defaults["delay_between_accounts"]
-        self.delay_between_actions = self.delay_between_actions or defaults["delay_between_actions"]
-        self.max_operations = self.max_operations or defaults["max_operations"]
-        operation_count = sum(len(step.account_ids) * len(step.targets) for step in self.steps)
-        if operation_count > self.max_operations:
-            raise ValueError(
-                f"Queue has {operation_count} operations, above the configured limit of {self.max_operations}."
-            )
-        return self
 
 
 class AccountUpdateRequest(BaseModel):
@@ -99,12 +59,6 @@ class SessionRenameRequest(BaseModel):
 class ExportSessionsRequest(BaseModel):
     account_ids: list[str] = Field(min_length=1, max_length=100)
     redact_phone: bool = True
-
-
-class SafetySettingsRequest(BaseModel):
-    delay_between_accounts: float = Field(default=4.0, ge=1.0, le=60.0)
-    delay_between_actions: float = Field(default=8.0, ge=1.0, le=120.0)
-    max_operations: int = Field(default=100, ge=1, le=250)
 
 
 class ActionPresetSaveRequest(BaseModel):
@@ -199,9 +153,7 @@ def get_safety_settings() -> dict:
 
 @app.post("/api/settings/safety")
 def set_safety_settings(request: SafetySettingsRequest) -> dict:
-    settings = request.model_dump()
-    write_json(SAFETY_SETTINGS_FILE, settings)
-    return {"settings": settings}
+    return {"settings": save_safety_settings(request)}
 
 
 @app.get("/api/accounts")
@@ -337,31 +289,20 @@ def get_account_dialogs(account_id: str) -> dict:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@app.post("/api/actions/preview")
-def preview_action(request: ActionRunRequest) -> dict:
-    accounts = [manager._get_account(account_id) for account_id in request.account_ids]
-    warnings = []
-    if request.action_type == "send_message":
-        warnings.append("Messaging actions should only be sent to expected recipients and require confirmation.")
-    if len(accounts) > 10:
-        warnings.append("Large batches may trigger Telegram limits. Consider increasing delay or reducing selection.")
-    return {
-        "action_type": request.action_type,
-        "target": request.target,
-        "account_count": len(accounts),
-        "accounts": [
-            {
-                "id": account.id,
-                "label": account.label,
-                "status": "ready" if account.authorized else "needs_login",
-            }
-            for account in accounts
-        ],
-        "delay_seconds": request.delay_seconds,
-        "estimated_seconds": max(0, len(accounts) - 1) * request.delay_seconds,
-        "requires_message": request.action_type == "send_message",
-        "warnings": warnings,
-    }
+@app.get("/api/accounts/{account_id}/messages")
+async def get_account_messages(account_id: str, target: str, limit: int = 50) -> dict:
+    try:
+        return await fetch_messages(manager, account_id, target, limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/accounts/{account_id}/resolve-target")
+async def resolve_account_target(account_id: str, target: str) -> dict:
+    try:
+        return await resolve_target(manager, account_id, target)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/actions/presets")
@@ -397,68 +338,17 @@ def delete_queue_preset(preset_id: str) -> dict:
 @app.post("/api/actions/queue/preview")
 def preview_action_queue(request: ActionQueueRequest) -> dict:
     try:
-        expanded = expand_action_queue(request)
+        return build_queue_preview(manager, request)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    authorized_count = sum(1 for op in expanded if op["status"] == "ready")
-    unauthorized_count = len(expanded) - authorized_count
-    warnings = queue_warnings(request, len(expanded), unauthorized_count)
-    return {
-        "step_count": len(request.steps),
-        "operation_count": len(expanded),
-        "authorized_count": authorized_count,
-        "unauthorized_count": unauthorized_count,
-        "estimated_seconds": estimate_queue_seconds(request, expanded),
-        "delay_between_accounts": request.delay_between_accounts,
-        "delay_between_actions": request.delay_between_actions,
-        "max_operations": request.max_operations,
-        "operations": expanded[:100],
-        "warnings": warnings,
-    }
 
 
 @app.post("/api/actions/queue/run")
 async def run_action_queue(request: ActionQueueRequest) -> dict:
-    if not request.confirm:
-        raise HTTPException(status_code=400, detail="Queue confirmation is required.")
     try:
-        expanded = expand_action_queue(request)
+        return start_action_queue(manager, queue_runs, request)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    expanded = [operation for operation in expanded if operation.get("status") == "ready"]
-    if not expanded:
-        raise HTTPException(
-            status_code=400,
-            detail="No authorized accounts selected. Log in at least one selected account first.",
-        )
-
-    run_id = str(uuid.uuid4())
-    for index, operation in enumerate(expanded, start=1):
-        operation["operation_id"] = f"{run_id}-{index}"
-        operation["status"] = "pending"
-        operation["started_at"] = None
-        operation["completed_at"] = None
-        operation["result"] = None
-    queue_runs[run_id] = {
-        "id": run_id,
-        "status": "queued",
-        "created_at": now_iso(),
-        "updated_at": now_iso(),
-        "completed_at": None,
-        "operation_count": len(expanded),
-        "completed_count": 0,
-        "ok_count": 0,
-        "failed_count": 0,
-        "current": None,
-        "operations": expanded,
-        "results": [],
-        "error": None,
-        "audit_event_id": None,
-        "cancel_requested": False,
-    }
-    save_action_runs(queue_runs)
-    asyncio.create_task(process_action_queue(run_id, request, expanded))
-    return {"run_id": run_id, "status": "queued", "operation_count": len(expanded)}
 
 
 @app.get("/api/actions/queue/runs")
@@ -476,7 +366,7 @@ def get_action_queue_run(run_id: str) -> dict:
 
 @app.delete("/api/actions/queue/runs")
 def clear_action_queue_runs() -> dict:
-    active = [run for run in queue_runs.values() if run.get("status") in {"queued", "running", "canceling"}]
+    active = [run for run in queue_runs.values() if run.get("status") in ACTIVE_RUN_STATUSES]
     if active:
         raise HTTPException(status_code=400, detail="Stop active queue runs before clearing history.")
     removed = len(queue_runs)
@@ -490,7 +380,7 @@ def delete_action_queue_run(run_id: str) -> dict:
     run = queue_runs.get(run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Queue run was not found.")
-    if run.get("status") in {"queued", "running", "canceling"}:
+    if run.get("status") in ACTIVE_RUN_STATUSES:
         raise HTTPException(status_code=400, detail="Active queue runs cannot be deleted.")
     queue_runs.pop(run_id, None)
     save_action_runs(queue_runs)
@@ -512,12 +402,15 @@ def export_action_queue_run(run_id: str) -> Response:
 
 @app.post("/api/actions/queue/runs/{run_id}/retry-failed")
 async def retry_failed_action_queue_run(run_id: str) -> dict:
-    if any(run.get("status") in {"queued", "running", "canceling"} for run in queue_runs.values()):
+    if any(run.get("status") in ACTIVE_RUN_STATUSES for run in queue_runs.values()):
         raise HTTPException(status_code=400, detail="Wait for the active queue to finish before retrying failures.")
     run = queue_runs.get(run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Queue run was not found.")
-    retry_request = retry_request_from_failed_operations(run)
+    try:
+        retry_request = retry_request_from_failed_operations(run)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return await run_action_queue(retry_request)
 
 
@@ -526,7 +419,7 @@ def cancel_action_queue_run(run_id: str) -> dict:
     run = queue_runs.get(run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Queue run was not found.")
-    if run.get("status") in {"completed", "failed", "interrupted", "canceled"}:
+    if run.get("status") in TERMINAL_RUN_STATUSES:
         return {"run": run}
     run["cancel_requested"] = True
     run["status"] = "canceling"
@@ -535,229 +428,10 @@ def cancel_action_queue_run(run_id: str) -> dict:
     return {"run": run}
 
 
-@app.post("/api/actions/run")
-async def run_action(request: ActionRunRequest) -> dict:
-    try:
-        action = TelegramAction(
-            action_type=request.action_type,
-            target=request.target,
-            account_ids=request.account_ids,
-            message=request.message,
-            confirm=request.confirm,
-            delay_seconds=request.delay_seconds,
-        )
-        results = await manager.run_action(action)
-        result_payload = [result.to_dict() for result in results]
-        ok_count = sum(1 for result in results if result.ok)
-        event = log_event(
-            "telegram_action",
-            "Telegram action completed",
-            f"{request.action_type}: {ok_count}/{len(results)} succeeded",
-            {"request": request.model_dump(), "results": result_payload},
-        )
-        return {"run_id": event["id"], "results": result_payload}
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@app.get("/api/actions/results/{run_id}")
-def get_action_result(run_id: str) -> dict:
-    event = get_event(run_id)
-    if not event or event.get("event_type") not in {"telegram_action", "telegram_action_queue"}:
-        raise HTTPException(status_code=404, detail="Action run was not found.")
-    return {"event": event}
-
-
-QUEUE_SAVE_INTERVAL_SECONDS = 2.0
-
-
-async def process_action_queue(run_id: str, request: ActionQueueRequest, expanded: list[dict]) -> None:
-    run = queue_runs[run_id]
-    run["status"] = "running"
-    run["updated_at"] = now_iso()
-    save_action_runs(queue_runs)
-    last_save = time.monotonic()
-
-    def throttled_save() -> None:
-        nonlocal last_save
-        now = time.monotonic()
-        if now - last_save >= QUEUE_SAVE_INTERVAL_SECONDS:
-            save_action_runs(queue_runs)
-            last_save = now
-
-    delay_between_accounts, delay_between_actions = resolved_queue_delays(request)
-    try:
-        for index, operation in enumerate(expanded):
-            if run.get("cancel_requested"):
-                mark_remaining_operations(expanded[index:])
-                run["status"] = "canceled"
-                run["error"] = "Queue canceled before the next operation started."
-                break
-            if operation.get("status") == "needs_login":
-                operation["completed_at"] = now_iso()
-                run["updated_at"] = operation["completed_at"]
-                throttled_save()
-                continue
-            operation["status"] = "running"
-            operation["started_at"] = now_iso()
-            run["current"] = operation
-            run["updated_at"] = now_iso()
-            throttled_save()
-            if index > 0:
-                previous = expanded[index - 1]
-                delay = (
-                    delay_between_accounts
-                    if previous["account_id"] != operation["account_id"]
-                    else delay_between_actions
-                )
-                await safe_delay(delay)
-            action = TelegramAction(
-                action_type=operation["action_type"],
-                target=operation["target"],
-                account_ids=[operation["account_id"]],
-                message=operation.get("message"),
-                confirm=True,
-                delay_seconds=delay_between_accounts,
-            )
-            try:
-                result = (await manager.run_action(action))[0]
-                result_payload = result.to_dict()
-            except Exception as exc:
-                result_payload = {
-                    "account_id": operation["account_id"],
-                    "label": operation.get("account_label") or operation["account_id"],
-                    "ok": False,
-                    "action_type": operation["action_type"],
-                    "detail": str(exc),
-                }
-            result_payload["target"] = operation["target"]
-            result_payload["step_index"] = operation["step_index"]
-            operation["status"] = "ok" if result_payload["ok"] else "failed"
-            operation["completed_at"] = now_iso()
-            operation["result"] = result_payload
-            run["results"].append(result_payload)
-            run["completed_count"] = len(run["results"])
-            run["ok_count"] = sum(1 for item in run["results"] if item["ok"])
-            run["failed_count"] = run["completed_count"] - run["ok_count"]
-            run["updated_at"] = now_iso()
-            throttled_save()
-        if run.get("status") != "canceled":
-            run["status"] = "completed"
-        save_action_runs(queue_runs)
-    except Exception as exc:
-        run["status"] = "failed"
-        run["error"] = str(exc)
-    finally:
-        run["current"] = None
-        run["completed_at"] = now_iso()
-        run["updated_at"] = run["completed_at"]
-        event = log_event(
-            "telegram_action_queue",
-            "Telegram action queue completed",
-            f"{run['ok_count']}/{len(run['results'])} operations succeeded",
-            {"request": request.model_dump(), "results": run["results"], "error": run["error"]},
-        )
-        run["audit_event_id"] = event["id"]
-        save_action_runs(queue_runs)
-
-
-def now_iso() -> str:
-    return datetime.now(UTC).isoformat()
-
-
-def safety_defaults() -> dict:
-    settings = read_json(SAFETY_SETTINGS_FILE, {})
-    return SafetySettingsRequest(**settings).model_dump()
-
-
-def mark_remaining_operations(operations: list[dict]) -> None:
-    timestamp = now_iso()
-    for operation in operations:
-        if operation.get("status") == "pending":
-            operation["status"] = "skipped_canceled"
-            operation["completed_at"] = timestamp
-
-
-def retry_request_from_failed_operations(run: dict) -> ActionQueueRequest:
-    failed_operations = [
-        operation
-        for operation in run.get("operations", [])
-        if operation.get("status") == "failed" or operation.get("result", {}).get("ok") is False
-    ]
-    if not failed_operations:
-        raise HTTPException(status_code=400, detail="This queue run has no failed operations to retry.")
-    steps = [
-        ActionQueueStep(
-            action_type=operation["action_type"],
-            account_ids=[operation["account_id"]],
-            targets=[operation["target"]],
-            message=operation.get("message"),
-        )
-        for operation in failed_operations
-    ]
-    return ActionQueueRequest(
-        steps=steps,
-        confirm=True,
-        delay_between_accounts=4.0,
-        delay_between_actions=8.0,
-        max_operations=min(max(len(steps), 1), 250),
-    )
-
-
-def expand_action_queue(request: ActionQueueRequest) -> list[dict]:
-    operations = []
-    for step_index, step in enumerate(request.steps, start=1):
-        accounts = [manager._get_account(account_id) for account_id in step.account_ids]
-        for account in accounts:
-            for target in step.targets:
-                operations.append(
-                    {
-                        "step_index": step_index,
-                        "action_type": step.action_type,
-                        "account_id": account.id,
-                        "account_label": account.label,
-                        "target": target,
-                        "message": step.message,
-                        "status": "ready" if account.authorized else "needs_login",
-                    }
-                )
-    return operations
-
-
-def resolved_queue_delays(request: ActionQueueRequest) -> tuple[float, float]:
-    if request.delay_between_accounts is None or request.delay_between_actions is None:
-        defaults = safety_defaults()
-        return defaults["delay_between_accounts"], defaults["delay_between_actions"]
-    return request.delay_between_accounts, request.delay_between_actions
-
-
-def estimate_queue_seconds(request: ActionQueueRequest, expanded: list[dict]) -> float:
-    runnable = [op for op in expanded if op.get("status") != "needs_login"]
-    if len(runnable) <= 1:
-        return 0.0
-    delay_between_accounts, delay_between_actions = resolved_queue_delays(request)
-    total = 0.0
-    for previous, current in zip(runnable, runnable[1:], strict=False):
-        total += delay_between_accounts if previous["account_id"] != current["account_id"] else delay_between_actions
-    return round(total, 1)
-
-
-def queue_warnings(request: ActionQueueRequest, operation_count: int, unauthorized_count: int = 0) -> list[str]:
-    warnings = [
-        "Default delays are intentionally conservative. Increase them for older or high-risk sessions.",
-    ]
-    if unauthorized_count > 0:
-        warnings.append(
-            f"{unauthorized_count} operation(s) target accounts that are not logged in "
-            "and will be skipped. Log those accounts in first."
-        )
-    if operation_count > 30:
-        warnings.append("This is a large queue. Consider splitting it into smaller runs.")
-    if any(step.action_type == "send_message" for step in request.steps):
-        warnings.append("Only message people or chats where you have clear permission or expectation.")
-    if any(len(step.targets) > 5 for step in request.steps):
-        warnings.append("Many targets in one step can trigger Telegram flood controls. Review carefully.")
-    return warnings
+@app.post("/api/app/shutdown")
+def shutdown_app() -> dict:
+    threading.Timer(0.5, lambda: os._exit(0)).start()
+    return {"ok": True}
 
 
 @app.get("/api/activity")

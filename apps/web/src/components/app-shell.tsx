@@ -4,14 +4,15 @@ import {
   IconCommand,
   IconMenu2,
   IconMoon,
+  IconPower,
   IconRefresh,
   IconSearch,
   IconSun,
   IconX,
 } from "@tabler/icons-react"
 
-import { Button } from "@workspace/ui/components/button"
-import { cn } from "@workspace/ui/lib/utils"
+import { Button } from "../ui/button"
+import { cn } from "../ui/utils"
 
 import { useTheme } from "../components/theme-provider"
 import { navItems } from "../lib/constants"
@@ -23,6 +24,7 @@ type AppShellProps = React.PropsWithChildren<{
   selectedCount: number
   setView: (view: View) => void
   onRefresh: () => void
+  onExit: () => void
 }>
 
 type NavItem = (typeof navItems)[number]
@@ -231,6 +233,7 @@ export function AppShell({
   selectedCount,
   setView,
   onRefresh,
+  onExit,
   children,
 }: AppShellProps) {
   const { theme, setTheme } = useTheme()
@@ -263,6 +266,7 @@ export function AppShell({
       ) : null}
       <div className="grid min-h-svh lg:grid-cols-[18rem_1fr]">
         <Sidebar
+          onExit={onExit}
           onRefresh={onRefresh}
           onToggleTheme={toggleTheme}
           openView={openView}
@@ -299,6 +303,7 @@ export function AppShell({
 }
 
 function Sidebar({
+  onExit,
   onRefresh,
   onToggleTheme,
   openView,
@@ -307,6 +312,7 @@ function Sidebar({
   view,
   closeSidebar,
 }: {
+  onExit: () => void
   onRefresh: () => void
   onToggleTheme: () => void
   openView: (view: View) => void
@@ -370,6 +376,9 @@ function Sidebar({
             {theme === "dark" ? <IconSun /> : <IconMoon />}
           </Button>
         </div>
+        <Button variant="destructive" className="w-full" onClick={onExit}>
+          <IconPower /> Exit TeleManager
+        </Button>
       </div>
     </aside>
   )

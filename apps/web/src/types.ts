@@ -13,7 +13,14 @@ export type ActionType =
   | "join_chat"
   | "leave_chat"
   | "send_message"
+  | "send_media"
+  | "schedule_message"
   | "forward_message"
+  | "edit_message"
+  | "delete_messages"
+  | "pin_message"
+  | "unpin_message"
+  | "download_media"
   | "start_bot"
   | "delete_chat"
   | "clear_chat"
@@ -49,6 +56,25 @@ export type TelegramDialog = {
   unread_count?: number
 }
 
+export type TelegramMessage = {
+  id: number
+  date?: string | null
+  text: string
+  sender_id?: string | number | null
+  sender_name?: string | null
+  out?: boolean
+  has_media?: boolean
+}
+
+export type ResolvedTarget = {
+  account_id: string
+  target: string
+  id?: string | number | null
+  title?: string | null
+  username?: string | null
+  type: string
+}
+
 export type ActivityEvent = {
   id?: string
   title: string
@@ -72,6 +98,14 @@ export type QuickActionContext = {
   targetSummary: string
   count: number
   dialogKinds: string[]
+}
+
+export type ActionFieldValues = Record<string, string | boolean>
+
+export type ActionDraft = {
+  action_type: ActionType
+  target: string
+  fields: ActionFieldValues
 }
 
 export type QueueRun = {

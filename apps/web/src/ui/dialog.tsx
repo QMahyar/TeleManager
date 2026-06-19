@@ -1,7 +1,7 @@
 import * as React from "react"
 
-import { Button } from "@workspace/ui/components/button"
-import { cn } from "@workspace/ui/lib/utils"
+import { Button } from "./button"
+import { cn } from "./utils"
 
 type DialogProps = {
   open: boolean

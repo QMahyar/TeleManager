@@ -1,9 +1,15 @@
 import * as React from "react"
 
-import { IconLoader2, IconTrash } from "@tabler/icons-react"
+import {
+  IconAlertTriangle,
+  IconLoader2,
+  IconPlayerStop,
+  IconTrash,
+} from "@tabler/icons-react"
 
-import { Button } from "@workspace/ui/components/button"
+import { Button } from "../ui/button"
 
+import { ActionFields } from "../components/action-fields"
 import { QueueTable } from "../components/queue-table"
 import { RunHistory } from "../components/run-history"
 import { SafetyEditor } from "../components/safety-editor"
@@ -14,14 +20,19 @@ import {
   Field,
   Input,
   Panel,
-  SectionTitle,
   Select,
-  Textarea,
+  StepHeading,
 } from "../components/ui"
 import { api } from "../lib/api"
+import {
+  defaultFieldValues,
+  getActionSchema,
+  isActionFormValid,
+} from "../lib/action-schema"
 import { actionMeta, categoryLabels, categoryOrder } from "../lib/constants"
-import { accountStatus, statusTone } from "../lib/helpers"
-import type { ActionType, QueueRun } from "../types"
+import { accountStatus, splitTargets, statusTone } from "../lib/helpers"
+import { validateTargets } from "../lib/targeting"
+import type { ActionType, QueueRun, ResolvedTarget } from "../types"
 import type { ActionsScreenProps } from "./screen-props"
 
 type QueuePreview = {
@@ -39,6 +50,14 @@ const TERMINAL_RUN_STATUSES = new Set([
   "failed",
   "canceled",
   "interrupted",
+  "flood_wait",
+])
+const SINGLE_TARGET_ACTIONS = new Set<ActionType>([
+  "forward_message",
+  "edit_message",
+  "pin_message",
+  "unpin_message",
+  "download_media",
 ])
 
 const groupedActions = categoryOrder.map((category) => ({
@@ -54,6 +73,7 @@ const groupedActions = categoryOrder.map((category) => ({
 
 export function ActionsScreen(props: ActionsScreenProps) {
   const [preview, setPreview] = React.useState<QueuePreview | null>(null)
+  const actionBusy = useActionBusy(props.flash)
   const queueRunner = useQueueRunPolling(
     props.loadRuns,
     props.refresh,
@@ -61,11 +81,14 @@ export function ActionsScreen(props: ActionsScreenProps) {
   )
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[22rem_1fr]">
+    <div className="grid gap-4 xl:grid-cols-[20rem_1fr]">
       <ActionAccountsPanel props={props} />
       <ActionQueuePanel
         props={props}
+        actionBusy={actionBusy}
         activeRunId={queueRunner.activeRunId}
+        activeRun={queueRunner.activeRun}
+        cancelActiveRun={queueRunner.cancelActiveRun}
         pollQueueRun={queueRunner.pollQueueRun}
         preview={preview}
         setPreview={setPreview}
@@ -74,12 +97,46 @@ export function ActionsScreen(props: ActionsScreenProps) {
   )
 }
 
+type ActionBusy = ReturnType<typeof useActionBusy>
+
+function useActionBusy(flash: ActionsScreenProps["flash"]) {
+  const [pendingAction, setPendingAction] = React.useState<string | null>(null)
+  const pendingRef = React.useRef<string | null>(null)
+
+  const runAction = React.useCallback(
+    async (key: string, work: () => Promise<void>) => {
+      if (pendingRef.current) {
+        return
+      }
+      pendingRef.current = key
+      setPendingAction(key)
+      try {
+        await work()
+      } catch (error) {
+        flash(error instanceof Error ? error.message : "Request failed")
+      } finally {
+        pendingRef.current = null
+        setPendingAction(null)
+      }
+    },
+    [flash]
+  )
+
+  const isPending = React.useCallback(
+    (key: string) => pendingAction === key,
+    [pendingAction]
+  )
+
+  return { busy: pendingAction !== null, isPending, runAction }
+}
+
 function useQueueRunPolling(
   loadRuns: ActionsScreenProps["loadRuns"],
   refresh: ActionsScreenProps["refresh"],
   flash: ActionsScreenProps["flash"]
 ) {
   const [activeRunId, setActiveRunId] = React.useState<string | null>(null)
+  const [activeRun, setActiveRun] = React.useState<QueueRun | null>(null)
 
   async function pollQueueRun(runId: string) {
     setActiveRunId(runId)
@@ -89,11 +146,12 @@ function useQueueRunPolling(
           `/api/actions/queue/runs/${runId}`
         )
         const run = payload.run
+        setActiveRun(run)
         await loadRuns()
         if (TERMINAL_RUN_STATUSES.has(run.status)) {
           await refresh()
           flash(
-            `Queue ${run.status}: ${run.completed_count || 0}/${run.operation_count || 0} succeeded.`
+            `Queue ${run.status.replace("_", " ")}: ${run.completed_count || 0}/${run.operation_count || 0} succeeded.`
           )
           break
         }
@@ -103,10 +161,26 @@ function useQueueRunPolling(
       flash(error instanceof Error ? error.message : "Queue polling failed.")
     } finally {
       setActiveRunId(null)
+      setActiveRun(null)
     }
   }
 
-  return { activeRunId, pollQueueRun }
+  async function cancelActiveRun() {
+    if (!activeRunId) {
+      return
+    }
+    try {
+      await api(`/api/actions/queue/runs/${activeRunId}/cancel`, {
+        method: "POST",
+      })
+      flash("Cancel requested. The queue stops before the next operation.")
+      await loadRuns()
+    } catch (error) {
+      flash(error instanceof Error ? error.message : "Cancel failed.")
+    }
+  }
+
+  return { activeRunId, activeRun, pollQueueRun, cancelActiveRun }
 }
 
 function ActionAccountsPanel({ props }: { props: ActionsScreenProps }) {
@@ -127,16 +201,26 @@ function ActionAccountsPanel({ props }: { props: ActionsScreenProps }) {
     askDialog,
   } = props
 
+  const readyCount = accounts.filter(
+    (account) => account.authorized && !account.last_error
+  ).length
+
   return (
-    <Panel className="space-y-4">
-      <SectionTitle
-        kicker="Per-page selection"
-        title="Action Accounts"
-        detail={`${actionAccountIds.size} selected`}
+    <Panel className="space-y-4 xl:sticky xl:top-6 xl:self-start">
+      <StepHeading
+        step={1}
+        title="Accounts"
+        detail="Choose which logged-in sessions run the queue."
+        trailing={
+          <Badge tone="border-border bg-muted/40 text-muted-foreground">
+            {actionAccountIds.size} selected
+          </Badge>
+        }
       />
       <div className="flex gap-2">
         <Button
           variant={OUTLINE_VARIANT}
+          disabled={!readyCount}
           onClick={() =>
             setActionAccountIds(
               new Set(
@@ -149,10 +233,11 @@ function ActionAccountsPanel({ props }: { props: ActionsScreenProps }) {
             )
           }
         >
-          Select Ready
+          Select Ready ({readyCount})
         </Button>
         <Button
           variant={OUTLINE_VARIANT}
+          disabled={!actionAccountIds.size}
           onClick={() => setActionAccountIds(new Set())}
         >
           Clear
@@ -166,86 +251,134 @@ function ActionAccountsPanel({ props }: { props: ActionsScreenProps }) {
             className="px-4 py-8"
           />
         ) : null}
-        {accounts.map((account) => (
-          <label
-            key={account.id}
-            className="flex items-center gap-3 border border-border p-3 text-sm"
-          >
-            <input
-              type="checkbox"
-              aria-label={`Use ${account.label || account.session_name} for queued actions`}
-              checked={actionAccountIds.has(account.id)}
-              onChange={() => toggleSelected(account.id, setActionAccountIds)}
-            />
-            <span className="min-w-0 flex-1 truncate">
-              {account.label || account.session_name}
-            </span>
-            <Badge tone={statusTone(accountStatus(account))}>
-              {accountStatus(account)}
-            </Badge>
-          </label>
-        ))}
+        {accounts.map((account) => {
+          const status = accountStatus(account)
+          const selectable = account.authorized && !account.last_error
+          const isSelected = actionAccountIds.has(account.id)
+          return (
+            <label
+              key={account.id}
+              className={`flex items-center gap-3 border p-3 text-sm transition-colors ${
+                isSelected
+                  ? "border-primary/40 bg-primary/5"
+                  : "border-border hover:bg-muted/20"
+              } ${selectable ? "" : "opacity-60"}`}
+            >
+              <input
+                type="checkbox"
+                aria-label={`Use ${account.label || account.session_name} for queued actions`}
+                checked={isSelected}
+                disabled={!selectable && !isSelected}
+                onChange={() => toggleSelected(account.id, setActionAccountIds)}
+              />
+              <span className="min-w-0 flex-1 truncate">
+                {account.label || account.session_name}
+              </span>
+              <Badge tone={statusTone(status)}>{status}</Badge>
+            </label>
+          )
+        })}
       </div>
-      <div className="space-y-2 border-t border-border pt-4">
-        <SectionTitle kicker="Reusable queues" title="Presets" />
-        <Button
-          variant={OUTLINE_VARIANT}
-          onClick={() =>
-            guarded(async () => {
-              if (!queue.length) {
-                flash("Add at least one queued step first.")
-                return
-              }
-              const name = await askDialog({
-                title: "Save queue preset",
-                description:
-                  "Name this queue so it can be reused later without rebuilding the steps.",
-                confirmLabel: "Save Preset",
-                input: {
-                  label: "Preset name",
-                  placeholder: "Warmup queue",
-                },
-              })
-              if (typeof name !== "string") {
-                return
-              }
-              if (!name) {
-                return flash("Preset name cannot be empty.")
-              }
-              await api("/api/actions/presets", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name, queue: queuePayload }),
-              })
-              flash("Preset saved.")
-              await loadPresets()
-            })
-          }
-        >
-          Save Queue
-        </Button>
-        {presets.map((preset) => (
-          <PresetRow
-            key={preset.id}
-            loadPresets={loadPresets}
-            preset={preset}
-            guarded={guarded}
-            flash={flash}
-            askDialog={askDialog}
-            setQueue={setQueue}
-            setSafety={setSafety}
-            setConfirmed={setConfirmed}
-          />
-        ))}
-        {presets.length === 0 ? (
-          <EmptyState
-            title="No saved presets"
-            detail="Build a queue and save it here so repeated Telegram workflows can be reused quickly."
-            className="px-4 py-8"
-          />
-        ) : null}
-      </div>
+      <PresetSection
+        presets={presets}
+        queue={queue}
+        queuePayload={queuePayload}
+        loadPresets={loadPresets}
+        setQueue={setQueue}
+        setSafety={setSafety}
+        setConfirmed={setConfirmed}
+        guarded={guarded}
+        flash={flash}
+        askDialog={askDialog}
+      />
     </Panel>
+  )
+}
+
+function PresetSection({
+  presets,
+  queue,
+  queuePayload,
+  loadPresets,
+  setQueue,
+  setSafety,
+  setConfirmed,
+  guarded,
+  flash,
+  askDialog,
+}: Pick<
+  ActionsScreenProps,
+  | "presets"
+  | "queue"
+  | "queuePayload"
+  | "loadPresets"
+  | "setQueue"
+  | "setSafety"
+  | "setConfirmed"
+  | "guarded"
+  | "flash"
+  | "askDialog"
+>) {
+  return (
+    <div className="space-y-2 border-t border-border pt-4">
+      <p className="text-[0.65rem] font-semibold tracking-[0.2em] text-muted-foreground uppercase">
+        Reusable queues
+      </p>
+      <Button
+        variant={OUTLINE_VARIANT}
+        className="w-full"
+        onClick={() =>
+          guarded(async () => {
+            if (!queue.length) {
+              flash("Add at least one queued step first.")
+              return
+            }
+            const name = await askDialog({
+              title: "Save queue preset",
+              description:
+                "Name this queue so it can be reused later without rebuilding the steps.",
+              confirmLabel: "Save Preset",
+              input: { label: "Preset name", placeholder: "Warmup queue" },
+            })
+            if (typeof name !== "string") {
+              return
+            }
+            if (!name) {
+              return flash("Preset name cannot be empty.")
+            }
+            await api("/api/actions/presets", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name, queue: queuePayload }),
+            })
+            flash("Preset saved.")
+            await loadPresets()
+          })
+        }
+      >
+        Save Current Queue
+      </Button>
+      {presets.map((preset) => (
+        <PresetRow
+          key={preset.id}
+          loadPresets={loadPresets}
+          preset={preset}
+          guarded={guarded}
+          flash={flash}
+          askDialog={askDialog}
+          setQueue={setQueue}
+          setSafety={setSafety}
+          setConfirmed={setConfirmed}
+        />
+      ))}
+      {presets.length === 0 ? (
+        <EmptyState
+          title="No saved presets"
+          detail="Build a queue and save it here so repeated Telegram workflows can be reused quickly."
+          className="px-4 py-8"
+        />
+      ) : null}
+    </div>
   )
 }
 
@@ -306,9 +439,7 @@ function PresetRow({
             if (!confirmed) {
               return
             }
-            await api(`/api/actions/presets/${preset.id}`, {
-              method: "DELETE",
-            })
+            await api(`/api/actions/presets/${preset.id}`, { method: "DELETE" })
             flash("Preset deleted.")
             await loadPresets()
           })
@@ -322,76 +453,203 @@ function PresetRow({
 
 function ActionQueuePanel({
   props,
+  actionBusy,
   activeRunId,
+  activeRun,
+  cancelActiveRun,
   pollQueueRun,
   preview,
   setPreview,
 }: {
   props: ActionsScreenProps
+  actionBusy: ActionBusy
   activeRunId: string | null
+  activeRun: QueueRun | null
+  cancelActiveRun: () => Promise<void>
   pollQueueRun: (runId: string) => Promise<void>
   preview: QueuePreview | null
   setPreview: React.Dispatch<React.SetStateAction<QueuePreview | null>>
 }) {
-  const currentMeta = actionMeta[props.actionDraft.action_type]
+  const destructiveCount = countDestructiveOperations(props.queue)
+
+  async function previewQueue() {
+    const payload = await api<QueuePreview>("/api/actions/queue/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...props.queuePayload, confirm: false }),
+    })
+    setPreview(payload)
+    props.flash(`Preview ready: ${payload.operation_count} operations.`)
+  }
 
   return (
-    <Panel className="space-y-5">
-      <SectionTitle
-        kicker="Build then run"
-        title="Action Queue"
-        detail="Select accounts, add one or more queued steps, preview, then run with conservative delays."
+    <div className="space-y-4">
+      <ActiveRunBanner
+        activeRunId={activeRunId}
+        activeRun={activeRun}
+        cancelActiveRun={cancelActiveRun}
+        guarded={props.guarded}
       />
-      <QuickActionNotice quickActionContext={props.quickActionContext} />
-      <QueueBuilderForm
-        props={props}
-        currentMeta={currentMeta}
-        setPreview={setPreview}
-      />
-      <SafetyEditor safety={props.safety} setSafety={props.setSafety} />
-      <QueueTable queue={props.queue} setQueue={props.setQueue} />
-      <label className="flex gap-3 border border-border bg-muted/30 p-3 text-sm">
-        <input
-          type="checkbox"
-          aria-label="Confirm reviewed queue"
-          checked={props.confirmed}
-          onChange={(event) => props.setConfirmed(event.target.checked)}
+      <Panel className="space-y-4">
+        <StepHeading
+          step={2}
+          title="Build action"
+          detail="Pick an action, add targets, and fill in only the fields it needs."
         />
-        <span>
+        <QuickActionNotice quickActionContext={props.quickActionContext} />
+        <QueueBuilderForm props={props} setPreview={setPreview} />
+      </Panel>
+
+      <Panel className="space-y-4">
+        <StepHeading
+          step={3}
+          title="Queue"
+          detail="Review the steps that will run. Remove anything you did not intend."
+        />
+        <QueueTable queue={props.queue} setQueue={props.setQueue} />
+      </Panel>
+
+      <Panel className="space-y-4">
+        <StepHeading
+          step={4}
+          title="Review & run"
+          detail="Apply delays, preview the operations, confirm, then run."
+        />
+        <SafetyEditor safety={props.safety} setSafety={props.setSafety} />
+        <QueueRunControls
+          activeRunId={activeRunId}
+          actionBusy={actionBusy}
+          previewQueue={previewQueue}
+          props={props}
+          showPreviewOnly
+        />
+        <QueuePreviewSummary preview={preview} />
+        <DestructiveGate
+          destructiveCount={destructiveCount}
+          confirmed={props.confirmed}
+          setConfirmed={props.setConfirmed}
+        />
+        <QueueRunControls
+          activeRunId={activeRunId}
+          actionBusy={actionBusy}
+          pollQueueRun={pollQueueRun}
+          preview={preview}
+          previewQueue={previewQueue}
+          destructiveCount={destructiveCount}
+          props={props}
+        />
+      </Panel>
+
+      <Panel className="space-y-4">
+        <RunHistory
+          runs={props.runs}
+          guarded={props.guarded}
+          loadRuns={props.loadRuns}
+          flash={props.flash}
+          askDialog={props.askDialog}
+          onRetryQueued={pollQueueRun}
+        />
+      </Panel>
+    </div>
+  )
+}
+
+function countDestructiveOperations(queue: ActionsScreenProps["queue"]) {
+  return queue.reduce((total, step) => {
+    const meta = actionMeta[step.action_type]
+    if (!meta?.destructive) {
+      return total
+    }
+    return total + step.account_ids.length * step.targets.length
+  }, 0)
+}
+
+function ActiveRunBanner({
+  activeRunId,
+  activeRun,
+  cancelActiveRun,
+  guarded,
+}: {
+  activeRunId: string | null
+  activeRun: QueueRun | null
+  cancelActiveRun: () => Promise<void>
+  guarded: ActionsScreenProps["guarded"]
+}) {
+  if (!activeRunId) {
+    return null
+  }
+
+  const completed = activeRun?.completed_count || 0
+  const total = activeRun?.operation_count || 0
+  const failed = activeRun?.failed_count || 0
+  const status = activeRun?.status || "running"
+  const currentTarget =
+    activeRun?.current && typeof activeRun.current === "object"
+      ? String((activeRun.current as Record<string, unknown>).target || "")
+      : ""
+
+  return (
+    <div className="flex flex-col gap-3 border border-sky-500/40 bg-sky-500/10 p-4 text-sm md:flex-row md:items-center md:justify-between">
+      <div className="flex min-w-0 items-center gap-3">
+        <IconLoader2 className="size-4 shrink-0 animate-spin text-sky-600 dark:text-sky-400" />
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <strong>Queue running</strong>
+            <Badge tone={statusTone(status)}>{status.replace("_", " ")}</Badge>
+            <span className="text-muted-foreground">
+              {completed}/{total} done
+              {failed ? ` · ${failed} failed` : ""}
+            </span>
+          </div>
+          {currentTarget ? (
+            <p className="truncate font-mono text-xs text-muted-foreground">
+              {currentTarget}
+            </p>
+          ) : null}
+        </div>
+      </div>
+      <Button variant="destructive" onClick={() => guarded(cancelActiveRun)}>
+        <IconPlayerStop />
+        Cancel Run
+      </Button>
+    </div>
+  )
+}
+
+function DestructiveGate({
+  destructiveCount,
+  confirmed,
+  setConfirmed,
+}: {
+  destructiveCount: number
+  confirmed: boolean
+  setConfirmed: ActionsScreenProps["setConfirmed"]
+}) {
+  const tone = destructiveCount
+    ? "border-destructive/40 bg-destructive/10"
+    : "border-border bg-muted/30"
+
+  return (
+    <label className={`flex gap-3 border p-3 text-sm ${tone}`}>
+      <input
+        type="checkbox"
+        aria-label="Confirm reviewed queue"
+        checked={confirmed}
+        onChange={(event) => setConfirmed(event.target.checked)}
+      />
+      <span>
+        {destructiveCount ? (
+          <span className="flex items-center gap-2 font-medium text-destructive">
+            <IconAlertTriangle className="size-4" />
+            {destructiveCount} destructive operation(s) in this queue.
+          </span>
+        ) : null}
+        <span className={destructiveCount ? "mt-1 block" : ""}>
           I reviewed the queue and confirm it should run only on the selected
           sessions and targets.
         </span>
-      </label>
-      <QueueRunControls
-        activeRunId={activeRunId}
-        pollQueueRun={pollQueueRun}
-        previewQueue={async () => {
-          const payload = await api<QueuePreview>(
-            "/api/actions/queue/preview",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                ...props.queuePayload,
-                confirm: false,
-              }),
-            }
-          )
-          setPreview(payload)
-          props.flash(`Preview ready: ${payload.operation_count} operations.`)
-        }}
-        props={props}
-      />
-      <QueuePreviewSummary preview={preview} />
-      <RunHistory
-        runs={props.runs}
-        guarded={props.guarded}
-        loadRuns={props.loadRuns}
-        flash={props.flash}
-        askDialog={props.askDialog}
-        onRetryQueued={pollQueueRun}
-      />
-    </Panel>
+      </span>
+    </label>
   )
 }
 
@@ -425,155 +683,310 @@ function QuickActionNotice({
   )
 }
 
+function ResolvedTargetBanner({
+  resolvedTarget,
+}: {
+  resolvedTarget: ResolvedTarget | null
+}) {
+  if (!resolvedTarget) {
+    return null
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-2 border border-primary/30 bg-primary/10 p-2 text-xs">
+      <Badge tone="border-primary/30 bg-background text-primary">
+        {resolvedTarget.type}
+      </Badge>
+      <span className="text-foreground">
+        {resolvedTarget.title ||
+          resolvedTarget.username ||
+          resolvedTarget.target}
+      </span>
+      {resolvedTarget.id ? (
+        <span className="font-mono text-muted-foreground">
+          {resolvedTarget.id}
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
 function QueueBuilderForm({
   props,
-  currentMeta,
   setPreview,
 }: {
   props: ActionsScreenProps
-  currentMeta: (typeof actionMeta)[ActionType]
   setPreview: React.Dispatch<React.SetStateAction<QueuePreview | null>>
 }) {
+  const [resolvedTarget, setResolvedTarget] =
+    React.useState<ResolvedTarget | null>(null)
+  const [submitAttempted, setSubmitAttempted] = React.useState(false)
+
+  const currentMeta = actionMeta[props.actionDraft.action_type]
+  const schema = getActionSchema(props.actionDraft.action_type)
+  const targets = splitTargets(props.actionDraft.target)
+  const blocker = computeBuilderBlocker(props, targets)
+
+  async function resolveDraftTarget() {
+    const target = props.actionDraft.target.split(/[\n,]+/)[0]?.trim()
+    const accountId = [...props.actionAccountIds][0]
+    if (!target) {
+      props.flash("Add a target first.")
+      return
+    }
+    if (!accountId) {
+      props.flash("Select at least one action account first.")
+      return
+    }
+    const payload = await api<ResolvedTarget>(
+      `/api/accounts/${accountId}/resolve-target?target=${encodeURIComponent(target)}`
+    )
+    setResolvedTarget(payload)
+    props.flash(
+      `Resolved ${payload.title || payload.username || payload.id || target}.`
+    )
+  }
+
+  function handleAdd() {
+    setSubmitAttempted(true)
+    if (blocker) {
+      props.flash(blocker)
+      return
+    }
+    props.addQueueStep()
+    setSubmitAttempted(false)
+    setResolvedTarget(null)
+  }
+
+  const multiTargetWarning =
+    SINGLE_TARGET_ACTIONS.has(props.actionDraft.action_type) &&
+    targets.length > 1
+      ? "This action uses a specific message id, which is unique per chat. Use one target per step."
+      : null
+
   return (
-    <div className="grid gap-3 lg:grid-cols-2">
-      <Field label="Action">
-        <Select
-          value={props.actionDraft.action_type}
-          onChange={(event) => {
-            props.setQuickActionContext(null)
-            props.setActionDraft({
-              ...props.actionDraft,
-              action_type: event.target.value as ActionType,
-              message: "",
-            })
-          }}
-        >
-          {groupedActions.map((group) => (
-            <optgroup key={group.category} label={group.label}>
-              {group.actions.map(([value, meta]) => (
-                <option key={value} value={value}>
-                  {meta.label}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </Select>
-      </Field>
-      <Field label="Targets">
-        <Input
-          value={props.actionDraft.target}
-          maxLength={500}
-          autoComplete="off"
-          onChange={(event) =>
-            props.setActionDraft({
-              ...props.actionDraft,
-              target: event.target.value,
-            })
-          }
-          placeholder={currentMeta.targetHint}
-        />
-      </Field>
-      <div className="col-span-full">
-        <p className="mb-1 text-xs text-muted-foreground">
-          {currentMeta.description}
-        </p>
-        <TargetPreview
-          value={props.actionDraft.target}
-          actionType={props.actionDraft.action_type}
-        />
-      </div>
-      {currentMeta.needsMessage ? (
-        <Field
-          label={
-            props.actionDraft.action_type === "forward_message"
-              ? "Source (chat:message_id)"
-              : "Message text"
-          }
-        >
-          <Textarea
-            value={props.actionDraft.message}
-            maxLength={4000}
-            autoComplete="off"
-            onChange={(event) =>
+    <div className="space-y-4">
+      <div className="grid gap-3 lg:grid-cols-2">
+        <Field label="Action">
+          <Select
+            value={props.actionDraft.action_type}
+            onChange={(event) => {
+              const next = event.target.value as ActionType
+              props.setQuickActionContext(null)
+              setSubmitAttempted(false)
+              setResolvedTarget(null)
               props.setActionDraft({
                 ...props.actionDraft,
-                message: event.target.value,
+                action_type: next,
+                fields: defaultFieldValues(next),
+              })
+            }}
+          >
+            {groupedActions.map((group) => (
+              <optgroup key={group.category} label={group.label}>
+                {group.actions.map(([value, meta]) => (
+                  <option key={value} value={value}>
+                    {meta.label}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Targets">
+          <div className="flex gap-2">
+            <Input
+              value={props.actionDraft.target}
+              maxLength={500}
+              autoComplete="off"
+              onChange={(event) => {
+                setResolvedTarget(null)
+                props.setActionDraft({
+                  ...props.actionDraft,
+                  target: event.target.value,
+                })
+              }}
+              placeholder={currentMeta.targetHint}
+            />
+            <Button
+              type="button"
+              variant={OUTLINE_VARIANT}
+              onClick={() => props.guarded(resolveDraftTarget)}
+            >
+              Resolve
+            </Button>
+          </div>
+        </Field>
+      </div>
+
+      <p className="text-xs text-muted-foreground">{currentMeta.description}</p>
+      <ResolvedTargetBanner resolvedTarget={resolvedTarget} />
+      <TargetPreview
+        value={props.actionDraft.target}
+        actionType={props.actionDraft.action_type}
+      />
+      {multiTargetWarning ? (
+        <p className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+          <IconAlertTriangle className="size-3.5 shrink-0" />
+          {multiTargetWarning}
+        </p>
+      ) : null}
+
+      {schema ? (
+        <div className="border-t border-border pt-4">
+          <ActionFields
+            actionType={props.actionDraft.action_type}
+            values={props.actionDraft.fields}
+            setValues={(fields) =>
+              props.setActionDraft({ ...props.actionDraft, fields })
+            }
+            showErrors={submitAttempted}
+          />
+        </div>
+      ) : null}
+
+      <div className="flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            onClick={handleAdd}
+            disabled={props.loading}
+            title={blocker || undefined}
+          >
+            {props.loading ? (
+              <IconLoader2 className="size-3.5 animate-spin" />
+            ) : null}
+            Add To Queue
+          </Button>
+          <Button
+            type="button"
+            variant={OUTLINE_VARIANT}
+            onClick={() =>
+              props.guarded(async () => {
+                if (!props.queue.length) {
+                  return props.flash("Queue is already empty.")
+                }
+                const confirmed = await props.askDialog({
+                  title: "Clear action queue?",
+                  description:
+                    "This removes all queued steps from the builder. Running queue history is not affected.",
+                  confirmLabel: "Clear Queue",
+                  danger: true,
+                })
+                if (!confirmed) {
+                  return
+                }
+                props.setQueue([])
+                setPreview(null)
+                props.flash("Queue cleared.")
               })
             }
-            placeholder={currentMeta.messagePlaceholder || "Message text"}
-          />
-        </Field>
-      ) : null}
-      <div className="grid content-end gap-2">
-        <Button
-          type="button"
-          onClick={props.addQueueStep}
-          disabled={props.loading}
-        >
-          {props.loading ? (
-            <IconLoader2 className="size-3.5 animate-spin" />
-          ) : null}
-          Add To Queue
-        </Button>
-        <Button
-          type="button"
-          variant={OUTLINE_VARIANT}
-          onClick={() =>
-            props.guarded(async () => {
-              if (!props.queue.length) {
-                return props.flash("Queue is already empty.")
-              }
-              const confirmed = await props.askDialog({
-                title: "Clear action queue?",
-                description:
-                  "This removes all queued steps from the builder. Running queue history is not affected.",
-                confirmLabel: "Clear Queue",
-                danger: true,
-              })
-              if (!confirmed) {
-                return
-              }
-              props.setQueue([])
-              setPreview(null)
-              props.flash("Queue cleared.")
-            })
-          }
-        >
-          Clear Queue
-        </Button>
+          >
+            Clear Queue
+          </Button>
+        </div>
+        {blocker ? (
+          <p className="text-xs text-muted-foreground">{blocker}</p>
+        ) : (
+          <p className="text-xs text-primary">
+            Ready to add{targets.length ? ` · ${targets.length} target(s)` : ""}.
+          </p>
+        )}
       </div>
     </div>
   )
 }
 
+// Mirrors the order of checks in addQueueStep so the inline hint matches what
+// will actually block the add.
+function computeBuilderBlocker(
+  props: ActionsScreenProps,
+  targets: string[]
+): string | null {
+  if (!props.actionAccountIds.size) return "Select at least one account in Step 1."
+  if (!targets.length) return "Add at least one target."
+  if (!isActionFormValid(props.actionDraft.action_type, props.actionDraft.fields)) {
+    return "Fill in the required fields below."
+  }
+  return validateTargets(targets, props.actionDraft.action_type)
+}
+
 function QueueRunControls({
   activeRunId,
+  actionBusy,
   pollQueueRun,
+  preview,
   previewQueue,
+  destructiveCount = 0,
   props,
+  showPreviewOnly = false,
 }: {
   activeRunId: string | null
-  pollQueueRun: (runId: string) => Promise<void>
+  actionBusy: ActionBusy
+  pollQueueRun?: (runId: string) => Promise<void>
+  preview?: QueuePreview | null
   previewQueue: () => Promise<void>
+  destructiveCount?: number
   props: ActionsScreenProps
+  showPreviewOnly?: boolean
 }) {
+  if (showPreviewOnly) {
+    return (
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant={OUTLINE_VARIANT}
+          loading={actionBusy.isPending("preview")}
+          disabled={actionBusy.busy || !props.queue.length}
+          onClick={() => actionBusy.runAction("preview", previewQueue)}
+        >
+          Preview Queue
+        </Button>
+        <Button
+          variant={OUTLINE_VARIANT}
+          loading={actionBusy.isPending("runs")}
+          disabled={actionBusy.busy}
+          onClick={() => actionBusy.runAction("runs", props.loadRuns)}
+        >
+          Refresh Runs
+        </Button>
+      </div>
+    )
+  }
+
+  const runDisabled =
+    actionBusy.busy ||
+    Boolean(activeRunId) ||
+    !props.confirmed ||
+    !preview ||
+    !props.queue.length
+
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap items-center gap-3">
       <Button
-        variant={OUTLINE_VARIANT}
-        onClick={() => props.guarded(previewQueue)}
-      >
-        Preview Queue
-      </Button>
-      <Button
-        disabled={props.loading || Boolean(activeRunId)}
+        className="min-w-40"
+        loading={actionBusy.isPending("run")}
+        disabled={runDisabled}
         onClick={() =>
-          props.guarded(async () => {
+          actionBusy.runAction("run", async () => {
             if (activeRunId) {
               return props.flash("A queue is already running.")
             }
             if (!props.confirmed) {
               return props.flash("Confirm the reviewed queue first.")
+            }
+            if (!preview) {
+              return props.flash("Preview the queue before running it.")
+            }
+            const confirmed = await props.askDialog({
+              kicker: destructiveCount ? "Destructive queue" : "Run queue",
+              title: "Run reviewed queue?",
+              description: queueRunConfirmationDetail(preview, destructiveCount),
+              confirmLabel: destructiveCount
+                ? "Run Destructive Queue"
+                : "Run Queue",
+              danger: destructiveCount > 0,
+            })
+            if (!confirmed) {
+              return
             }
             const response = await api<{
               run_id: string
@@ -584,45 +997,71 @@ function QueueRunControls({
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(props.queuePayload),
             })
-            props.flash(
-              `Queue started: ${response.operation_count} operations.`
-            )
-            void pollQueueRun(response.run_id)
+            props.flash(`Queue started: ${response.operation_count} operations.`)
+            if (pollQueueRun) {
+              void pollQueueRun(response.run_id)
+            }
           })
         }
       >
-        {props.loading ? (
-          <IconLoader2 className="size-3.5 animate-spin" />
-        ) : null}
         Run Queue
       </Button>
-      <Button
-        variant={OUTLINE_VARIANT}
-        onClick={() => props.guarded(props.loadRuns)}
-      >
-        Refresh Runs
-      </Button>
+      {runDisabled && !activeRunId ? (
+        <p className="text-xs text-muted-foreground">{runBlockerHint(props, preview)}</p>
+      ) : null}
     </div>
   )
+}
+
+function runBlockerHint(
+  props: ActionsScreenProps,
+  preview?: QueuePreview | null
+): string {
+  if (!props.queue.length) return "Add at least one step to the queue."
+  if (!preview) return "Preview the queue first."
+  if (!props.confirmed) return "Tick the confirmation checkbox to enable Run."
+  return ""
 }
 
 function wait(milliseconds: number) {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds))
 }
 
+function queueRunConfirmationDetail(
+  preview: QueuePreview,
+  destructiveCount: number
+) {
+  const skipped = preview.unauthorized_count
+    ? ` ${preview.unauthorized_count} operation(s) will be skipped because the account is not logged in.`
+    : ""
+  const destructive = destructiveCount
+    ? ` This includes ${destructiveCount} destructive operation(s).`
+    : ""
+  const warnings = preview.warnings?.length
+    ? ` Warnings: ${preview.warnings.join(" ")}`
+    : ""
+
+  return `${preview.operation_count} operation(s) across ${preview.step_count} step(s), estimated ${preview.estimated_seconds}s.${skipped}${destructive}${warnings}`
+}
+
 function QueuePreviewSummary({ preview }: { preview: QueuePreview | null }) {
   if (!preview) {
-    return null
+    return (
+      <p className="text-xs text-muted-foreground">
+        Run Preview Queue to see operation count, estimated time, and warnings
+        before running.
+      </p>
+    )
   }
 
   return (
-    <div className="space-y-2 border border-border bg-muted/30 p-3 text-sm">
+    <div className="space-y-2 border border-border bg-background p-3 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <strong>
           {preview.operation_count} operations · {preview.step_count} steps
         </strong>
         {preview.unauthorized_count ? (
-          <Badge tone="bg-warning/15 text-warning border-warning/30">
+          <Badge tone="text-amber-600 border-amber-500/30 bg-amber-500/10 dark:text-amber-400">
             {preview.authorized_count || 0} ready · {preview.unauthorized_count}{" "}
             skipped
           </Badge>

@@ -1,14 +1,14 @@
 import * as React from "react"
 
-import { Badge as UiBadge } from "@workspace/ui/components/badge"
-import { Card } from "@workspace/ui/components/card"
+import { Badge as UiBadge } from "../ui/badge"
+import { Card } from "../ui/card"
 import {
   Field as UiField,
   Input as UiInput,
   Select as UiSelect,
   Textarea as UiTextarea,
-} from "@workspace/ui/components/form"
-import { cn } from "@workspace/ui/lib/utils"
+} from "../ui/form"
+import { cn } from "../ui/utils"
 
 export function SectionTitle({
   kicker,
@@ -39,6 +39,37 @@ export function Panel({
   className,
 }: React.PropsWithChildren<{ className?: string }>) {
   return <Card className={cn("p-5", className)}>{children}</Card>
+}
+
+export function StepHeading({
+  step,
+  title,
+  detail,
+  trailing,
+}: {
+  step: React.ReactNode
+  title: string
+  detail?: string
+  trailing?: React.ReactNode
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start gap-3">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 font-heading text-sm text-primary [&_svg]:size-4">
+          {step}
+        </span>
+        <div className="space-y-0.5">
+          <h2 className="font-heading text-lg text-foreground">{title}</h2>
+          {detail ? (
+            <p className="max-w-2xl text-xs leading-5 text-muted-foreground">
+              {detail}
+            </p>
+          ) : null}
+        </div>
+      </div>
+      {trailing}
+    </div>
+  )
 }
 
 export function Field({

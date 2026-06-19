@@ -10,6 +10,7 @@ DATA_DIR = Path(os.getenv("TELEMANAGER_DATA_DIR", ROOT_DIR / "data"))
 SESSIONS_DIR = Path(os.getenv("TELEMANAGER_SESSIONS_DIR", ROOT_DIR / "sessions"))
 DIALOGS_DIR = DATA_DIR / "dialogs"
 EXPORTS_DIR = DATA_DIR / "exports"
+DOWNLOADS_DIR = DATA_DIR / "downloads"
 CONFIG_FILE = DATA_DIR / "config.json"
 ACCOUNTS_FILE = DATA_DIR / "accounts.json"
 ACTION_PRESETS_FILE = DATA_DIR / "action_presets.json"
@@ -21,6 +22,7 @@ def ensure_dirs() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     DIALOGS_DIR.mkdir(parents=True, exist_ok=True)
     EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
     SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
 
 

@@ -7,6 +7,13 @@ export function classifyTargetKind(target: string): TargetKind {
 
   try {
     const url = new URL(clean)
+    if (url.protocol === "tg:" && url.hostname === "resolve") {
+      const params = url.searchParams
+      if (params.get("start") || params.get("startapp") || params.get("appname")) {
+        return "bot_link"
+      }
+      return params.get("domain") ? "public_link" : "unknown"
+    }
     const isTme = [
       "t.me",
       "telegram.me",
@@ -18,7 +25,9 @@ export function classifyTargetKind(target: string): TargetKind {
       if (path.startsWith("+") || path.startsWith("joinchat/")) {
         return "invite_link"
       }
-      if (url.searchParams.get("start")) {
+      const segments = path.split("/").filter(Boolean)
+      const isNamedApp = segments.length >= 2 && !/^\d+$/.test(segments[1])
+      if (url.searchParams.get("start") || url.searchParams.get("startapp") || isNamedApp) {
         return "bot_link"
       }
       if (path) {

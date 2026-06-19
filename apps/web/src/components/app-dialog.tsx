@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import { Dialog } from "@workspace/ui/components/dialog"
+import { Dialog } from "../ui/dialog"
 
 import type { AppDialogState } from "../types"
 
