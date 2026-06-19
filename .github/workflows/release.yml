@@ -4,14 +4,40 @@ on:
   push:
     tags:
       - "v*"
+  # Manual runs build and upload artifacts for testing but do NOT publish a
+  # GitHub release; the release job below only runs for tag pushes.
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
+  frontend:
+    name: Build frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Build frontend
+        shell: bash
+        run: |
+          npm --prefix apps/web ci
+          npm --prefix apps/web run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: apps/web/dist
+
   build:
     name: Build ${{ matrix.name }}
+    needs: frontend
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -26,7 +52,7 @@ jobs:
           - name: linux-arm64
             os: ubuntu-24.04-arm
           - name: macos-amd64
-            os: macos-13
+            os: macos-15-intel
           - name: macos-arm64
             os: macos-14
 
@@ -37,15 +63,17 @@ jobs:
         with:
           python-version: "3.11"
 
-      - uses: actions/setup-node@v4
+      - name: Download prebuilt frontend
+        uses: actions/download-artifact@v4
         with:
-          node-version: "20"
-          cache: npm
-          cache-dependency-path: apps/web/package-lock.json
+          name: frontend-dist
+          path: apps/web/dist
 
       - name: Build package
         shell: bash
-        run: python scripts/build-release.py --target ${{ matrix.name }}
+        run: >-
+          python scripts/build-release.py
+          --target ${{ matrix.name }} --skip-frontend
 
       - uses: actions/upload-artifact@v4
         with:
@@ -54,19 +82,26 @@ jobs:
 
   termux:
     name: Build termux package
+    needs: frontend
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-python@v5
         with:
-          node-version: "20"
-          cache: npm
-          cache-dependency-path: apps/web/package-lock.json
+          python-version: "3.11"
+
+      - name: Download prebuilt frontend
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: apps/web/dist
 
       - name: Build package
         shell: bash
-        run: python scripts/build-release.py --target termux-arm64 --termux
+        run: >-
+          python scripts/build-release.py
+          --target termux-arm64 --termux --skip-frontend
 
       - uses: actions/upload-artifact@v4
         with:
@@ -77,11 +112,13 @@ jobs:
     name: Create GitHub release
     needs: [build, termux]
     runs-on: ubuntu-latest
+    # Tag-only: manual workflow_dispatch runs stop after building artifacts.
     if: startsWith(github.ref, 'refs/tags/')
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+          pattern: telemanager-*
           merge-multiple: true
 
       - uses: softprops/action-gh-release@v2

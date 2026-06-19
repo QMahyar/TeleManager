@@ -1,21 +1,41 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import re
 import uuid
+from collections.abc import Awaitable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from telethon import TelegramClient
-from telethon.errors import FloodWaitError, PhoneCodeExpiredError, PhoneCodeInvalidError, SessionPasswordNeededError
+from telethon.errors import (
+    FloodWaitError,
+    PasswordHashInvalidError,
+    PhoneCodeExpiredError,
+    PhoneCodeInvalidError,
+    SessionPasswordNeededError,
+)
 
 from .config import ACCOUNTS_FILE, CONFIG_FILE, SESSIONS_DIR, read_json, write_json
 from .telegram_actions import TelegramAction, TelegramActionResult, run_telegram_action
 
 CONNECT_TIMEOUT_SECONDS = 25
 RuntimeStatus = Literal["stopped", "running", "login_pending", "password_pending", "error"]
+
+
+async def _disconnect(client: TelegramClient) -> None:
+    """Disconnect a client, awaiting the coroutine Telethon returns under a running loop.
+
+    TelegramClient.disconnect() returns a coroutine when the event loop is already
+    running (always true under uvicorn) and None otherwise. Awaiting the bare call
+    is unsafe for the type checker, so route every disconnect through this helper.
+    """
+    result = client.disconnect()
+    if inspect.isawaitable(result):
+        await cast("Awaitable[Any]", result)
 
 
 @dataclass
@@ -100,7 +120,7 @@ class AccountManager:
                 self._save_accounts()
                 return account
             except Exception as exc:
-                client.disconnect()
+                await _disconnect(client)
                 account.status = "error"
                 account.last_error = self._login_error_message(exc)
                 self._save_accounts()
@@ -136,7 +156,13 @@ class AccountManager:
             login_state = self.pending_logins.get(account_id)
             if not login_state:
                 raise ValueError("No pending login exists for this account.")
-            await login_state.client.sign_in(password=password)
+            try:
+                await login_state.client.sign_in(password=password)
+            except PasswordHashInvalidError as exc:
+                account.status = "password_pending"
+                account.last_error = "Incorrect 2FA password. Try again."
+                self._save_accounts()
+                raise ValueError(account.last_error) from exc
             await self._complete_login(account, login_state.client)
             return account
 
@@ -162,7 +188,7 @@ class AccountManager:
                 self._save_accounts()
                 return account
             finally:
-                client.disconnect()
+                await _disconnect(client)
 
     async def logout_account(self, account_id: str) -> AccountRecord:
         async with self.lock:
@@ -176,7 +202,7 @@ class AccountManager:
                 if await client.is_user_authorized():
                     await client.log_out()
             finally:
-                client.disconnect()
+                await _disconnect(client)
             account.authorized = False
             account.status = "stopped"
             account.last_error = None
@@ -197,7 +223,7 @@ class AccountManager:
         client = self._new_client(account.session_name, api_id, api_hash)
         await self._connect_client(client)
         if not await self._is_user_authorized(client):
-            client.disconnect()
+            await _disconnect(client)
             account.authorized = False
             account.last_error = "Session is not authorized. Log in again."
             self._save_accounts()
@@ -233,24 +259,24 @@ class AccountManager:
             self._save_accounts()
             return TelegramActionResult(account.id, account.label, False, action.action_type, str(exc))
 
-    def release_run_clients(self, account_ids: list[str]) -> None:
+    async def release_run_clients(self, account_ids: list[str]) -> None:
         """Disconnect and drop cached clients warmed for a run."""
         for account_id in set(account_ids):
             client = self.clients.pop(account_id, None)
             if client is not None:
-                client.disconnect()
+                await _disconnect(client)
 
     async def shutdown(self) -> None:
         for client in list(self.clients.values()):
-            client.disconnect()
+            await _disconnect(client)
         for login_state in list(self.pending_logins.values()):
-            login_state.client.disconnect()
+            await _disconnect(login_state.client)
         self.clients.clear()
         self.pending_logins.clear()
 
     async def _complete_login(self, account: AccountRecord, client: TelegramClient) -> None:
         await self._refresh_account_identity(account, client)
-        client.disconnect()
+        await _disconnect(client)
         account.authorized = True
         account.status = "stopped"
         account.last_error = None

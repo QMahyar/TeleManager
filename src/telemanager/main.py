@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -39,8 +40,18 @@ from .sessions_service import (
     rename_session_file,
 )
 
+
+def _default_frontend_dist() -> Path:
+    # When frozen, PyInstaller unpacks bundled datas (the built web/ folder) under
+    # sys._MEIPASS; the source-tree layout under apps/web/dist only exists in dev.
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        return Path(meipass) / "web"
+    return FRONTEND_ROOT_DIR / "dist"
+
+
 FRONTEND_ROOT_DIR = Path(__file__).resolve().parents[2] / "apps" / "web"
-FRONTEND_DIST_DIR = Path(os.getenv("TELEMANAGER_FRONTEND_DIST_DIR", FRONTEND_ROOT_DIR / "dist"))
+FRONTEND_DIST_DIR = Path(os.getenv("TELEMANAGER_FRONTEND_DIST_DIR", _default_frontend_dist()))
 FRONTEND_PUBLIC_DIR = Path(os.getenv("TELEMANAGER_FRONTEND_PUBLIC_DIR", FRONTEND_ROOT_DIR / "public"))
 FILE_BODY = File(...)
 NO_STORE_HEADERS = {"Cache-Control": "no-store"}

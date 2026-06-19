@@ -17,11 +17,20 @@ def app_dir() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
+def frontend_dir() -> Path:
+    # PyInstaller onedir bundles datas under _internal/ (sys._MEIPASS), not next
+    # to the executable, so resolve the frontend from _MEIPASS when frozen.
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        return Path(meipass) / "web"
+    return app_dir() / "web"
+
+
 def main() -> None:
     root = app_dir()
     os.environ.setdefault("TELEMANAGER_DATA_DIR", str(root / "data"))
     os.environ.setdefault("TELEMANAGER_SESSIONS_DIR", str(root / "sessions"))
-    os.environ.setdefault("TELEMANAGER_FRONTEND_DIST_DIR", str(root / "web"))
+    os.environ.setdefault("TELEMANAGER_FRONTEND_DIST_DIR", str(frontend_dir()))
 
     def open_browser() -> None:
         time.sleep(1)

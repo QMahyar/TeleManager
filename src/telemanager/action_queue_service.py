@@ -18,6 +18,10 @@ QUEUE_SAVE_INTERVAL_SECONDS = 2.0
 TERMINAL_RUN_STATUSES = {"completed", "failed", "interrupted", "canceled", "flood_wait"}
 ACTIVE_RUN_STATUSES = {"queued", "running", "canceling"}
 
+# The event loop only holds a weak reference to bare tasks, so a running queue can be
+# garbage-collected mid-run. Keep a strong reference until the task finishes.
+_background_tasks: set[asyncio.Task] = set()
+
 
 class ActionQueueStep(BaseModel):
     action_type: TelegramActionType
@@ -146,7 +150,9 @@ def start_action_queue(manager: AccountManager, queue_runs: dict[str, dict], req
         "cancel_requested": False,
     }
     save_action_runs(queue_runs)
-    asyncio.create_task(process_action_queue(manager, queue_runs, run_id, request, expanded))
+    task = asyncio.create_task(process_action_queue(manager, queue_runs, run_id, request, expanded))
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
     return {"run_id": run_id, "status": "queued", "operation_count": len(expanded)}
 
 
@@ -224,7 +230,7 @@ async def process_action_queue(
         run["status"] = "failed"
         run["error"] = str(exc)
     finally:
-        manager.release_run_clients(run_account_ids)
+        await manager.release_run_clients(run_account_ids)
         run["current"] = None
         run["completed_at"] = now_iso()
         run["updated_at"] = run["completed_at"]

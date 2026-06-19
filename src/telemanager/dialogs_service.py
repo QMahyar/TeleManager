@@ -6,7 +6,7 @@ from typing import Any
 
 from telethon.tl.types import Channel, Chat, Message, User
 
-from .accounts import AccountManager
+from .accounts import AccountManager, _disconnect
 from .config import DIALOGS_DIR, ensure_dirs, read_json, write_json
 
 
@@ -66,7 +66,7 @@ async def fetch_dialogs(manager: AccountManager, account_id: str, limit: int = 5
         manager._save_accounts()
         return payload
     finally:
-        client.disconnect()
+        await _disconnect(client)
 
 
 def list_cached_dialogs(manager: AccountManager, account_id: str) -> dict:
@@ -115,7 +115,7 @@ async def fetch_messages(manager: AccountManager, account_id: str, target: str, 
             "messages": [message_to_dict(message) for message in messages if message],
         }
     finally:
-        client.disconnect()
+        await _disconnect(client)
 
 
 async def resolve_target(manager: AccountManager, account_id: str, target: str) -> dict:
@@ -139,7 +139,7 @@ async def resolve_target(manager: AccountManager, account_id: str, target: str) 
             "type": entity.__class__.__name__,
         }
     finally:
-        client.disconnect()
+        await _disconnect(client)
 
 
 def classify_dialog(dialog: Any) -> CachedDialog:

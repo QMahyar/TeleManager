@@ -1,9 +1,48 @@
 from __future__ import annotations
 
+import asyncio
 import io
 import zipfile
 
+import pytest
+
 from conftest import add_account
+
+
+def test_fetch_dialogs_disconnects_client(app_context: dict, monkeypatch: pytest.MonkeyPatch):
+    # Regression: dialogs_service must reach `_disconnect(client)` in its finally
+    # block without a NameError (the helper lives in accounts and must be imported).
+    account = add_account(app_context, "acc-1", "Primary")
+    dialogs_service = __import__("telemanager.dialogs_service", fromlist=["dialogs_service"])
+    manager = app_context["main"].manager
+
+    disconnected = {"called": False}
+
+    class FakeClient:
+        async def iter_dialogs(self, limit=0):
+            return
+            yield  # noqa: makes this an async generator that yields nothing
+
+        def disconnect(self):
+            disconnected["called"] = True
+            return None
+
+    fake = FakeClient()
+    monkeypatch.setattr(manager, "get_api_credentials", lambda: (1, "hash"))
+    monkeypatch.setattr(manager, "_new_client", lambda *a, **k: fake)
+
+    async def _connect(_client):
+        return None
+
+    async def _authorized(_client):
+        return True
+
+    monkeypatch.setattr(manager, "_connect_client", _connect)
+    monkeypatch.setattr(manager, "_is_user_authorized", _authorized)
+
+    payload = asyncio.run(dialogs_service.fetch_dialogs(manager, account.id, limit=10))
+    assert payload["account_id"] == account.id
+    assert disconnected["called"] is True
 
 
 def test_cached_dialogs_default_and_existing_payload(app_context: dict):
