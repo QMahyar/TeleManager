@@ -1,0 +1,5 @@
+# Build-only dependencies (not shipped to runtime/Termux installs).
+# Kept separate from requirements.txt so `pip install -r requirements.txt` on
+# Termux/ARM doesn't attempt to compile PyInstaller's bootloader (frequent
+# failure on Android). PyInstaller is only needed on the CI/build host.
+pyinstaller==6.11.1

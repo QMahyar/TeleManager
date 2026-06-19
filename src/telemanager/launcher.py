@@ -8,6 +8,19 @@ import time
 import webbrowser
 from pathlib import Path
 
+# PyInstaller windowed builds (console=False) leave sys.stdout/stderr as None.
+# uvicorn's logging formatter calls .isatty() on them and crashes with
+# "Unable to configure formatter 'default'". Redirect to a logfile so the
+# streams always exist and GUI failures stay debuggable.
+if sys.stdout is None or sys.stderr is None:
+    _log_path = Path(os.environ.get("TELEMANAGER_DATA_DIR", Path.cwd())) / "telemanager.log"
+    _log_path.parent.mkdir(parents=True, exist_ok=True)
+    _sink = open(_log_path, "a", encoding="utf-8")
+    if sys.stdout is None:
+        sys.stdout = _sink
+    if sys.stderr is None:
+        sys.stderr = _sink
+
 import uvicorn
 
 

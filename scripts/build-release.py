@@ -23,6 +23,9 @@ def run(command: list[str], cwd: Path = ROOT) -> None:
 def build_frontend(skip: bool) -> None:
     if skip:
         return
+    # Keep derived version files in sync with pyproject.toml before any build
+    # so shipped artifacts never carry a stale version.
+    run([sys.executable, "scripts/sync_version.py"])
     npm = "npm.cmd" if os.name == "nt" else "npm"
     web = ROOT / "apps" / "web"
     install = "ci" if (web / "package-lock.json").exists() else "install"
@@ -31,9 +34,15 @@ def build_frontend(skip: bool) -> None:
 
 
 def build_pyinstaller(skip_install: bool) -> Path:
+    # Auto-skip the slow pip reinstall when the pyinstaller CLI is already on
+    # PATH. Lets local rebuilds skip the ~30s reinstall without remembering
+    # --skip-install. (The pip package is "pyinstaller"; its import name is
+    # "PyInstaller"; we probe the CLI to avoid that mismatch.)
+    if not skip_install and shutil.which("pyinstaller"):
+        skip_install = True
     if not skip_install:
         run([sys.executable, "-m", "pip", "install", "--upgrade", "pip"])
-        run([sys.executable, "-m", "pip", "install", "-r", "requirements.txt", "pyinstaller==6.11.1"])
+        run([sys.executable, "-m", "pip", "install", "-r", "requirements.txt", "-r", "requirements-build.txt"])
     shutil.rmtree(DIST / "telemanager", ignore_errors=True)
     shutil.rmtree(ROOT / "build", ignore_errors=True)
     run(["pyinstaller", "--noconfirm", "--clean", "telemanager.spec"])
@@ -102,6 +111,9 @@ def build_termux_package() -> Path:
         'export TELEMANAGER_FRONTEND_DIST_DIR="$APP_DIR/web"\n'
         'export TELEMANAGER_DATA_DIR="$APP_DIR/data"\n'
         'export TELEMANAGER_SESSIONS_DIR="$APP_DIR/sessions"\n'
+        # Package lives under src/ and is not pip-installed in the venv, so put
+        # it on PYTHONPATH or `python -m telemanager.launcher` can't import it.
+        'export PYTHONPATH="$APP_DIR/src:$PYTHONPATH"\n'
         "python -m telemanager.launcher\n",
         encoding="utf-8",
     )

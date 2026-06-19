@@ -12,8 +12,21 @@ permissions:
   contents: write
 
 jobs:
+  version-sync:
+    name: Verify single-source version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Check pyproject version propagated to package.json + README
+        shell: bash
+        run: python scripts/sync_version.py --check
+
   frontend:
     name: Build frontend
+    needs: version-sync
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -62,6 +75,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-build.txt
 
       - name: Download prebuilt frontend
         uses: actions/download-artifact@v4
@@ -90,6 +107,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-build.txt
 
       - name: Download prebuilt frontend
         uses: actions/download-artifact@v4
@@ -115,6 +136,24 @@ jobs:
     # Tag-only: manual workflow_dispatch runs stop after building artifacts.
     if: startsWith(github.ref, 'refs/tags/')
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract CHANGELOG section for this tag
+        id: changelog
+        shell: python
+        run: |
+          import re
+          from pathlib import Path
+          tag = "${{ github.ref_name }}".removeprefix("v")  # v1.2.3 -> 1.2.3
+          text = Path("CHANGELOG.md").read_text(encoding="utf-8")
+          # Capture from `## [VERSION]` up to the next `## [` or EOF.
+          pattern = rf"## \[{re.escape(tag)}\].*?(?=\n## \[|\Z)"
+          m = re.search(pattern, text, re.S)
+          body = m.group(0).strip() if m else ""
+          out = Path("release_notes.md")
+          out.write_text(body, encoding="utf-8")
+          print(f"Extracted {len(body)} chars for {tag}")
+
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -124,4 +163,7 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: artifacts/*
+          body_path: release_notes.md
+          # Appends auto-generated commit/PR notes beneath the curated CHANGELOG
+          # section. Empty file => auto notes stand alone.
           generate_release_notes: true
