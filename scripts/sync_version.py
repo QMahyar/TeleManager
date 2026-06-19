@@ -2,8 +2,9 @@
 """Single source of truth for the TeleManager version.
 
 `pyproject.toml` `[project] version` is canonical. This script propagates it to:
-  - apps/web/package.json  (`version` field)
-  - README.md              (`Current release: vX.Y.Z` line)
+  - apps/web/package.json          (`version` field)
+  - README.md                      (`Current release: vX.Y.Z` line)
+  - src/telemanager/__init__.py    (`__version__` string)
 
 Usage:
   python scripts/sync_version.py          # write derived files
@@ -26,9 +27,12 @@ ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT = ROOT / "pyproject.toml"
 PACKAGE_JSON = ROOT / "apps" / "web" / "package.json"
 README = ROOT / "README.md"
+INIT_PY = ROOT / "src" / "telemanager" / "__init__.py"
 # Matches: Current release: **`v1.2.3`**   (any semver, optional prerelease)
 # Group 2 is the bare version (e.g. 1.2.3), group 1+3 are the surrounding markdown.
 README_VERSION_RE = re.compile(r"(Current release:\s*\*\*`v)([^`]+)(`\*\*)")
+# Matches: __version__ = "1.2.3"   (single or double quotes)
+INIT_VERSION_RE = re.compile(r"(__version__\s*=\s*[\"'])([^\"']+)([\"'])")
 
 
 def read_canonical_version() -> str:
@@ -54,6 +58,20 @@ def read_readme_version() -> str | None:
     return m.group(2) if m else None
 
 
+def read_init_version() -> str | None:
+    m = INIT_VERSION_RE.search(INIT_PY.read_text(encoding="utf-8"))
+    return m.group(2) if m else None
+
+
+def write_init(version: str) -> bool:
+    text = INIT_PY.read_text(encoding="utf-8")
+    new_text, n = INIT_VERSION_RE.subn(rf"\g<1>{version}\g<3>", text, count=1)
+    if n == 0 or new_text == text:
+        return False
+    INIT_PY.write_text(new_text, encoding="utf-8")
+    return True
+
+
 def write_readme(version: str) -> bool:
     text = README.read_text(encoding="utf-8")
     new_text, n = README_VERSION_RE.subn(rf"\g<1>{version}\g<3>", text, count=1)
@@ -74,10 +92,12 @@ def main() -> int:
         # Detect-only: never write. Compare what's on disk against canonical.
         pj_on_disk = package_json_version()
         readme_on_disk = read_readme_version()
-        drift = pj_on_disk != version or readme_on_disk != version
+        init_on_disk = read_init_version()
+        drift = pj_on_disk != version or readme_on_disk != version or init_on_disk != version
         if drift:
             print(
-                f"Version drift: pyproject={version} " f"package.json={pj_on_disk} readme={readme_on_disk}",
+                f"Version drift: pyproject={version} "
+                f"package.json={pj_on_disk} readme={readme_on_disk} __init__={init_on_disk}",
                 file=sys.stderr,
             )
             print("Run: python scripts/sync_version.py", file=sys.stderr)
@@ -87,9 +107,11 @@ def main() -> int:
 
     pj_changed = write_package_json(version)
     readme_changed = write_readme(version)
+    init_changed = write_init(version)
     print(
         f"Synced version {version} -> package.json{' (changed)' if pj_changed else ''}, "
-        f"README{' (changed)' if readme_changed else ''}"
+        f"README{' (changed)' if readme_changed else ''}, "
+        f"__init__{' (changed)' if init_changed else ''}"
     )
     return 0
 

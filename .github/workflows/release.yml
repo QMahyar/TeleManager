@@ -16,8 +16,8 @@ jobs:
     name: Verify single-source version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Check pyproject version propagated to package.json + README
@@ -29,9 +29,9 @@ jobs:
     needs: version-sync
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "20"
           cache: npm
@@ -43,7 +43,7 @@ jobs:
           npm --prefix apps/web ci
           npm --prefix apps/web run build
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: frontend-dist
           path: apps/web/dist
@@ -70,9 +70,9 @@ jobs:
             os: macos-14
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -81,7 +81,7 @@ jobs:
             requirements-build.txt
 
       - name: Download prebuilt frontend
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: frontend-dist
           path: apps/web/dist
@@ -92,7 +92,7 @@ jobs:
           python scripts/build-release.py
           --target ${{ matrix.name }} --skip-frontend
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: telemanager-${{ matrix.name }}
           path: release/*
@@ -102,16 +102,16 @@ jobs:
     needs: frontend
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # No pip cache here: the termux package only stages source for on-device
       # install, so this job never runs pip and has nothing to cache.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
       - name: Download prebuilt frontend
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: frontend-dist
           path: apps/web/dist
@@ -122,7 +122,7 @@ jobs:
           python scripts/build-release.py
           --target termux-arm64 --termux --skip-frontend
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: telemanager-termux-arm64
           path: release/telemanager-termux-arm64.tar.gz
@@ -134,7 +134,7 @@ jobs:
     # Tag-only: manual workflow_dispatch runs stop after building artifacts.
     if: startsWith(github.ref, 'refs/tags/')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Extract CHANGELOG section for this tag
         id: changelog
@@ -152,7 +152,7 @@ jobs:
           out.write_text(body, encoding="utf-8")
           print(f"Extracted {len(body)} chars for {tag}")
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           path: artifacts
           pattern: telemanager-*
@@ -160,6 +160,7 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
+          name: TeleManager ${{ github.ref_name }}
           files: artifacts/*
           body_path: release_notes.md
           # Appends auto-generated commit/PR notes beneath the curated CHANGELOG

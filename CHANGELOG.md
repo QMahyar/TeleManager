@@ -11,6 +11,16 @@ section below, with auto-generated commit/PR notes appended.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-06-19
+
+### Added
+
+- **About page** with version display, update checker (compares against GitHub latest release), author socials, and crypto donation addresses. Accessible from the sidebar under System.
+- **`GET /api/version`** endpoint exposing the running version.
+- **`GET /api/updates/check`** endpoint that fetches the latest GitHub release and performs semver comparison from the server side (avoiding browser CORS/rate-limit issues).
+- Version single-sourcing now includes `src/telemanager/__init__.py` (`__version__`) as a synced derived file alongside `package.json` and `README.md`.
+- GitHub Release title now explicitly set to `TeleManager vX.Y.Z` instead of just the tag name.
+
 ## [1.1.0] - 2026-06-19
 
 ### Added

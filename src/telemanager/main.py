@@ -5,6 +5,8 @@ import logging
 import os
 import sys
 import threading
+import urllib.error
+import urllib.request
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -12,6 +14,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 
+from . import __version__
 from .accounts import AccountManager
 from .action_queue_service import (
     ACTIVE_RUN_STATUSES,
@@ -55,6 +58,9 @@ FRONTEND_DIST_DIR = Path(os.getenv("TELEMANAGER_FRONTEND_DIST_DIR", _default_fro
 FRONTEND_PUBLIC_DIR = Path(os.getenv("TELEMANAGER_FRONTEND_PUBLIC_DIR", FRONTEND_ROOT_DIR / "public"))
 FILE_BODY = File(...)
 NO_STORE_HEADERS = {"Cache-Control": "no-store"}
+GITHUB_REPO = "QMahyar/TeleManager"
+GITHUB_LATEST_RELEASE_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+GITHUB_RELEASES_URL = f"https://github.com/{GITHUB_REPO}/releases"
 manager = AccountManager()
 queue_runs: dict[str, dict] = load_action_runs()
 
@@ -437,6 +443,51 @@ def cancel_action_queue_run(run_id: str) -> dict:
     run["updated_at"] = now_iso()
     save_action_runs(queue_runs)
     return {"run": run}
+
+
+@app.get("/api/version")
+def get_version() -> dict:
+    return {"version": __version__, "repo": GITHUB_REPO, "releases_url": GITHUB_RELEASES_URL}
+
+
+def _parse_semver(value: str) -> tuple[int, ...]:
+    cleaned = value.strip().lstrip("vV").split("+", 1)[0].split("-", 1)[0]
+    parts: list[int] = []
+    for chunk in cleaned.split("."):
+        try:
+            parts.append(int(chunk))
+        except ValueError:
+            break
+    return tuple(parts) or (0,)
+
+
+@app.get("/api/updates/check")
+def check_for_updates() -> dict:
+    request = urllib.request.Request(
+        GITHUB_LATEST_RELEASE_API,
+        headers={"Accept": "application/vnd.github+json", "User-Agent": f"TeleManager/{__version__}"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:  # noqa: S310 (fixed https URL)
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            raise HTTPException(status_code=404, detail="No published releases found yet.") from exc
+        raise HTTPException(status_code=502, detail="Could not reach GitHub to check for updates.") from exc
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=502, detail="Could not reach GitHub to check for updates.") from exc
+
+    latest_tag = str(payload.get("tag_name") or "").strip()
+    latest_version = latest_tag.lstrip("vV")
+    update_available = bool(latest_version) and _parse_semver(latest_version) > _parse_semver(__version__)
+    return {
+        "current": __version__,
+        "latest": latest_version or None,
+        "update_available": update_available,
+        "html_url": payload.get("html_url") or GITHUB_RELEASES_URL,
+        "published_at": payload.get("published_at"),
+        "releases_url": GITHUB_RELEASES_URL,
+    }
 
 
 @app.post("/api/app/shutdown")

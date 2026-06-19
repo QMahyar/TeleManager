@@ -8,6 +8,7 @@ export type View =
   | "sessions"
   | "activity"
   | "settings"
+  | "about"
 
 export type ActionType =
   | "join_chat"

@@ -2,6 +2,7 @@ import {
   IconActivity,
   IconArchive,
   IconDatabase,
+  IconInfoCircle,
   IconMessageCircle,
   IconPlayerPlay,
   IconSettings,
@@ -44,6 +45,7 @@ export const navItems: Array<{
     icon: IconActivity,
   },
   { id: "settings", label: "Settings", group: "System", icon: IconSettings },
+  { id: "about", label: "About", group: "System", icon: IconInfoCircle },
 ]
 
 export type ActionCategory =
