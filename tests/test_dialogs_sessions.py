@@ -5,7 +5,6 @@ import io
 import zipfile
 
 import pytest
-
 from conftest import add_account
 
 
@@ -21,7 +20,7 @@ def test_fetch_dialogs_disconnects_client(app_context: dict, monkeypatch: pytest
     class FakeClient:
         async def iter_dialogs(self, limit=0):
             return
-            yield  # noqa: makes this an async generator that yields nothing
+            yield  # unreachable yield makes this an async generator
 
         def disconnect(self):
             disconnected["called"] = True
