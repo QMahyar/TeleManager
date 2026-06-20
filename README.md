@@ -89,18 +89,26 @@ TeleManager currently supports:
 
 ### Recurring schedules
 
-Repeat any built queue on an interval (every N minutes/hours/days), ending after
-a set number of times, on a date, or never. TeleManager picks the delivery engine
+Build a schedule entirely on the **Schedules** page — pick the accounts, an
+action, one or more target chats, the message, and how to repeat (every N
+minutes/hours/days; start now, after a delay, or at a set time; end after a
+number of times, on a date, or never). TeleManager picks the delivery engine
 automatically:
 
 - **Telegram-delivered (offline):** text-only schedules (plain messages and a
   plain `/start`) are pre-loaded as Telegram-native scheduled messages, so they
-  keep firing even when TeleManager is closed. Telegram caps these at **100 per
-  chat (365 days out)**, so for long-running schedules TeleManager keeps a rolling
-  buffer of upcoming sends topped up whenever the app is open.
+  keep firing even when TeleManager is closed. When the whole series fits inside
+  Telegram's **100-per-chat (365 days out)** limit it is pre-scheduled all at
+  once and is *fully offline*; longer series keep a rolling buffer topped up
+  whenever the app is open.
 - **In-app runner (app open):** any other action (join, mute, `/start` with a
   referral, etc.) runs as a normal queue each time it fires, so the app must be
   open at fire time.
+
+Extras: an optional **stagger** offsets identical sends across chats so they
+don't all fire at the same instant, and an **inspector** lets you pick an account
+and chat to see exactly what Telegram has scheduled there (marking which messages
+TeleManager created) and clear selected or all of them.
 
 Each schedule can be previewed, paused/resumed, run immediately, and deleted.
 Deleting a Telegram-delivered schedule also removes the messages it pre-scheduled.
@@ -179,25 +187,26 @@ outside the current scope.
 
 High-level workspace view with fleet metrics and session inventory.
 
-### Accounts
-
-Login, validation, rename, logout, and deletion of local session copies.
-
-### Actions
-
-Build, preview, run, cancel, and review guarded Telegram action queues. The same
-builder can turn a queue into a recurring schedule.
-
-### Schedules
-
-List, pause/resume, run-now, and delete recurring schedules. Each schedule shows
-whether Telegram delivers it offline or it runs only while the app is open, plus
-its next fire time and progress.
-
 ### Dialogs
 
 Fetch, cache, search, classify, select, and launch quick actions for chats,
 channels, groups, and bots.
+
+### Actions
+
+Build, preview, run, cancel, and review guarded Telegram action queues.
+
+### Schedules
+
+Create recurring schedules in one place (accounts, action, target chats, message,
+and repeat rules), inspect and clear Telegram's per-chat scheduled messages, and
+pause/resume/run-now/delete existing schedules. Each schedule shows whether
+Telegram delivers it offline or it runs only while the app is open, plus its next
+fire time and progress.
+
+### Accounts
+
+Login, validation, rename, logout, and deletion of local session copies.
 
 ### Import / Export
 

@@ -19,6 +19,7 @@ import type {
   QuickActionContext,
   SafetySettings,
   Schedule,
+  ScheduleSeed,
   TelegramDialog,
   View,
 } from "../types"
@@ -266,6 +267,9 @@ function useQueueState(
   })
   const [quickActionContext, setQuickActionContext] =
     React.useState<QuickActionContext | null>(null)
+  const [scheduleSeed, setScheduleSeed] = React.useState<ScheduleSeed | null>(
+    null
+  )
   const [confirmed, setConfirmed] = React.useState(false)
 
   function addQueueStep() {
@@ -300,11 +304,13 @@ function useQueueState(
     queue,
     queuePayload: { steps: queue, confirm: confirmed, ...safety },
     quickActionContext,
+    scheduleSeed,
     setActionDraft,
     setConfirmed,
     setPendingAccountId,
     setQueue,
     setQuickActionContext,
+    setScheduleSeed,
   }
 }
 

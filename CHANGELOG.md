@@ -11,6 +11,31 @@ section below, with auto-generated commit/PR notes appended.
 
 ## [Unreleased]
 
+### Added
+
+- **Standalone schedule builder** on the Schedules page: create a recurring schedule end-to-end (accounts, action, target chats, message, recurrence) without going through the Actions queue builder.
+- **Start options** for schedules: begin after one interval, after a delay (e.g. +1h), or at a specific time.
+- **Cross-chat stagger** toggle so identical messages to multiple chats don't all fire at the same instant.
+- **Fully-offline indicator** in the schedule preview when the entire series fits Telegram's 100-per-chat buffer (pre-scheduled all at once, no reopen needed).
+- **Scheduled-message inspector**: pick an account + chat to list what Telegram actually has scheduled (marking TeleManager-created vs manual messages) and clear selected or all — `GET/POST /api/accounts/{id}/scheduled`.
+
+### Changed
+
+- Workspace navigation reordered to Dialogs → Actions → Schedules.
+- Scheduling moved out of the Actions screen into the dedicated Schedules page.
+- **Account selection now flows between screens**: Command Center "Run Action" / "Fetch Dialogs" carry the selected ready sessions into Actions / Dialogs, and every Dialogs → Actions handoff pre-selects the dialog's account so the builder no longer blocks on "select an account".
+- Activity audit log is now capped (most recent 5,000 events) instead of growing without bound.
+
+### Fixed
+
+- `fetch_messages` / `resolve_target` now check authorization live (via a shared short-lived client) instead of trusting a possibly-stale flag, so revoked sessions return a clear message.
+- Target-preview warnings render in amber instead of error-red.
+
+### Internal
+
+- Run history shows a "scheduled" badge on runs started by a schedule.
+- Deduplicated target classification (one shared `analyzeTarget`), folded dialog reads onto a single `temp_client` helper, centralized `now_iso`, and removed dead code (`audit_service.get_event`).
+
 ## [1.3.0] - 2026-06-20
 
 ### Added

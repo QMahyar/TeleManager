@@ -110,10 +110,19 @@ export type ActionDraft = {
   fields: ActionFieldValues
 }
 
+// One-shot prefill handed to the Schedules builder when staging chats from
+// another screen (e.g. Dialogs). Consumed and cleared on arrival.
+export type ScheduleSeed = {
+  accountIds: string[]
+  actionType: ActionType
+  target: string
+}
+
 export type QueueRun = {
   id: string
   status: string
   action_type?: string
+  schedule_id?: string | null
   created_at?: string
   operation_count?: number
   completed_count?: number
@@ -154,6 +163,7 @@ export type RecurrenceConfig = {
   end_mode: EndMode
   end_count?: number | null
   end_until?: string | null
+  stagger_seconds?: number
 }
 
 export type ScheduleQueue = {
@@ -187,10 +197,26 @@ export type SchedulePreview = {
   engine_reason: string
   fires_planned?: number | null
   operations_per_fire: number
+  total_messages?: number | null
+  fully_offline?: boolean
   next_fire_at?: string | null
   upcoming: string[]
   coverage_until?: string | null
   warnings: string[]
+}
+
+export type ScheduledMessage = {
+  id: number
+  date?: string | null
+  text: string
+  owned?: boolean
+}
+
+export type ScheduledInspect = {
+  account_id: string
+  target: string
+  messages: ScheduledMessage[]
+  count: number
 }
 
 export type AppDialogState = {

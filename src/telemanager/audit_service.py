@@ -2,18 +2,17 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from .config import DATA_DIR, ensure_dirs
+from .config import DATA_DIR, ensure_dirs, now_iso
 
 ACTIVITY_DIR = DATA_DIR / "activity"
 EVENTS_FILE = ACTIVITY_DIR / "events.jsonl"
-
-
-def now_iso() -> str:
-    return datetime.now(UTC).isoformat()
+# Keep the local audit trail bounded so it cannot grow without limit.
+MAX_EVENTS = 5000
+_TRIM_CHECK_EVERY = 250
+_appends_since_check = 0
 
 
 def ensure_activity_dir() -> None:
@@ -33,7 +32,27 @@ def log_event(event_type: str, title: str, detail: str = "", payload: dict[str, 
     }
     with EVENTS_FILE.open("a", encoding="utf-8") as output:
         output.write(json.dumps(event, sort_keys=True) + "\n")
+    _maybe_trim_events()
     return event
+
+
+def _maybe_trim_events() -> None:
+    """Periodically cap the JSONL to the most recent MAX_EVENTS lines.
+
+    Events are low-frequency, so an occasional rewrite (every _TRIM_CHECK_EVERY
+    appends) keeps the file bounded without re-reading it on every write.
+    """
+    global _appends_since_check
+    _appends_since_check += 1
+    if _appends_since_check < _TRIM_CHECK_EVERY:
+        return
+    _appends_since_check = 0
+    if not EVENTS_FILE.exists():
+        return
+    lines = EVENTS_FILE.read_text(encoding="utf-8").splitlines()
+    if len(lines) <= MAX_EVENTS:
+        return
+    EVENTS_FILE.write_text("\n".join(lines[-MAX_EVENTS:]) + "\n", encoding="utf-8")
 
 
 def list_events(limit: int = 200) -> list[dict[str, Any]]:
@@ -48,13 +67,6 @@ def list_events(limit: int = 200) -> list[dict[str, Any]]:
         except json.JSONDecodeError:
             continue
     return list(reversed(events))
-
-
-def get_event(event_id: str) -> dict[str, Any] | None:
-    for event in list_events(limit=10000):
-        if event.get("id") == event_id:
-            return event
-    return None
 
 
 def export_events_path() -> Path:

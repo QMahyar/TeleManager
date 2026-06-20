@@ -177,8 +177,12 @@ def test_native_reconcile_fills_buffer_and_dedupes(app_context: dict, monkeypatc
         created.append(when)
         return message_id
 
+    async def fake_delay(_seconds):
+        return None
+
     monkeypatch.setattr(ss, "list_scheduled_message_times", fake_list)
     monkeypatch.setattr(ss, "create_scheduled_text", fake_create)
+    monkeypatch.setattr(ss, "safe_delay", fake_delay)
 
     now = ss.utcnow()
     recurrence = _recurrence(interval_value=1)
@@ -193,3 +197,79 @@ def test_native_reconcile_fills_buffer_and_dedupes(app_context: dict, monkeypatc
     created.clear()
     asyncio.run(service._reconcile_chat(object(), native_chats, "k1", "@chat", "hi", desired))
     assert created == []  # already buffered, nothing new and no room left
+
+
+def test_recurrence_with_start_delay(app_context: dict) -> None:
+    ss = _ss()
+    now = ss.utcnow()
+    future = now + timedelta(hours=1)
+    recurrence = _recurrence(interval_value=20, end_mode="count", end_count=20, start_at=ss.iso(future))
+
+    anchor = ss.compute_anchor(recurrence, now)
+    assert anchor == future
+
+    fires = ss.upcoming_fire_times(anchor, recurrence, now, now + timedelta(days=1), limit=100)
+    assert len(fires) == 20
+    assert fires[0] == future
+
+
+def test_schedule_preview_marks_fully_offline(app_context: dict, client) -> None:
+    from conftest import add_account
+
+    add_account(app_context, "acc-1", "Primary")
+    body = {
+        "name": "Hi blast",
+        "queue": {
+            "steps": [
+                {
+                    "action_type": "send_message",
+                    "account_ids": ["acc-1"],
+                    "targets": ["@c1", "@c2", "@c3"],
+                    "message": "hi",
+                }
+            ],
+            "max_operations": 100,
+        },
+        "recurrence": {
+            "interval_value": 20,
+            "interval_unit": "minutes",
+            "end_mode": "count",
+            "end_count": 20,
+        },
+    }
+    payload = client.post("/api/schedules/preview", json=body).json()
+    assert payload["engine"] == "native"
+    assert payload["fully_offline"] is True
+    assert payload["total_messages"] == 60  # 20 fires x 3 chats
+
+
+def test_inspect_and_clear_scheduled_messages(app_context: dict, monkeypatch) -> None:
+    from contextlib import asynccontextmanager
+
+    ss = _ss()
+    service = app_context["main"].scheduler
+
+    rows = [{"id": 1, "date": ss.iso(ss.utcnow()), "text": "hi"}, {"id": 2, "date": ss.iso(ss.utcnow()), "text": "hi"}]
+    deleted: dict[str, Any] = {}
+
+    async def fake_fetch(_client, _target):
+        return [dict(row) for row in rows]
+
+    async def fake_delete(_client, _target, ids):
+        deleted["ids"] = list(ids)
+
+    @asynccontextmanager
+    async def fake_temp(_account_id):
+        yield object()
+
+    monkeypatch.setattr(ss, "fetch_scheduled_messages", fake_fetch)
+    monkeypatch.setattr(ss, "delete_scheduled_messages", fake_delete)
+    monkeypatch.setattr(service.manager, "temp_client", fake_temp)
+
+    inspected = asyncio.run(service.inspect_scheduled("acc-1", "@chat"))
+    assert inspected["count"] == 2
+    assert all("owned" in row for row in inspected["messages"])
+
+    cleared = asyncio.run(service.clear_scheduled("acc-1", "@chat", None))
+    assert cleared["cleared"] == 2
+    assert deleted["ids"] == [1, 2]

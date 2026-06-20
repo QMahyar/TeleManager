@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import time
 import uuid
-from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field, model_validator
 from telethon.errors import FloodWaitError
@@ -11,7 +10,7 @@ from telethon.errors import FloodWaitError
 from .accounts import AccountManager
 from .action_runs_service import save_action_runs
 from .audit_service import log_event
-from .config import SAFETY_SETTINGS_FILE, read_json, write_json
+from .config import SAFETY_SETTINGS_FILE, now_iso, read_json, write_json
 from .telegram_actions import TelegramAction, TelegramActionType, safe_delay, validate_target_for_action
 
 QUEUE_SAVE_INTERVAL_SECONDS = 2.0
@@ -83,10 +82,6 @@ class SafetySettingsRequest(BaseModel):
     delay_between_accounts: float = Field(default=4.0, ge=1.0, le=60.0)
     delay_between_actions: float = Field(default=8.0, ge=1.0, le=120.0)
     max_operations: int = Field(default=100, ge=1, le=250)
-
-
-def now_iso() -> str:
-    return datetime.now(UTC).isoformat()
 
 
 def safety_defaults() -> dict:

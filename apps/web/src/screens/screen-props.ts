@@ -9,6 +9,7 @@ import type {
   QueueStep,
   SafetySettings,
   Schedule,
+  ScheduleSeed,
   TelegramDialog,
   View,
 } from "../types"
@@ -65,6 +66,8 @@ export type AppScreenProps = {
   loadRuns: () => Promise<void>
   schedules: Schedule[]
   loadSchedules: () => Promise<void>
+  scheduleSeed: ScheduleSeed | null
+  setScheduleSeed: React.Dispatch<React.SetStateAction<ScheduleSeed | null>>
   dialogAccountId: string
   setDialogAccountId: React.Dispatch<React.SetStateAction<string>>
   dialogs: TelegramDialog[]
@@ -83,6 +86,8 @@ export type CommandScreenProps = Pick<
   | "accounts"
   | "selectedIds"
   | "setSelectedIds"
+  | "setActionAccountIds"
+  | "setDialogAccountId"
   | "setView"
   | "metrics"
   | "guarded"
@@ -131,8 +136,6 @@ export type ActionsScreenProps = Pick<
   | "addQueueStep"
   | "runs"
   | "loadRuns"
-  | "loadSchedules"
-  | "setView"
   | "refresh"
   | "guarded"
   | "loading"
@@ -145,7 +148,8 @@ export type SchedulesScreenProps = Pick<
   | "accounts"
   | "schedules"
   | "loadSchedules"
-  | "setView"
+  | "scheduleSeed"
+  | "setScheduleSeed"
   | "guarded"
   | "loading"
   | "flash"
@@ -172,7 +176,9 @@ export type DialogsScreenProps = Pick<
   | "setSelectedDialogTargets"
   | "filteredDialogs"
   | "setActionDraft"
+  | "setActionAccountIds"
   | "setQuickActionContext"
+  | "setScheduleSeed"
   | "toggleSelected"
 >
 

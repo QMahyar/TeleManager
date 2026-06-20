@@ -9,6 +9,8 @@ export function CommandScreen(props: CommandScreenProps) {
     accounts,
     selectedIds,
     setSelectedIds,
+    setActionAccountIds,
+    setDialogAccountId,
     setView,
     metrics,
     guarded,
@@ -16,6 +18,33 @@ export function CommandScreen(props: CommandScreenProps) {
     flash,
     askDialog,
   } = props
+
+  const readySelectedIds = accounts
+    .filter(
+      (account) =>
+        selectedIds.has(account.id) &&
+        account.authorized &&
+        !account.last_error
+    )
+    .map((account) => account.id)
+
+  function runActionWithSelection() {
+    if (readySelectedIds.length) {
+      setActionAccountIds(new Set(readySelectedIds))
+      flash(`Carried ${readySelectedIds.length} selected session(s) into Actions.`)
+    }
+    setView("actions")
+  }
+
+  function fetchDialogsForSelection() {
+    const target =
+      readySelectedIds[0] ||
+      accounts.find(
+        (account) => account.authorized && !account.last_error
+      )?.id
+    if (target) setDialogAccountId(target)
+    setView("dialogs")
+  }
 
   return (
     <div className="space-y-6">
@@ -30,13 +59,13 @@ export function CommandScreen(props: CommandScreenProps) {
           <SectionTitle
             kicker="Daily workspace"
             title="Session Fleet"
-            detail="Select stored sessions, then run one-off commands. The app connects, executes, logs, and disconnects."
+            detail="Select stored sessions, then run one-off commands. Selected ready sessions carry into Actions and Dialogs. The app connects, executes, logs, and disconnects."
           />
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setView("dialogs")}>
+            <Button variant="outline" onClick={fetchDialogsForSelection}>
               Fetch Dialogs
             </Button>
-            <Button onClick={() => setView("actions")}>Run Action</Button>
+            <Button onClick={runActionWithSelection}>Run Action</Button>
           </div>
         </div>
         <AccountsTable

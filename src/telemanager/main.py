@@ -90,6 +90,11 @@ class ActionPresetSaveRequest(BaseModel):
     queue: ActionQueueRequest
 
 
+class ScheduledClearRequest(BaseModel):
+    target: str = Field(min_length=1, max_length=500)
+    ids: list[int] | None = None
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     await scheduler.start()
@@ -509,6 +514,29 @@ async def run_schedule_now(schedule_id: str) -> dict:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"schedule": schedule}
+
+
+@app.get("/api/accounts/{account_id}/scheduled")
+async def list_account_scheduled(account_id: str, target: str) -> dict:
+    try:
+        return await scheduler.inspect_scheduled(account_id, target)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/accounts/{account_id}/scheduled/clear")
+async def clear_account_scheduled(account_id: str, request: ScheduledClearRequest) -> dict:
+    try:
+        result = await scheduler.clear_scheduled(account_id, request.target, request.ids)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    log_event(
+        "scheduled_cleared",
+        "Scheduled messages cleared",
+        request.target,
+        {"account_id": account_id, "cleared": result["cleared"]},
+    )
+    return result
 
 
 @app.get("/api/version")

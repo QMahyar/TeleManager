@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
 from typing import Any
 
 from telethon.tl.types import Channel, Chat, Message, User
 
-from .accounts import AccountManager, _disconnect
-from .config import DIALOGS_DIR, ensure_dirs, read_json, write_json
+from .accounts import AccountManager
+from .config import DIALOGS_DIR, ensure_dirs, now_iso, read_json, write_json
 
 
 @dataclass
@@ -32,22 +31,9 @@ def dialogs_path(account_id: str):
     return DIALOGS_DIR / f"{account_id}.json"
 
 
-def now_iso() -> str:
-    return datetime.now(UTC).isoformat()
-
-
 async def fetch_dialogs(manager: AccountManager, account_id: str, limit: int = 500) -> dict:
     account = manager._get_account(account_id)
-    api_id, api_hash = manager.get_api_credentials()
-    client = manager._new_client(account.session_name, api_id, api_hash)
-    await manager._connect_client(client)
-    try:
-        if not await manager._is_user_authorized(client):
-            account.authorized = False
-            account.last_error = "Session is not authorized. Log in again."
-            manager._save_accounts()
-            raise ValueError(account.last_error)
-
+    async with manager.temp_client(account.id) as client:
         cached_dialogs: list[CachedDialog] = []
         async for dialog in client.iter_dialogs(limit=limit):
             cached_dialogs.append(classify_dialog(dialog))
@@ -65,8 +51,6 @@ async def fetch_dialogs(manager: AccountManager, account_id: str, limit: int = 5
         account.last_error = None
         manager._save_accounts()
         return payload
-    finally:
-        await _disconnect(client)
 
 
 def list_cached_dialogs(manager: AccountManager, account_id: str) -> dict:
@@ -95,12 +79,7 @@ def message_to_dict(message: Message) -> dict:
 
 async def fetch_messages(manager: AccountManager, account_id: str, target: str, limit: int = 50) -> dict:
     account = manager._get_account(account_id)
-    if not account.authorized:
-        raise ValueError("Session is not authorized. Log in again.")
-    api_id, api_hash = manager.get_api_credentials()
-    client = manager._new_client(account.session_name, api_id, api_hash)
-    await manager._connect_client(client)
-    try:
+    async with manager.temp_client(account.id) as client:
         raw_messages: Any = await client.get_messages(target.strip(), limit=max(1, min(limit, 100)))
         if raw_messages is None:
             messages = []
@@ -114,18 +93,11 @@ async def fetch_messages(manager: AccountManager, account_id: str, target: str, 
             "target": target,
             "messages": [message_to_dict(message) for message in messages if message],
         }
-    finally:
-        await _disconnect(client)
 
 
 async def resolve_target(manager: AccountManager, account_id: str, target: str) -> dict:
     account = manager._get_account(account_id)
-    if not account.authorized:
-        raise ValueError("Session is not authorized. Log in again.")
-    api_id, api_hash = manager.get_api_credentials()
-    client = manager._new_client(account.session_name, api_id, api_hash)
-    await manager._connect_client(client)
-    try:
+    async with manager.temp_client(account.id) as client:
         entity = await client.get_entity(target.strip())
         title = getattr(entity, "title", None) or " ".join(
             part for part in [getattr(entity, "first_name", None), getattr(entity, "last_name", None)] if part
@@ -138,8 +110,6 @@ async def resolve_target(manager: AccountManager, account_id: str, target: str) 
             "username": getattr(entity, "username", None),
             "type": entity.__class__.__name__,
         }
-    finally:
-        await _disconnect(client)
 
 
 def classify_dialog(dialog: Any) -> CachedDialog:

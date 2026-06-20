@@ -25,18 +25,18 @@ export const navItems: Array<{
     group: "Workspace",
     icon: IconDatabase,
   },
+  {
+    id: "dialogs",
+    label: "Dialogs",
+    group: "Workspace",
+    icon: IconMessageCircle,
+  },
   { id: "actions", label: "Actions", group: "Workspace", icon: IconPlayerPlay },
   {
     id: "schedules",
     label: "Schedules",
     group: "Workspace",
     icon: IconClockHour4,
-  },
-  {
-    id: "dialogs",
-    label: "Dialogs",
-    group: "Workspace",
-    icon: IconMessageCircle,
   },
   { id: "accounts", label: "Accounts", group: "Management", icon: IconUsers },
   {

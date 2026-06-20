@@ -107,7 +107,7 @@ Recent run management supports viewing, exporting, deleting terminal runs, clear
 
 ## Schedule lifecycle
 
-1. From the Actions builder the user turns the current queue into a schedule by naming it and choosing a recurrence (interval + end condition).
+1. From the Schedules page the user builds a schedule directly (accounts, action, target chats, message) and chooses a recurrence (interval, start now/after a delay/at a time, end after a count/on a date/never, optional cross-chat stagger).
 2. The backend classifies the schedule engine: `native` if every step is a plain text send (`send_message`, or `start_bot` with no referral, sent as `/start`), otherwise `runner`.
 3. The schedule is persisted to `data/schedules.json` and the `SchedulerService` is woken.
 4. The service loops over active schedules, sleeping until the soonest actionable time and waking early when a schedule is created/edited/removed.
@@ -131,7 +131,7 @@ Targets are validated per action type, and dialog quick actions prefill compatib
 - Sessions: import `.session`, export selected sessions, and rename local session files
 - Dialogs: fetch live dialogs for an account and read cached dialogs
 - Actions: preview one-off action, run one-off action, preview queue, run queue, cancel queue, list/view/export/delete/clear/retry queue runs, and manage presets
-- Schedules: preview schedule, create/list/get schedule, pause/resume/rename schedule, run schedule now, and delete schedule
+- Schedules: preview schedule, create/list/get schedule, pause/resume/rename schedule, run schedule now, delete schedule, and inspect/clear an account's Telegram-native scheduled messages per chat
 - Activity: list and export local JSONL audit history
 
 ## Session import/export lifecycle

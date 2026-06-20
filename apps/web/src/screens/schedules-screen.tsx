@@ -17,56 +17,76 @@ import {
   engineTone,
 } from "../lib/schedules"
 import type { ActionType, Schedule } from "../types"
+import { ScheduleBuilder } from "../components/schedule-builder"
+import { ScheduledInspector } from "../components/scheduled-inspector"
 import { Badge, EmptyState, Panel, SectionTitle } from "../components/ui"
 import type { SchedulesScreenProps } from "./screen-props"
 
 const TERMINAL_STATUSES = new Set(["completed", "canceled"])
 
 export function SchedulesScreen({
+  accounts,
   schedules,
   loadSchedules,
-  setView,
+  scheduleSeed,
+  setScheduleSeed,
   guarded,
   flash,
   askDialog,
 }: SchedulesScreenProps) {
   return (
-    <Panel className="space-y-4">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <SectionTitle
-          kicker="Automation"
-          title="Schedules"
-          detail="Recurring queues. Text-only schedules are delivered by Telegram and survive closing the app; others run only while TeleManager is open."
-        />
-        <div className="flex gap-2">
+    <div className="space-y-4">
+      <ScheduleBuilder
+        accounts={accounts}
+        guarded={guarded}
+        flash={flash}
+        loadSchedules={loadSchedules}
+        scheduleSeed={scheduleSeed}
+        setScheduleSeed={setScheduleSeed}
+      />
+
+      <ScheduledInspector
+        accounts={accounts}
+        schedules={schedules}
+        guarded={guarded}
+        flash={flash}
+        askDialog={askDialog}
+      />
+
+      <Panel className="space-y-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <SectionTitle
+            kicker="Automation"
+            title="Active schedules"
+            detail="Text-only schedules are delivered by Telegram and survive closing the app; others run only while TeleManager is open."
+          />
           <Button variant="outline" onClick={() => guarded(loadSchedules)}>
             Refresh
           </Button>
-          <Button onClick={() => setView("actions")}>New Schedule</Button>
         </div>
-      </div>
 
-      {schedules.length ? (
-        <div className="space-y-3">
-          {schedules.map((schedule) => (
-            <ScheduleCard
-              key={schedule.id}
-              schedule={schedule}
-              guarded={guarded}
-              flash={flash}
-              askDialog={askDialog}
-              loadSchedules={loadSchedules}
-            />
-          ))}
-        </div>
-      ) : (
-        <EmptyState
-          icon={IconClockHour4}
-          title="No schedules yet"
-          detail="Build a queue on the Actions screen, then use “Schedule this queue” to repeat it on an interval."
-        />
-      )}
-    </Panel>
+        {schedules.length ? (
+          <div className="space-y-3">
+            {schedules.map((schedule) => (
+              <ScheduleCard
+                key={schedule.id}
+                schedule={schedule}
+                guarded={guarded}
+                flash={flash}
+                askDialog={askDialog}
+                loadSchedules={loadSchedules}
+              />
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            icon={IconClockHour4}
+            title="No schedules yet"
+            detail="Use the builder above to create your first recurring schedule."
+          />
+        )}
+      </Panel>
+    </div>
   )
 }
 

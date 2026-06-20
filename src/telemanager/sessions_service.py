@@ -12,13 +12,9 @@ from pathlib import Path
 from fastapi import UploadFile
 
 from .accounts import AccountManager, AccountRecord
-from .config import EXPORTS_DIR, SESSIONS_DIR, ensure_dirs
+from .config import EXPORTS_DIR, SESSIONS_DIR, ensure_dirs, now_iso
 
 SESSION_SLUG_RE = re.compile(r"^[a-zA-Z0-9_-]{3,64}$")
-
-
-def now_iso() -> str:
-    return datetime.now(UTC).isoformat()
 
 
 def safe_session_slug(value: str) -> str:

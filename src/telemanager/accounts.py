@@ -4,7 +4,8 @@ import asyncio
 import inspect
 import re
 import uuid
-from collections.abc import Awaitable
+from collections.abc import AsyncIterator, Awaitable
+from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -265,6 +266,28 @@ class AccountManager:
             client = self.clients.pop(account_id, None)
             if client is not None:
                 await _disconnect(client)
+
+    @asynccontextmanager
+    async def temp_client(self, account_id: str) -> AsyncIterator[TelegramClient]:
+        """Yield a short-lived authorized client and disconnect it afterwards.
+
+        Unlike warm_client this never touches the shared self.clients pool, so it
+        is safe for one-off reads (e.g. inspecting scheduled messages) that must
+        not interfere with an in-flight queue run on the same account.
+        """
+        account = self._get_account(account_id)
+        api_id, api_hash = self.get_api_credentials()
+        client = self._new_client(account.session_name, api_id, api_hash)
+        await self._connect_client(client)
+        try:
+            if not await self._is_user_authorized(client):
+                account.authorized = False
+                account.last_error = "Session is not authorized. Log in again."
+                self._save_accounts()
+                raise ValueError(account.last_error)
+            yield client
+        finally:
+            await _disconnect(client)
 
     async def shutdown(self) -> None:
         for client in list(self.clients.values()):

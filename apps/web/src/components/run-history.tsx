@@ -102,6 +102,11 @@ export function RunHistory({
                   <div className="flex flex-wrap items-center gap-2">
                     <strong>{run.id}</strong>
                     <Badge tone={statusTone(run.status)}>{run.status}</Badge>
+                    {run.schedule_id ? (
+                      <Badge tone="border-primary/30 bg-primary/10 text-primary">
+                        scheduled
+                      </Badge>
+                    ) : null}
                     {failedCount > 0 ? (
                       <Badge tone="text-destructive border-destructive/30 bg-destructive/10">
                         {failedCount} failed

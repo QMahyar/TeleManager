@@ -57,7 +57,19 @@ const kindLabels: Record<TargetKind, string> = {
   unknown: "unknown",
 }
 
-function classifyTarget(target: string, actionType?: ActionType) {
+export type TargetAnalysis = {
+  label: string
+  kind: TargetKind
+  error?: string
+  warning?: string
+}
+
+// Single source of truth for target classification + per-action validity, used
+// by both the inline target validator and the TargetPreview component.
+export function analyzeTarget(
+  target: string,
+  actionType?: ActionType
+): TargetAnalysis {
   const kind = classifyTargetKind(target)
   const label = kindLabels[kind]
   const meta = actionType ? actionMeta[actionType] : undefined
@@ -99,8 +111,8 @@ export function validateTargets(
   actionType: ActionType
 ): string | null {
   for (const target of targets) {
-    const result = classifyTarget(target, actionType)
-    if ("error" in result && result.error) {
+    const result = analyzeTarget(target, actionType)
+    if (result.error) {
       return result.error
     }
   }

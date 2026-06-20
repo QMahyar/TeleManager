@@ -254,6 +254,30 @@ async def delete_scheduled_messages(client: TelegramClient, target: str, message
     await client(DeleteScheduledMessagesRequest(peer=entity, id=ids))
 
 
+async def fetch_scheduled_messages(client: TelegramClient, target: str) -> list[dict[str, Any]]:
+    """Return the chat's scheduled messages as {id, date, text} dicts for review."""
+    entity = await client.get_input_entity(normalize_entity_target(target))
+    result = cast(Any, await client(GetScheduledHistoryRequest(peer=entity, hash=0)))
+    messages = getattr(result, "messages", []) or []
+    rows: list[dict[str, Any]] = []
+    for message in messages:
+        message_id = getattr(message, "id", None)
+        if message_id is None:
+            continue
+        scheduled_at = getattr(message, "date", None)
+        if scheduled_at is not None and scheduled_at.tzinfo is None:
+            scheduled_at = scheduled_at.replace(tzinfo=UTC)
+        rows.append(
+            {
+                "id": int(message_id),
+                "date": scheduled_at.astimezone(UTC).isoformat() if scheduled_at else None,
+                "text": (getattr(message, "message", "") or "")[:200],
+            }
+        )
+    rows.sort(key=lambda row: row.get("date") or "")
+    return rows
+
+
 async def edit_message(client: TelegramClient, target: str, message: str | None) -> str:
     payload = parse_options(message)
     message_id = parse_message_id(payload.get("id") or payload.get("message_id"))

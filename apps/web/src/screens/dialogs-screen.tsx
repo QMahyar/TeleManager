@@ -61,6 +61,9 @@ export function DialogsScreen(props: DialogsScreenProps) {
     applyQuickAction,
     bulkQuickAction,
     loadDialogs,
+    scheduleSelected,
+    stageMessageInActions,
+    stageTargetInActions,
     toggleSelectAll,
     useSelectedTargets,
   } = useDialogsController(props, fetchStatus)
@@ -92,6 +95,7 @@ export function DialogsScreen(props: DialogsScreenProps) {
         setSelectedDialogTargets={props.setSelectedDialogTargets}
         bulkQuickAction={bulkQuickAction}
         useSelectedTargets={useSelectedTargets}
+        scheduleSelected={scheduleSelected}
       />
       <DialogsTablePanel
         allFilteredSelected={allFilteredSelected}
@@ -100,23 +104,18 @@ export function DialogsScreen(props: DialogsScreenProps) {
         dialogSearch={props.dialogSearch}
         dialogs={props.dialogs}
         filteredDialogs={props.filteredDialogs}
-        flash={props.flash}
         selectedDialogTargets={props.selectedDialogTargets}
-        setActionDraft={props.setActionDraft}
         setDialogFilter={props.setDialogFilter}
         setDialogSearch={props.setDialogSearch}
-        setQuickActionContext={props.setQuickActionContext}
-        setView={props.setView}
         setSelectedDialogTargets={props.setSelectedDialogTargets}
         toggleSelectAll={toggleSelectAll}
         toggleSelected={props.toggleSelected}
+        stageTargetInActions={stageTargetInActions}
         openMessages={(dialog) => props.guarded(() => openMessagePanel(dialog))}
       />
       <DialogMessagesPanel
         panel={messagePanel}
-        setActionDraft={props.setActionDraft}
-        setQuickActionContext={props.setQuickActionContext}
-        setView={props.setView}
+        onStageMessage={stageMessageInActions}
         onClose={() => setMessagePanel(null)}
       />
     </div>
@@ -240,6 +239,15 @@ function useDialogsController(
     )
   }
 
+  // The account used to fetch these dialogs is the one that can act on them, so
+  // every handoff into Actions pre-selects it (otherwise the builder blocks on
+  // "select an account").
+  function seedActionAccount() {
+    if (props.dialogAccountId) {
+      props.setActionAccountIds(new Set([props.dialogAccountId]))
+    }
+  }
+
   function applyQuickAction(
     actionType: ActionType,
     dialogs: TelegramDialog[],
@@ -259,6 +267,7 @@ function useDialogsController(
       count: targets.length,
       dialogKinds: [...new Set(dialogs.map(dialogKind))],
     })
+    seedActionAccount()
     props.setView("actions")
     props.flash(`${actionMeta[actionType].label} preset prepared in Actions.`)
   }
@@ -288,8 +297,54 @@ function useDialogsController(
       ...current,
       target: [...props.selectedDialogTargets].join("\n"),
     }))
+    seedActionAccount()
     props.setView("actions")
     props.flash("Selected dialogs copied into Actions.")
+  }
+
+  function stageTargetInActions(target: string) {
+    props.setQuickActionContext(null)
+    props.setActionDraft((current) => ({ ...current, target }))
+    seedActionAccount()
+    props.setView("actions")
+    props.flash("Dialog target copied into Actions.")
+  }
+
+  function stageMessageInActions(
+    actionType: ActionType,
+    dialog: TelegramDialog,
+    message: TelegramMessage
+  ) {
+    props.setQuickActionContext({
+      source: "dialog",
+      actionType,
+      title: actionMeta[actionType].label,
+      targetSummary: `${dialog.title} / message ${message.id}`,
+      count: 1,
+      dialogKinds: [dialogKind(dialog)],
+    })
+    const target = dialogTarget(dialog)
+    props.setActionDraft({
+      action_type: actionType,
+      target,
+      fields: fieldsForStagedMessage(actionType, target, message.id),
+    })
+    seedActionAccount()
+    props.setView("actions")
+  }
+
+  function scheduleSelected() {
+    if (!props.selectedDialogTargets.size) {
+      props.flash("Select one or more dialogs first.")
+      return
+    }
+    props.setScheduleSeed({
+      accountIds: props.dialogAccountId ? [props.dialogAccountId] : [],
+      actionType: "send_message",
+      target: [...props.selectedDialogTargets].join("\n"),
+    })
+    props.setView("schedules")
+    props.flash("Selected dialogs staged into a new schedule.")
   }
 
   return {
@@ -297,6 +352,9 @@ function useDialogsController(
     applyQuickAction,
     bulkQuickAction,
     loadDialogs,
+    scheduleSelected,
+    stageMessageInActions,
+    stageTargetInActions,
     toggleSelectAll: selection.toggleSelectAll,
     useSelectedTargets,
   }
@@ -315,6 +373,7 @@ function DialogsSourcePanel({
   setSelectedDialogTargets,
   bulkQuickAction,
   useSelectedTargets,
+  scheduleSelected,
 }: {
   accounts: DialogsScreenProps["accounts"]
   dialogAccountId: string
@@ -328,6 +387,7 @@ function DialogsSourcePanel({
   setSelectedDialogTargets: DialogsScreenProps["setSelectedDialogTargets"]
   bulkQuickAction: (actionType: ActionType) => void
   useSelectedTargets: () => void
+  scheduleSelected: () => void
 }) {
   const selectedAccount = accounts.find(
     (account) => account.id === dialogAccountId
@@ -412,13 +472,23 @@ function DialogsSourcePanel({
           <IconBolt className="size-4 text-primary" />
         </div>
         <SelectionBreakdown counts={kindCounts} hasSelection={hasSelection} />
-        <Button
-          className="w-full"
-          disabled={!hasSelection}
-          onClick={useSelectedTargets}
-        >
-          Use Selected In Actions
-        </Button>
+        <div className="grid grid-cols-2 gap-2">
+          <Button
+            className="w-full"
+            disabled={!hasSelection}
+            onClick={useSelectedTargets}
+          >
+            Use In Actions
+          </Button>
+          <Button
+            variant={OUTLINE_VARIANT}
+            className="w-full"
+            disabled={!hasSelection}
+            onClick={scheduleSelected}
+          >
+            Schedule Selected
+          </Button>
+        </div>
         {hasSelection ? (
           bulkActions.length ? (
             <div className="grid gap-2 sm:grid-cols-2">
@@ -516,16 +586,13 @@ function DialogsTablePanel({
   dialogSearch,
   dialogs,
   filteredDialogs,
-  flash,
   selectedDialogTargets,
-  setActionDraft,
   setDialogFilter,
   setDialogSearch,
-  setQuickActionContext,
-  setView,
   setSelectedDialogTargets,
   toggleSelectAll,
   toggleSelected,
+  stageTargetInActions,
   openMessages,
 }: {
   allFilteredSelected: boolean
@@ -538,16 +605,13 @@ function DialogsTablePanel({
   dialogSearch: string
   dialogs: TelegramDialog[]
   filteredDialogs: TelegramDialog[]
-  flash: DialogsScreenProps["flash"]
   selectedDialogTargets: Set<string>
-  setActionDraft: DialogsScreenProps["setActionDraft"]
   setDialogFilter: DialogsScreenProps["setDialogFilter"]
   setDialogSearch: DialogsScreenProps["setDialogSearch"]
-  setQuickActionContext: DialogsScreenProps["setQuickActionContext"]
-  setView: DialogsScreenProps["setView"]
   setSelectedDialogTargets: DialogsScreenProps["setSelectedDialogTargets"]
   toggleSelectAll: () => void
   toggleSelected: DialogsScreenProps["toggleSelected"]
+  stageTargetInActions: (target: string) => void
   openMessages: (dialog: TelegramDialog) => Promise<void>
 }) {
   const filterCounts = countDialogFilters(dialogs)
@@ -637,13 +701,10 @@ function DialogsTablePanel({
                 key={String(dialog.id)}
                 dialog={dialog}
                 applyQuickAction={applyQuickAction}
-                flash={flash}
                 selectedDialogTargets={selectedDialogTargets}
-                setActionDraft={setActionDraft}
-                setQuickActionContext={setQuickActionContext}
-                setView={setView}
                 setSelectedDialogTargets={setSelectedDialogTargets}
                 toggleSelected={toggleSelected}
+                stageTargetInActions={stageTargetInActions}
                 openMessages={openMessages}
               />
             ))}
@@ -701,13 +762,10 @@ function countUnreadDialogs(dialogs: TelegramDialog[]) {
 function DialogRow({
   dialog,
   applyQuickAction,
-  flash,
   selectedDialogTargets,
-  setActionDraft,
-  setQuickActionContext,
-  setView,
   setSelectedDialogTargets,
   toggleSelected,
+  stageTargetInActions,
   openMessages,
 }: {
   dialog: TelegramDialog
@@ -716,13 +774,10 @@ function DialogRow({
     dialogs: TelegramDialog[],
     sourceLabel: string
   ) => void
-  flash: DialogsScreenProps["flash"]
   selectedDialogTargets: Set<string>
-  setActionDraft: DialogsScreenProps["setActionDraft"]
-  setQuickActionContext: DialogsScreenProps["setQuickActionContext"]
-  setView: DialogsScreenProps["setView"]
   setSelectedDialogTargets: DialogsScreenProps["setSelectedDialogTargets"]
   toggleSelected: DialogsScreenProps["toggleSelected"]
+  stageTargetInActions: (target: string) => void
   openMessages: (dialog: TelegramDialog) => Promise<void>
 }) {
   const target = dialogTarget(dialog)
@@ -772,15 +827,7 @@ function DialogRow({
           <Button
             size="sm"
             variant={OUTLINE_VARIANT}
-            onClick={() =>
-              openTargetAction(
-                target,
-                setQuickActionContext,
-                setActionDraft,
-                setView,
-                flash
-              )
-            }
+            onClick={() => stageTargetInActions(target)}
           >
             <IconArrowRight className="size-3" />
             Use
@@ -818,19 +865,6 @@ function DialogRow({
   )
 }
 
-function openTargetAction(
-  target: string,
-  setQuickActionContext: DialogsScreenProps["setQuickActionContext"],
-  setActionDraft: DialogsScreenProps["setActionDraft"],
-  setView: DialogsScreenProps["setView"],
-  flash: DialogsScreenProps["flash"]
-) {
-  setQuickActionContext(null)
-  setActionDraft((current) => ({ ...current, target }))
-  setView("actions")
-  flash("Dialog target copied into Actions.")
-}
-
 // Prefills the structured action form when staging a specific message from the
 // inspector, so the user lands on Actions with the id/source already filled.
 function fieldsForStagedMessage(
@@ -853,15 +887,15 @@ function fieldsForStagedMessage(
 
 function DialogMessagesPanel({
   panel,
-  setActionDraft,
-  setQuickActionContext,
-  setView,
+  onStageMessage,
   onClose,
 }: {
   panel: { dialog: TelegramDialog; messages: TelegramMessage[] } | null
-  setActionDraft: DialogsScreenProps["setActionDraft"]
-  setQuickActionContext: DialogsScreenProps["setQuickActionContext"]
-  setView: DialogsScreenProps["setView"]
+  onStageMessage: (
+    actionType: ActionType,
+    dialog: TelegramDialog,
+    message: TelegramMessage
+  ) => void
   onClose: () => void
 }) {
   if (!panel) {
@@ -872,20 +906,7 @@ function DialogMessagesPanel({
   const target = dialogTarget(dialog)
 
   function stageMessage(actionType: ActionType, message: TelegramMessage) {
-    setQuickActionContext({
-      source: "dialog",
-      actionType,
-      title: actionMeta[actionType].label,
-      targetSummary: `${dialog.title} / message ${message.id}`,
-      count: 1,
-      dialogKinds: [dialogKind(dialog)],
-    })
-    setActionDraft({
-      action_type: actionType,
-      target,
-      fields: fieldsForStagedMessage(actionType, target, message.id),
-    })
-    setView("actions")
+    onStageMessage(actionType, dialog, message)
     onClose()
   }
 

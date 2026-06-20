@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,11 @@ ACTION_PRESETS_FILE = DATA_DIR / "action_presets.json"
 ACTION_RUNS_FILE = DATA_DIR / "action_runs.json"
 SCHEDULES_FILE = DATA_DIR / "schedules.json"
 SAFETY_SETTINGS_FILE = DATA_DIR / "safety_settings.json"
+
+
+def now_iso() -> str:
+    """UTC timestamp in ISO 8601 — the single source of truth for stored times."""
+    return datetime.now(UTC).isoformat()
 
 
 def ensure_dirs() -> None:
