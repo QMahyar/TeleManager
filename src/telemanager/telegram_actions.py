@@ -14,6 +14,8 @@ from telethon.tl.functions.channels import JoinChannelRequest, LeaveChannelReque
 from telethon.tl.functions.contacts import BlockRequest, UnblockRequest
 from telethon.tl.functions.messages import (
     DeleteHistoryRequest,
+    DeleteScheduledMessagesRequest,
+    GetScheduledHistoryRequest,
     ImportChatInviteRequest,
     RequestAppWebViewRequest,
     RequestMainWebViewRequest,
@@ -202,6 +204,54 @@ async def schedule_message(client: TelegramClient, target: str, message: str | N
     schedule = parse_schedule(payload.get("schedule") or payload.get("at") or payload.get("when"))
     await client.send_message(normalize_entity_target(target), text, schedule=schedule)
     return f"Message scheduled for {schedule.isoformat()}."
+
+
+# ---------------------------------------------------------------------------
+# Native scheduled-message buffer (used by the recurring scheduler)
+#
+# Telegram delivers server-side scheduled messages even while TeleManager is
+# closed, but caps them at 100 per chat (365 days out). The recurring scheduler
+# keeps a rolling buffer of upcoming sends pre-scheduled here and tops it up
+# whenever the app is running. These helpers are intentionally thin wrappers so
+# the scheduler can reconcile (list -> add missing -> delete stale) idempotently.
+# ---------------------------------------------------------------------------
+
+TELEGRAM_SCHEDULED_PER_CHAT_LIMIT = 100
+
+
+async def create_scheduled_text(client: TelegramClient, target: str, text: str, when: datetime) -> int:
+    """Create one Telegram-native scheduled message and return its message id."""
+    clean_text = (text or "").strip()
+    if not clean_text:
+        raise ValueError("Scheduled messages require non-empty text.")
+    sent = cast(Any, await client.send_message(normalize_entity_target(target), clean_text, schedule=when))
+    return int(sent.id)
+
+
+async def list_scheduled_message_times(client: TelegramClient, target: str) -> dict[int, datetime]:
+    """Return {message_id: scheduled_send_time} for the chat's scheduled messages."""
+    entity = await client.get_input_entity(normalize_entity_target(target))
+    result = cast(Any, await client(GetScheduledHistoryRequest(peer=entity, hash=0)))
+    messages = getattr(result, "messages", []) or []
+    times: dict[int, datetime] = {}
+    for message in messages:
+        message_id = getattr(message, "id", None)
+        scheduled_at = getattr(message, "date", None)
+        if message_id is None or scheduled_at is None:
+            continue
+        if scheduled_at.tzinfo is None:
+            scheduled_at = scheduled_at.replace(tzinfo=UTC)
+        times[int(message_id)] = scheduled_at
+    return times
+
+
+async def delete_scheduled_messages(client: TelegramClient, target: str, message_ids: list[int]) -> None:
+    """Delete the given scheduled messages from a chat. No-op when the list is empty."""
+    ids = [int(message_id) for message_id in message_ids]
+    if not ids:
+        return
+    entity = await client.get_input_entity(normalize_entity_target(target))
+    await client(DeleteScheduledMessagesRequest(peer=entity, id=ids))
 
 
 async def edit_message(client: TelegramClient, target: str, message: str | None) -> str:

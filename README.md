@@ -14,7 +14,7 @@ platform. Its job is narrower and safer:
 - build **guarded** one-off action queues
 - keep a local audit trail of what ran
 
-Current release: **`v1.2.0`**
+Current release: **`v1.3.0`**
 
 ## Why it exists
 
@@ -87,6 +87,24 @@ TeleManager currently supports:
 - export queue run data
 - write local activity events to JSONL
 
+### Recurring schedules
+
+Repeat any built queue on an interval (every N minutes/hours/days), ending after
+a set number of times, on a date, or never. TeleManager picks the delivery engine
+automatically:
+
+- **Telegram-delivered (offline):** text-only schedules (plain messages and a
+  plain `/start`) are pre-loaded as Telegram-native scheduled messages, so they
+  keep firing even when TeleManager is closed. Telegram caps these at **100 per
+  chat (365 days out)**, so for long-running schedules TeleManager keeps a rolling
+  buffer of upcoming sends topped up whenever the app is open.
+- **In-app runner (app open):** any other action (join, mute, `/start` with a
+  referral, etc.) runs as a normal queue each time it fires, so the app must be
+  open at fire time.
+
+Each schedule can be previewed, paused/resumed, run immediately, and deleted.
+Deleting a Telegram-delivered schedule also removes the messages it pre-scheduled.
+
 ## Core model
 
 TeleManager treats accounts as **stored sessions**, not long-running services.
@@ -137,14 +155,20 @@ TeleManager is intentionally conservative.
 
 ### Explicit non-goals
 
-This project should **not** be used for:
+Scheduling and queueing are for automating **your own** accounts against targets
+you own or are clearly expected to act on (for example, starting your own bot, or
+posting to a channel you run). They are **not** for:
 
 - spam
 - scams
 - impersonation
-- unsolicited messaging
+- unsolicited messaging to people who did not ask for it
 - ban/limit evasion
 - mass abuse workflows
+
+Recurring schedules make it easy to send a lot of traffic; keep intervals
+conservative and only target chats and bots where you have clear permission or
+expectation. Telegram still applies its own flood limits regardless of TeleManager.
 
 If you need remote multi-user auth, HTTPS, roles, or hosted operation, that is
 outside the current scope.
@@ -161,7 +185,14 @@ Login, validation, rename, logout, and deletion of local session copies.
 
 ### Actions
 
-Build, preview, run, cancel, and review guarded Telegram action queues.
+Build, preview, run, cancel, and review guarded Telegram action queues. The same
+builder can turn a queue into a recurring schedule.
+
+### Schedules
+
+List, pause/resume, run-now, and delete recurring schedules. Each schedule shows
+whether Telegram delivers it offline or it runs only while the app is open, plus
+its next fire time and progress.
 
 ### Dialogs
 
@@ -305,6 +336,7 @@ TeleManager stores everything locally.
 - `data/dialogs/{account_id}.json` — cached dialogs per account
 - `data/action_presets.json` — saved queue presets
 - `data/action_runs.json` — recent queue runs and statuses
+- `data/schedules.json` — recurring schedules and their state
 - `data/safety_settings.json` — default delays and operation caps
 - `data/activity/events.jsonl` — local audit history
 - `data/exports/` — generated ZIP exports

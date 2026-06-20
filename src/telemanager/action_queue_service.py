@@ -118,7 +118,12 @@ def preview_action_queue(manager: AccountManager, request: ActionQueueRequest) -
     }
 
 
-def start_action_queue(manager: AccountManager, queue_runs: dict[str, dict], request: ActionQueueRequest) -> dict:
+def start_action_queue(
+    manager: AccountManager,
+    queue_runs: dict[str, dict],
+    request: ActionQueueRequest,
+    schedule_id: str | None = None,
+) -> dict:
     if not request.confirm:
         raise ValueError("Queue confirmation is required.")
     expanded = [operation for operation in expand_action_queue(manager, request) if operation.get("status") == "ready"]
@@ -135,6 +140,7 @@ def start_action_queue(manager: AccountManager, queue_runs: dict[str, dict], req
     queue_runs[run_id] = {
         "id": run_id,
         "status": "queued",
+        "schedule_id": schedule_id,
         "created_at": now_iso(),
         "updated_at": now_iso(),
         "completed_at": None,

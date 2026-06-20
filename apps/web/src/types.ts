@@ -3,6 +3,7 @@ import type * as React from "react"
 export type View =
   | "command"
   | "actions"
+  | "schedules"
   | "dialogs"
   | "accounts"
   | "sessions"
@@ -138,6 +139,58 @@ export type SafetySettings = {
   delay_between_accounts: number
   delay_between_actions: number
   max_operations: number
+}
+
+export type ScheduleEngine = "native" | "runner"
+
+export type IntervalUnit = "minutes" | "hours" | "days"
+
+export type EndMode = "count" | "until" | "forever"
+
+export type RecurrenceConfig = {
+  interval_value: number
+  interval_unit: IntervalUnit
+  start_at?: string | null
+  end_mode: EndMode
+  end_count?: number | null
+  end_until?: string | null
+}
+
+export type ScheduleQueue = {
+  steps: QueueStep[]
+  delay_between_accounts?: number
+  delay_between_actions?: number
+  max_operations?: number
+}
+
+export type Schedule = {
+  id: string
+  name: string
+  status: "active" | "paused" | "completed" | "canceled" | "error"
+  engine: ScheduleEngine
+  engine_reason: string
+  queue: ScheduleQueue
+  recurrence: RecurrenceConfig
+  created_at?: string
+  updated_at?: string
+  next_fire_at?: string | null
+  fires_done?: number
+  fires_planned?: number | null
+  last_fire_at?: string | null
+  coverage_until?: string | null
+  run_ids?: string[]
+  last_error?: string | null
+}
+
+export type SchedulePreview = {
+  engine: ScheduleEngine
+  engine_reason: string
+  fires_planned?: number | null
+  operations_per_fire: number
+  next_fire_at?: string | null
+  upcoming: string[]
+  coverage_until?: string | null
+  warnings: string[]
 }
 
 export type AppDialogState = {

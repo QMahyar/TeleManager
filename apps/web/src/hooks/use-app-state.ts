@@ -18,6 +18,7 @@ import type {
   QueueStep,
   QuickActionContext,
   SafetySettings,
+  Schedule,
   TelegramDialog,
   View,
 } from "../types"
@@ -156,6 +157,7 @@ function useResourceState(flash: (message: string) => void, view: View) {
   const [activity, setActivity] = React.useState<ActivityEvent[]>([])
   const [runs, setRuns] = React.useState<QueueRun[]>([])
   const [presets, setPresets] = React.useState<Preset[]>([])
+  const [schedules, setSchedules] = React.useState<Schedule[]>([])
   const [safety, setSafety] = React.useState<SafetySettings>(emptySafety)
   const safetyLoaded = React.useRef(false)
 
@@ -176,6 +178,11 @@ function useResourceState(flash: (message: string) => void, view: View) {
   const loadPresets = React.useCallback(async () => {
     const payload = await api<{ presets: Preset[] }>("/api/actions/presets")
     setPresets(payload.presets || [])
+  }, [])
+
+  const loadSchedules = React.useCallback(async () => {
+    const payload = await api<{ schedules: Schedule[] }>("/api/schedules")
+    setSchedules(payload.schedules || [])
   }, [])
 
   const loadSafety = React.useCallback(async () => {
@@ -213,17 +220,35 @@ function useResourceState(flash: (message: string) => void, view: View) {
     return () => window.clearTimeout(task)
   }, [flash, loadSafety, view])
 
+  React.useEffect(() => {
+    if (view !== "schedules") return undefined
+
+    const initialTask = window.setTimeout(() => {
+      loadSchedules().catch((error) => flash(error.message))
+    }, 0)
+    const pollTask = window.setInterval(() => {
+      loadSchedules().catch((error) => flash(error.message))
+    }, 5000)
+
+    return () => {
+      window.clearTimeout(initialTask)
+      window.clearInterval(pollTask)
+    }
+  }, [flash, loadSchedules, view])
+
   return {
     activity,
     loadActivity,
     loadPresets,
     loadRuns,
-    loadSafety,
+    loadSchedules,
     presets,
     runs,
     safety,
+    schedules,
     setPresets,
     setSafety,
+    setSchedules,
   }
 }
 

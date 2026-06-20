@@ -15,6 +15,7 @@ CONFIG_FILE = DATA_DIR / "config.json"
 ACCOUNTS_FILE = DATA_DIR / "accounts.json"
 ACTION_PRESETS_FILE = DATA_DIR / "action_presets.json"
 ACTION_RUNS_FILE = DATA_DIR / "action_runs.json"
+SCHEDULES_FILE = DATA_DIR / "schedules.json"
 SAFETY_SETTINGS_FILE = DATA_DIR / "safety_settings.json"
 
 

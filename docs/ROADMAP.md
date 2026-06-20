@@ -51,6 +51,15 @@ TeleManager is organized around stored Telegram sessions and guarded one-off wor
 - Keep dialog account selection valid after account refreshes.
 - Tolerate per-account queue failures so missing dialogs or unavailable targets do not abort multi-account runs.
 
+### Phase 6: Recurring Schedules
+
+- Turn any built queue into a recurring schedule (interval + end after N times / on a date / never).
+- Auto-select a delivery engine per schedule: Telegram-native scheduled messages for text-only schedules (deliver while the app is closed), or the in-app queue runner for everything else.
+- Keep a rolling per-chat buffer within Telegram's 100-message / 365-day limits for native schedules, refilled while the app runs.
+- Background `SchedulerService` task started/stopped with the app lifespan; skip slots missed while closed instead of replaying bursts.
+- Preview, pause/resume, run-now, and delete schedules; deleting a native schedule removes the messages it pre-scheduled.
+- Persist schedules under `data/schedules.json`; tag queue runs created by a schedule with `schedule_id`.
+
 ## Current hardening priorities
 
 - Add mocked Telethon tests for live dialog fetch, session validation, and Telegram action execution paths.

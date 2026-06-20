@@ -16,14 +16,16 @@ export function accountStatus(account: Account) {
 }
 
 export function statusTone(status: string) {
-  if (["ready", "ok", "completed"].includes(status)) {
+  if (["ready", "ok", "completed", "active"].includes(status)) {
     return "text-primary border-primary/30 bg-primary/10"
   }
   if (["running", "queued", "canceling"].includes(status)) {
     return "text-sky-600 border-sky-500/30 bg-sky-500/10 dark:text-sky-400"
   }
   if (
-    ["needs login", "needs 2FA", "code sent", "flood_wait"].includes(status)
+    ["needs login", "needs 2FA", "code sent", "flood_wait", "paused"].includes(
+      status
+    )
   ) {
     return "text-amber-600 border-amber-500/30 bg-amber-500/10 dark:text-amber-400"
   }

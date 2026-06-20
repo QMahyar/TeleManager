@@ -27,6 +27,7 @@ React Browser UI
 - `src/telemanager/dialogs_service.py` fetches and classifies dialogs per account and stores local dialog caches.
 - `src/telemanager/audit_service.py` writes persistent local activity events to JSONL.
 - `src/telemanager/action_runs_service.py` persists recent queue runs and restores unfinished runs as interrupted after restart.
+- `src/telemanager/schedules_service.py` runs recurring schedules. It classifies each schedule as `native` (text-only, pre-loaded as Telegram-native scheduled messages that deliver while the app is closed) or `runner` (any other action, executed as a queue run while the app is open), and owns a single background `SchedulerService` asyncio task started/stopped by the FastAPI lifespan.
 - `src/telemanager/presets_service.py` stores reusable local queue presets.
 - `src/telemanager/config.py` stores local JSON files under `data/`, dialog caches under `data/dialogs/`, exports under `data/exports/`, and session files under `sessions/`.
 
@@ -52,7 +53,9 @@ React Browser UI
 
 `data/action_presets.json` stores reusable queue presets.
 
-`data/action_runs.json` stores recent queue runs, operation statuses, results, cancellation state, and audit event IDs.
+`data/action_runs.json` stores recent queue runs, operation statuses, results, cancellation state, and audit event IDs. Runs started by a schedule carry the originating `schedule_id`.
+
+`data/schedules.json` stores recurring schedules: the queue snapshot, recurrence config, chosen engine, fire counters, next fire time, native per-chat scheduled-message bookkeeping, and last error.
 
 `data/safety_settings.json` stores default queue delays and max operation limits.
 
@@ -102,6 +105,16 @@ Cancellation is cooperative: a cancel request marks the run as canceling and the
 
 Recent run management supports viewing, exporting, deleting terminal runs, clearing terminal history, and retrying failed operations as a new confirmed queue.
 
+## Schedule lifecycle
+
+1. From the Actions builder the user turns the current queue into a schedule by naming it and choosing a recurrence (interval + end condition).
+2. The backend classifies the schedule engine: `native` if every step is a plain text send (`send_message`, or `start_bot` with no referral, sent as `/start`), otherwise `runner`.
+3. The schedule is persisted to `data/schedules.json` and the `SchedulerService` is woken.
+4. The service loops over active schedules, sleeping until the soonest actionable time and waking early when a schedule is created/edited/removed.
+5. For a `runner` schedule, each due fire builds a confirmed `ActionQueueRequest` and reuses the normal queue runner (one queue run per fire, tagged with `schedule_id`). Slots missed while the app was closed are skipped rather than replayed as a burst.
+6. For a `native` schedule, the service reconciles each chat's buffer: it lists the chat's scheduled messages, keeps the ones it owns, and tops up to the soonest upcoming fires within Telegram's 100-per-chat / 365-day limits. Telegram delivers these even while TeleManager is closed; reopening the app refills the buffer.
+7. Schedules complete automatically when a count or end date is reached, and can be paused, resumed, run immediately, or deleted. Deleting a native schedule removes the scheduled messages it created.
+
 ## Supported action families
 
 - Membership: join, leave
@@ -118,6 +131,7 @@ Targets are validated per action type, and dialog quick actions prefill compatib
 - Sessions: import `.session`, export selected sessions, and rename local session files
 - Dialogs: fetch live dialogs for an account and read cached dialogs
 - Actions: preview one-off action, run one-off action, preview queue, run queue, cancel queue, list/view/export/delete/clear/retry queue runs, and manage presets
+- Schedules: preview schedule, create/list/get schedule, pause/resume/rename schedule, run schedule now, and delete schedule
 - Activity: list and export local JSONL audit history
 
 ## Session import/export lifecycle

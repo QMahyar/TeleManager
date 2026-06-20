@@ -11,6 +11,17 @@ section below, with auto-generated commit/PR notes appended.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-06-20
+
+### Added
+
+- **Recurring schedules**: turn any built action queue into a repeating schedule (every N minutes/hours/days, ending after a set number of times, on a date, or never).
+- **Automatic delivery engine** per schedule: text-only schedules (plain messages and a plain `/start`) are pre-loaded as Telegram-native scheduled messages and keep firing while TeleManager is closed; all other actions run via the in-app queue runner while the app is open.
+- **Rolling native buffer** that respects Telegram's 100-scheduled-messages-per-chat (365-day) limit and refills whenever the app is running.
+- New **Schedules** screen and a "Schedule this queue" path in the Actions builder, with preview, pause/resume, run-now, and delete (deleting a native schedule also removes the messages it pre-scheduled).
+- Background `SchedulerService` started/stopped with the app lifespan; queue runs created by a schedule are tagged with `schedule_id`.
+- **`/api/schedules`** endpoints (preview, create, list, get, patch, run-now, delete) and a new `data/schedules.json` store.
+
 ## [1.2.0] - 2026-06-19
 
 ### Added

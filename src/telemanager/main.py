@@ -35,6 +35,12 @@ from .audit_service import export_events_path, list_events, log_event
 from .config import CONFIG_FILE, read_json, write_json
 from .dialogs_service import fetch_dialogs, fetch_messages, list_cached_dialogs, resolve_target
 from .presets_service import delete_action_preset, list_action_presets, save_action_preset
+from .schedules_service import (
+    ScheduleRequest,
+    SchedulerService,
+    ScheduleUpdateRequest,
+    schedule_preview,
+)
 from .sessions_service import (
     delete_local_session,
     export_sessions,
@@ -63,6 +69,7 @@ GITHUB_LATEST_RELEASE_API = f"https://api.github.com/repos/{GITHUB_REPO}/release
 GITHUB_RELEASES_URL = f"https://github.com/{GITHUB_REPO}/releases"
 manager = AccountManager()
 queue_runs: dict[str, dict] = load_action_runs()
+scheduler = SchedulerService(manager, queue_runs)
 
 
 class AccountUpdateRequest(BaseModel):
@@ -85,8 +92,12 @@ class ActionPresetSaveRequest(BaseModel):
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    yield
-    await manager.shutdown()
+    await scheduler.start()
+    try:
+        yield
+    finally:
+        await scheduler.stop()
+        await manager.shutdown()
 
 
 app = FastAPI(title="TeleManager", lifespan=lifespan)
@@ -443,6 +454,61 @@ def cancel_action_queue_run(run_id: str) -> dict:
     run["updated_at"] = now_iso()
     save_action_runs(queue_runs)
     return {"run": run}
+
+
+@app.get("/api/schedules")
+def get_schedules() -> dict:
+    return {"schedules": scheduler.list_all()}
+
+
+@app.post("/api/schedules/preview")
+def preview_schedule(request: ScheduleRequest) -> dict:
+    return schedule_preview(request)
+
+
+@app.post("/api/schedules")
+async def create_schedule(request: ScheduleRequest) -> dict:
+    schedule = await scheduler.create(request)
+    return {"schedule": schedule}
+
+
+@app.get("/api/schedules/{schedule_id}")
+def get_schedule(schedule_id: str) -> dict:
+    schedule = scheduler.get(schedule_id)
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Schedule was not found.")
+    return {"schedule": schedule}
+
+
+@app.patch("/api/schedules/{schedule_id}")
+async def update_schedule(schedule_id: str, request: ScheduleUpdateRequest) -> dict:
+    try:
+        schedule = await scheduler.update(schedule_id, request)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Schedule was not found.") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"schedule": schedule}
+
+
+@app.delete("/api/schedules/{schedule_id}")
+async def delete_schedule(schedule_id: str) -> dict:
+    try:
+        await scheduler.delete(schedule_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Schedule was not found.") from exc
+    return {"ok": True}
+
+
+@app.post("/api/schedules/{schedule_id}/run-now")
+async def run_schedule_now(schedule_id: str) -> dict:
+    try:
+        schedule = await scheduler.run_now(schedule_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Schedule was not found.") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"schedule": schedule}
 
 
 @app.get("/api/version")

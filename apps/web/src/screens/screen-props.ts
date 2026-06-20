@@ -8,6 +8,7 @@ import type {
   QueueRun,
   QueueStep,
   SafetySettings,
+  Schedule,
   TelegramDialog,
   View,
 } from "../types"
@@ -62,6 +63,8 @@ export type AppScreenProps = {
   addQueueStep: () => void
   runs: QueueRun[]
   loadRuns: () => Promise<void>
+  schedules: Schedule[]
+  loadSchedules: () => Promise<void>
   dialogAccountId: string
   setDialogAccountId: React.Dispatch<React.SetStateAction<string>>
   dialogs: TelegramDialog[]
@@ -128,7 +131,21 @@ export type ActionsScreenProps = Pick<
   | "addQueueStep"
   | "runs"
   | "loadRuns"
+  | "loadSchedules"
+  | "setView"
   | "refresh"
+  | "guarded"
+  | "loading"
+  | "flash"
+  | "askDialog"
+>
+
+export type SchedulesScreenProps = Pick<
+  AppScreenProps,
+  | "accounts"
+  | "schedules"
+  | "loadSchedules"
+  | "setView"
   | "guarded"
   | "loading"
   | "flash"

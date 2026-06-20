@@ -13,6 +13,7 @@ import { ActionFields } from "../components/action-fields"
 import { QueueTable } from "../components/queue-table"
 import { RunHistory } from "../components/run-history"
 import { SafetyEditor } from "../components/safety-editor"
+import { ScheduleCreator } from "../components/schedule-creator"
 import { TargetPreview } from "../components/target-preview"
 import {
   Badge,
@@ -537,6 +538,14 @@ function ActionQueuePanel({
           previewQueue={previewQueue}
           destructiveCount={destructiveCount}
           props={props}
+        />
+        <ScheduleCreator
+          queuePayload={props.queuePayload}
+          queueLength={props.queue.length}
+          guarded={props.guarded}
+          flash={props.flash}
+          loadSchedules={props.loadSchedules}
+          setView={props.setView}
         />
       </Panel>
 
