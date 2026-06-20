@@ -9,6 +9,7 @@ from typing import Any, Literal, cast
 from urllib.parse import parse_qs, urlparse
 
 from telethon import TelegramClient
+from telethon import utils as telethon_utils
 from telethon.tl.functions.account import ReportPeerRequest, UpdateNotifySettingsRequest
 from telethon.tl.functions.channels import JoinChannelRequest, LeaveChannelRequest
 from telethon.tl.functions.contacts import BlockRequest, UnblockRequest
@@ -157,13 +158,13 @@ async def join_chat(client: TelegramClient, target: str) -> str:
         await client(ImportChatInviteRequest(invite_hash))
         return "Invite link joined or join request sent."
 
-    channel = cast(Any, await client.get_input_entity(normalize_entity_target(target)))
+    channel = cast(Any, await resolve_input_peer(client, target))
     await client(JoinChannelRequest(channel))
     return "Public channel/group joined or join request sent."
 
 
 async def leave_chat(client: TelegramClient, target: str) -> str:
-    entity = cast(Any, await client.get_input_entity(normalize_entity_target(target)))
+    entity = cast(Any, await resolve_input_peer(client, target))
     try:
         await client(LeaveChannelRequest(entity))
         return "Channel or supergroup left."
@@ -178,7 +179,7 @@ async def send_message(client: TelegramClient, target: str, message: str | None)
     clean_message = (message or "").strip()
     if not clean_message:
         raise ValueError("Message text is required for messaging actions.")
-    await client.send_message(normalize_entity_target(target), clean_message)
+    await client.send_message(await resolve_input_peer(client, target), clean_message)
     return "Message sent."
 
 
@@ -189,10 +190,11 @@ async def send_media(client: TelegramClient, target: str, message: str | None) -
         raise ValueError("Media action requires file=PATH in the message/options field.")
     caption = payload.get("caption") or payload.get("message") or ""
     parse_mode = payload.get("parse_mode")
+    peer = await resolve_input_peer(client, target)
     if parse_mode:
-        await client.send_file(normalize_entity_target(target), file=file_path, caption=caption, parse_mode=parse_mode)
+        await client.send_file(peer, file=file_path, caption=caption, parse_mode=parse_mode)
     else:
-        await client.send_file(normalize_entity_target(target), file=file_path, caption=caption)
+        await client.send_file(peer, file=file_path, caption=caption)
     return "Media sent."
 
 
@@ -202,7 +204,7 @@ async def schedule_message(client: TelegramClient, target: str, message: str | N
     if not text:
         raise ValueError("Scheduled messages require text=...")
     schedule = parse_schedule(payload.get("schedule") or payload.get("at") or payload.get("when"))
-    await client.send_message(normalize_entity_target(target), text, schedule=schedule)
+    await client.send_message(await resolve_input_peer(client, target), text, schedule=schedule)
     return f"Message scheduled for {schedule.isoformat()}."
 
 
@@ -224,13 +226,14 @@ async def create_scheduled_text(client: TelegramClient, target: str, text: str, 
     clean_text = (text or "").strip()
     if not clean_text:
         raise ValueError("Scheduled messages require non-empty text.")
-    sent = cast(Any, await client.send_message(normalize_entity_target(target), clean_text, schedule=when))
+    peer = await resolve_input_peer(client, target)
+    sent = cast(Any, await client.send_message(peer, clean_text, schedule=when))
     return int(sent.id)
 
 
 async def list_scheduled_message_times(client: TelegramClient, target: str) -> dict[int, datetime]:
     """Return {message_id: scheduled_send_time} for the chat's scheduled messages."""
-    entity = await client.get_input_entity(normalize_entity_target(target))
+    entity = await resolve_input_peer(client, target)
     result = cast(Any, await client(GetScheduledHistoryRequest(peer=entity, hash=0)))
     messages = getattr(result, "messages", []) or []
     times: dict[int, datetime] = {}
@@ -250,13 +253,13 @@ async def delete_scheduled_messages(client: TelegramClient, target: str, message
     ids = [int(message_id) for message_id in message_ids]
     if not ids:
         return
-    entity = await client.get_input_entity(normalize_entity_target(target))
+    entity = await resolve_input_peer(client, target)
     await client(DeleteScheduledMessagesRequest(peer=entity, id=ids))
 
 
 async def fetch_scheduled_messages(client: TelegramClient, target: str) -> list[dict[str, Any]]:
     """Return the chat's scheduled messages as {id, date, text} dicts for review."""
-    entity = await client.get_input_entity(normalize_entity_target(target))
+    entity = await resolve_input_peer(client, target)
     result = cast(Any, await client(GetScheduledHistoryRequest(peer=entity, hash=0)))
     messages = getattr(result, "messages", []) or []
     rows: list[dict[str, Any]] = []
@@ -284,7 +287,7 @@ async def edit_message(client: TelegramClient, target: str, message: str | None)
     text = (payload.get("text") or payload.get("message") or "").strip()
     if not text:
         raise ValueError("Edit message requires text=...")
-    await client.edit_message(normalize_entity_target(target), cast(Any, message_id), text)
+    await client.edit_message(await resolve_input_peer(client, target), cast(Any, message_id), text)
     return f"Message {message_id} edited."
 
 
@@ -292,7 +295,7 @@ async def delete_messages(client: TelegramClient, target: str, message: str | No
     payload = parse_options(message)
     ids = parse_message_ids(payload.get("ids") or payload.get("message_ids") or payload.get("id"))
     revoke = parse_bool(payload.get("revoke"), default=True)
-    await client.delete_messages(normalize_entity_target(target), ids, revoke=revoke)
+    await client.delete_messages(await resolve_input_peer(client, target), ids, revoke=revoke)
     return f"Deleted {len(ids)} message(s)."
 
 
@@ -300,7 +303,7 @@ async def pin_message(client: TelegramClient, target: str, message: str | None) 
     payload = parse_options(message)
     message_id = parse_message_id(payload.get("id") or payload.get("message_id"))
     notify = parse_bool(payload.get("notify"), default=False)
-    await client.pin_message(normalize_entity_target(target), message_id, notify=notify)
+    await client.pin_message(await resolve_input_peer(client, target), message_id, notify=notify)
     return f"Message {message_id} pinned."
 
 
@@ -308,14 +311,14 @@ async def unpin_message(client: TelegramClient, target: str, message: str | None
     payload = parse_options(message)
     raw_id = payload.get("id") or payload.get("message_id")
     message_id = parse_message_id(raw_id) if raw_id else None
-    await client.unpin_message(normalize_entity_target(target), message_id)
+    await client.unpin_message(await resolve_input_peer(client, target), message_id)
     return "Message unpinned." if message_id else "All messages unpinned."
 
 
 async def download_media(client: TelegramClient, target: str, message: str | None) -> str:
     payload = parse_options(message)
     message_id = parse_message_id(payload.get("id") or payload.get("message_id"))
-    message_obj = await client.get_messages(normalize_entity_target(target), ids=message_id)
+    message_obj = await client.get_messages(await resolve_input_peer(client, target), ids=message_id)
     if not message_obj:
         raise ValueError(f"Message {message_id} was not found.")
     account_dir = DOWNLOADS_DIR / safe_path_name(target)
@@ -328,8 +331,9 @@ async def download_media(client: TelegramClient, target: str, message: str | Non
 
 async def forward_message(client: TelegramClient, target: str, message: str | None) -> str:
     source_chat, message_ids = parse_forward_source(message)
-    dest = normalize_entity_target(target)
-    await client.forward_messages(dest, message_ids, source_chat)
+    dest = await resolve_input_peer(client, target)
+    source = await resolve_input_peer(client, source_chat)
+    await client.forward_messages(dest, message_ids, source)
     if len(message_ids) == 1:
         return f"Message {message_ids[0]} forwarded from {source_chat}."
     return f"{len(message_ids)} messages forwarded from {source_chat}."
@@ -384,13 +388,13 @@ async def start_bot_mini_app(client: TelegramClient, spec: BotStartTarget) -> st
 
 
 async def delete_chat(client: TelegramClient, target: str) -> str:
-    entity = cast(Any, await client.get_input_entity(normalize_entity_target(target)))
+    entity = cast(Any, await resolve_input_peer(client, target))
     await client.delete_dialog(entity, revoke=False)
     return "Dialog deleted locally."
 
 
 async def clear_chat(client: TelegramClient, target: str) -> str:
-    entity = cast(Any, await client.get_input_entity(normalize_entity_target(target)))
+    entity = cast(Any, await resolve_input_peer(client, target))
     # just_clear=True wipes the message history but keeps the dialog in the chat list.
     # Without it, deleteHistory removes the dialog entirely (same as delete_chat).
     await client(DeleteHistoryRequest(peer=entity, max_id=0, just_clear=True, revoke=False))
@@ -403,31 +407,31 @@ async def clear_chat(client: TelegramClient, target: str) -> str:
 
 
 async def block_user(client: TelegramClient, target: str) -> str:
-    entity = await client.get_input_entity(normalize_entity_target(target))
+    entity = await resolve_input_peer(client, target)
     await client(BlockRequest(id=entity))
     return "User blocked."
 
 
 async def unblock_user(client: TelegramClient, target: str) -> str:
-    entity = await client.get_input_entity(normalize_entity_target(target))
+    entity = await resolve_input_peer(client, target)
     await client(UnblockRequest(id=entity))
     return "User unblocked."
 
 
 async def archive_chat(client: TelegramClient, target: str) -> str:
-    entity = await client.get_entity(normalize_entity_target(target))
+    entity = await resolve_full_entity(client, target)
     await client.edit_folder(entity, folder=1)
     return "Chat archived."
 
 
 async def unarchive_chat(client: TelegramClient, target: str) -> str:
-    entity = await client.get_entity(normalize_entity_target(target))
+    entity = await resolve_full_entity(client, target)
     await client.edit_folder(entity, folder=0)
     return "Chat unarchived."
 
 
 async def mute_chat(client: TelegramClient, target: str) -> str:
-    entity = await client.get_input_entity(normalize_entity_target(target))
+    entity = await resolve_input_peer(client, target)
     far_future = datetime(2038, 1, 1, tzinfo=UTC)
     await client(
         UpdateNotifySettingsRequest(
@@ -439,7 +443,7 @@ async def mute_chat(client: TelegramClient, target: str) -> str:
 
 
 async def unmute_chat(client: TelegramClient, target: str) -> str:
-    entity = await client.get_input_entity(normalize_entity_target(target))
+    entity = await resolve_input_peer(client, target)
     epoch = datetime(1970, 1, 1, tzinfo=UTC)
     await client(
         UpdateNotifySettingsRequest(
@@ -454,12 +458,12 @@ async def read_chat(client: TelegramClient, target: str) -> str:
     # send_read_acknowledge dispatches to channels.ReadHistoryRequest for
     # channels/supergroups and messages.ReadHistoryRequest for users/basic
     # groups. Calling messages.ReadHistoryRequest directly fails on channels.
-    await client.send_read_acknowledge(normalize_entity_target(target))
+    await client.send_read_acknowledge(await resolve_input_peer(client, target))
     return "Chat marked as read."
 
 
 async def report_spam(client: TelegramClient, target: str) -> str:
-    entity = await client.get_input_entity(normalize_entity_target(target))
+    entity = await resolve_input_peer(client, target)
     await client(
         ReportPeerRequest(
             peer=entity,
@@ -487,6 +491,72 @@ def normalize_entity_target(target: str) -> str:
         if path:
             return path.split("/")[0]
     return clean
+
+
+_NUMERIC_TARGET_RE = re.compile(r"^-?\d+$")
+
+
+def _numeric_target_candidates(value: int) -> list[int]:
+    """Ordered ID forms to try against Telethon's session cache for a numeric target.
+
+    The dialog cache (and therefore the UI) exposes Telethon's *raw* entity.id, so a
+    supergroup/channel shows up as e.g. 1424486089 even though the session only knows
+    it under its marked id -1001424486089.
+
+    The unmarked positive id is tried first because Telethon resolves a *positive* int
+    by checking every peer marking (user/chat/channel) against the cache and validating
+    the type. A *negative* bare id such as -1424486089 is dangerous as a first guess: in
+    the chat-id range Telethon returns an unvalidated InputPeerChat without ever
+    consulting the cache, so a negated channel id would silently resolve to the wrong
+    peer. We therefore lead with the positive form and keep the original value only as a
+    fallback (it still resolves a correctly-marked, not-yet-cached public channel via
+    channels.getChannels).
+    """
+    real, _ = telethon_utils.resolve_id(value)
+    candidates = [real]
+    if value != real:
+        candidates.append(value)
+    return candidates
+
+
+async def resolve_input_peer(client: TelegramClient, target: str) -> Any:
+    """Resolve a target string to a Telethon input peer.
+
+    Usernames, t.me links and phone numbers pass straight through to Telethon, but
+    bare numeric ids are converted to int first. Telethon never coerces a numeric
+    *string* to an int, so without this a raw channel/supergroup id (1424486089) or a
+    negative id (-1424486089) fails to resolve even when the chat is cached.
+    """
+    normalized = normalize_entity_target(target)
+    if not _NUMERIC_TARGET_RE.match(normalized):
+        return await client.get_input_entity(normalized)
+    last_error: Exception | None = None
+    for candidate in _numeric_target_candidates(int(normalized)):
+        try:
+            return await client.get_input_entity(candidate)
+        except (ValueError, TypeError, struct.error) as exc:
+            last_error = exc
+    raise ValueError(
+        f"Could not resolve the chat for ID {normalized}. Fetch this account's dialogs "
+        f"first so the chat is cached, or use its @username or t.me link instead."
+    ) from last_error
+
+
+async def resolve_full_entity(client: TelegramClient, target: str) -> Any:
+    """Like resolve_input_peer but returns the full entity (with title/username/type)."""
+    normalized = normalize_entity_target(target)
+    if not _NUMERIC_TARGET_RE.match(normalized):
+        return await client.get_entity(normalized)
+    last_error: Exception | None = None
+    for candidate in _numeric_target_candidates(int(normalized)):
+        try:
+            return await client.get_entity(candidate)
+        except (ValueError, TypeError, struct.error) as exc:
+            last_error = exc
+    raise ValueError(
+        f"Could not resolve the chat for ID {normalized}. Fetch this account's dialogs "
+        f"first so the chat is cached, or use its @username or t.me link instead."
+    ) from last_error
 
 
 def extract_invite_hash(target: str) -> str | None:

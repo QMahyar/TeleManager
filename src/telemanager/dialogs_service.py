@@ -7,6 +7,7 @@ from telethon.tl.types import Channel, Chat, Message, User
 
 from .accounts import AccountManager
 from .config import DIALOGS_DIR, ensure_dirs, now_iso, read_json, write_json
+from .telegram_actions import resolve_full_entity, resolve_input_peer
 
 
 @dataclass
@@ -80,7 +81,8 @@ def message_to_dict(message: Message) -> dict:
 async def fetch_messages(manager: AccountManager, account_id: str, target: str, limit: int = 50) -> dict:
     account = manager._get_account(account_id)
     async with manager.temp_client(account.id) as client:
-        raw_messages: Any = await client.get_messages(target.strip(), limit=max(1, min(limit, 100)))
+        peer = await resolve_input_peer(client, target)
+        raw_messages: Any = await client.get_messages(peer, limit=max(1, min(limit, 100)))
         if raw_messages is None:
             messages = []
         elif isinstance(raw_messages, list):
@@ -98,7 +100,7 @@ async def fetch_messages(manager: AccountManager, account_id: str, target: str, 
 async def resolve_target(manager: AccountManager, account_id: str, target: str) -> dict:
     account = manager._get_account(account_id)
     async with manager.temp_client(account.id) as client:
-        entity = await client.get_entity(target.strip())
+        entity = await resolve_full_entity(client, target)
         title = getattr(entity, "title", None) or " ".join(
             part for part in [getattr(entity, "first_name", None), getattr(entity, "last_name", None)] if part
         )

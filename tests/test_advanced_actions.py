@@ -21,6 +21,9 @@ def test_schedule_message_accepts_relative_schedule(app_context: dict) -> None:
     captured: dict[str, Any] = {}
 
     class FakeClient:
+        async def get_input_entity(self, value):
+            return value
+
         async def send_message(self, target, text, schedule=None):
             captured["target"] = target
             captured["text"] = text
@@ -224,6 +227,9 @@ def test_read_chat_uses_send_read_acknowledge(app_context: dict) -> None:
     captured: dict[str, Any] = {}
 
     class FakeClient:
+        async def get_input_entity(self, value):
+            return value
+
         async def send_read_acknowledge(self, entity):
             captured["entity"] = entity
             return True
@@ -263,6 +269,9 @@ def test_forward_message_forwards_multiple_ids(app_context: dict) -> None:
     captured: dict[str, Any] = {}
 
     class FakeClient:
+        async def get_input_entity(self, value):
+            return value
+
         async def forward_messages(self, dest, messages, from_peer):
             captured["dest"] = dest
             captured["messages"] = messages
