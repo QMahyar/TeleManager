@@ -127,6 +127,64 @@ export function Metric({
   )
 }
 
+export type TabItem<T extends string> = {
+  id: T
+  label: string
+  icon?: React.ElementType
+  badge?: React.ReactNode
+}
+
+// Dependency-free segmented tab strip. Used by the Accounts and Settings hubs
+// to keep several related tools on one screen instead of separate nav routes.
+export function Tabs<T extends string>({
+  items,
+  value,
+  onChange,
+  className,
+}: {
+  items: ReadonlyArray<TabItem<T>>
+  value: T
+  onChange: (id: T) => void
+  className?: string
+}) {
+  return (
+    <div
+      role="tablist"
+      className={cn(
+        "flex flex-wrap gap-1 border-b border-border pb-2",
+        className
+      )}
+    >
+      {items.map((item) => {
+        const Icon = item.icon
+        const active = item.id === value
+        return (
+          <button
+            key={item.id}
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(item.id)}
+            className={cn(
+              "flex items-center gap-1.5 border px-3 py-1.5 text-xs font-medium transition-colors [&_svg]:size-3.5",
+              active
+                ? "border-primary/40 bg-primary/10 text-primary"
+                : "border-transparent text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground"
+            )}
+          >
+            {Icon ? <Icon /> : null}
+            {item.label}
+            {item.badge != null ? (
+              <span className="ml-1 text-[0.65rem] opacity-70">
+                {item.badge}
+              </span>
+            ) : null}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export function EmptyState({
   icon: Icon,
   title,

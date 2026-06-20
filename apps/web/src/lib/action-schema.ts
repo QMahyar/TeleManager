@@ -357,6 +357,20 @@ export function defaultFieldValues(actionType: ActionType): FieldValues {
   return values
 }
 
+// Defaults for the new action, but carry over any field the user already filled
+// that the new action also has (e.g. switching send_message → schedule_message
+// keeps the typed "text"). Stops the form wiping work on every action change.
+export function carryFieldValues(
+  actionType: ActionType,
+  previous: FieldValues
+): FieldValues {
+  const next = defaultFieldValues(actionType)
+  for (const name of Object.keys(next)) {
+    if (name in previous) next[name] = previous[name]
+  }
+  return next
+}
+
 export function validateFields(
   actionType: ActionType,
   values: FieldValues

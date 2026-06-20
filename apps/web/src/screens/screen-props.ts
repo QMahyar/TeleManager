@@ -45,7 +45,6 @@ export type AppScreenProps = {
   setQueue: React.Dispatch<React.SetStateAction<QueueStep[]>>
   queuePayload: {
     steps: QueueStep[]
-    confirm: boolean
     delay_between_accounts: number
     delay_between_actions: number
     max_operations: number
@@ -59,8 +58,6 @@ export type AppScreenProps = {
   setQuickActionContext: React.Dispatch<
     React.SetStateAction<import("../types").QuickActionContext | null>
   >
-  confirmed: boolean
-  setConfirmed: React.Dispatch<React.SetStateAction<boolean>>
   addQueueStep: () => void
   runs: QueueRun[]
   loadRuns: () => Promise<void>
@@ -81,27 +78,15 @@ export type AppScreenProps = {
   filteredDialogs: TelegramDialog[]
 }
 
-export type CommandScreenProps = Pick<
-  AppScreenProps,
-  | "accounts"
-  | "selectedIds"
-  | "setSelectedIds"
-  | "setActionAccountIds"
-  | "setDialogAccountId"
-  | "setView"
-  | "metrics"
-  | "guarded"
-  | "refresh"
-  | "flash"
-  | "askDialog"
->
-
 export type AccountsScreenProps = Pick<
   AppScreenProps,
   | "accounts"
   | "selectedIds"
   | "setSelectedIds"
   | "setView"
+  | "metrics"
+  | "setActionAccountIds"
+  | "setDialogAccountId"
   | "apiConfigured"
   | "configApiId"
   | "configStatus"
@@ -131,8 +116,6 @@ export type ActionsScreenProps = Pick<
   | "quickActionContext"
   | "setActionDraft"
   | "setQuickActionContext"
-  | "confirmed"
-  | "setConfirmed"
   | "addQueueStep"
   | "runs"
   | "loadRuns"
@@ -182,14 +165,3 @@ export type DialogsScreenProps = Pick<
   | "toggleSelected"
 >
 
-export type SessionsScreenProps = Pick<
-  AppScreenProps,
-  | "accounts"
-  | "selectedIds"
-  | "setSelectedIds"
-  | "guarded"
-  | "refresh"
-  | "flash"
-  | "loading"
-  | "askDialog"
->

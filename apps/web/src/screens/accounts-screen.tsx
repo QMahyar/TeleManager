@@ -1,29 +1,69 @@
 import * as React from "react"
 
 import {
+  IconArrowRight,
+  IconDownload,
+  IconFileImport,
   IconKey,
+  IconLoader2,
   IconLockPassword,
+  IconLogin2,
   IconMessage2Bolt,
+  IconUpload,
   IconUsers,
 } from "@tabler/icons-react"
 import { Button } from "../ui/button"
 
 import { AccountsTable } from "../components/accounts-table"
 import {
+  Badge,
   EmptyState,
   Field,
   Input,
   Panel,
   Select,
   StepHeading,
+  Tabs,
 } from "../components/ui"
 import { api, toForm } from "../lib/api"
+import { accountStatus, downloadBlob, statusTone } from "../lib/helpers"
 import type { Account } from "../types"
 import type { AccountsScreenProps } from "./screen-props"
 
 type FormSubmitEvent = React.SyntheticEvent<HTMLFormElement>
+type AccountsTab = "fleet" | "login" | "transfer"
 
 export function AccountsScreen(props: AccountsScreenProps) {
+  const [tab, setTab] = React.useState<AccountsTab>("fleet")
+  const pendingCount = props.accounts.filter(
+    (account) =>
+      account.status === "login_pending" ||
+      account.status === "password_pending"
+  ).length
+
+  return (
+    <div className="space-y-4">
+      <Tabs<AccountsTab>
+        value={tab}
+        onChange={setTab}
+        items={[
+          { id: "fleet", label: "Fleet", icon: IconUsers, badge: props.accounts.length || undefined },
+          { id: "login", label: "Add / Login", icon: IconLogin2, badge: pendingCount || undefined },
+          { id: "transfer", label: "Import / Export", icon: IconFileImport },
+        ]}
+      />
+      {tab === "fleet" ? <FleetTab props={props} /> : null}
+      {tab === "login" ? <LoginTab props={props} /> : null}
+      {tab === "transfer" ? <TransferTab props={props} /> : null}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Fleet tab (was the Command Center) — metrics, quick handoff, inventory
+// ---------------------------------------------------------------------------
+
+function FleetTab({ props }: { props: AccountsScreenProps }) {
   const [accountSearch, setAccountSearch] = React.useState("")
   const [statusFilter, setStatusFilter] = React.useState("all")
   const filteredAccounts = useFilteredAccounts(
@@ -31,10 +71,120 @@ export function AccountsScreen(props: AccountsScreenProps) {
     accountSearch,
     statusFilter
   )
+
+  const readySelectedIds = props.accounts
+    .filter(
+      (account) =>
+        props.selectedIds.has(account.id) &&
+        account.authorized &&
+        !account.last_error
+    )
+    .map((account) => account.id)
+
+  function runActionWithSelection() {
+    if (readySelectedIds.length) {
+      props.setActionAccountIds(new Set(readySelectedIds))
+      props.flash(`Carried ${readySelectedIds.length} session(s) into Actions.`)
+    }
+    props.setView("actions")
+  }
+
+  function fetchDialogsForSelection() {
+    const target =
+      readySelectedIds[0] ||
+      props.accounts.find((a) => a.authorized && !a.last_error)?.id
+    if (target) props.setDialogAccountId(target)
+    props.setView("dialogs")
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Stat label="Total" value={props.accounts.length} primary />
+        <Stat label="Ready" value={props.metrics.ready} />
+        <Stat label="Needs attention" value={props.metrics.attention} />
+        <Stat label="Known dialogs" value={props.metrics.knownDialogs} />
+      </div>
+      <Panel className="space-y-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <StepHeading
+            step={<IconUsers />}
+            title="Session fleet"
+            detail={`${filteredAccounts.length} of ${props.accounts.length} shown. Select sessions, then run actions or fetch dialogs.`}
+          />
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={fetchDialogsForSelection}>
+              Fetch Dialogs
+            </Button>
+            <Button size="sm" onClick={runActionWithSelection}>
+              Run Action <IconArrowRight />
+            </Button>
+          </div>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-[minmax(14rem,1fr)_10rem]">
+          <Input
+            value={accountSearch}
+            onChange={(event) => setAccountSearch(event.target.value)}
+            placeholder="Search accounts"
+            autoComplete="off"
+          />
+          <Select
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
+          >
+            <option value="all">All statuses</option>
+            <option value="ready">Ready</option>
+            <option value="pending">Pending login</option>
+            <option value="needs login">Needs login</option>
+            <option value="error">Error</option>
+          </Select>
+        </div>
+        <AccountsTable
+          accounts={filteredAccounts}
+          selectedIds={props.selectedIds}
+          setSelectedIds={props.setSelectedIds}
+          refresh={props.refresh}
+          flash={props.flash}
+          guarded={props.guarded}
+          askDialog={props.askDialog}
+        />
+      </Panel>
+    </div>
+  )
+}
+
+function Stat({
+  label,
+  value,
+  primary,
+}: {
+  label: string
+  value: number
+  primary?: boolean
+}) {
+  return (
+    <div
+      className={`border p-3 ${
+        primary ? "border-primary/40 bg-primary/10" : "border-border bg-card"
+      }`}
+    >
+      <span className="text-[0.65rem] tracking-[0.18em] text-muted-foreground uppercase">
+        {label}
+      </span>
+      <strong className="mt-1 block font-heading text-2xl">{value}</strong>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Login tab
+// ---------------------------------------------------------------------------
+
+function LoginTab({ props }: { props: AccountsScreenProps }) {
   const loginFlow = useAccountLoginFlow(props)
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <LoginReadinessPanel
         configStatus={props.configStatus}
         openSettings={() => props.setView("settings")}
@@ -57,18 +207,30 @@ export function AccountsScreen(props: AccountsScreenProps) {
           onPasswordSubmit={loginFlow.confirmPassword}
         />
       </div>
-      <AccountsInventoryPanel
-        accounts={filteredAccounts}
-        totalAccounts={props.accounts.length}
-        accountSearch={accountSearch}
-        statusFilter={statusFilter}
-        selectedIds={props.selectedIds}
-        setAccountSearch={setAccountSearch}
-        setStatusFilter={setStatusFilter}
-        setSelectedIds={props.setSelectedIds}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Transfer tab (was Import / Export)
+// ---------------------------------------------------------------------------
+
+function TransferTab({ props }: { props: AccountsScreenProps }) {
+  return (
+    <div className="grid gap-4 xl:grid-cols-2">
+      <ImportPanel
+        guarded={props.guarded}
         refresh={props.refresh}
         flash={props.flash}
+        loading={props.loading}
+      />
+      <ExportPanel
+        accounts={props.accounts}
+        selectedIds={props.selectedIds}
+        setSelectedIds={props.setSelectedIds}
         guarded={props.guarded}
+        flash={props.flash}
+        loading={props.loading}
         askDialog={props.askDialog}
       />
     </div>
@@ -382,75 +544,6 @@ function PendingAccountCard({ account }: { account?: Account }) {
   )
 }
 
-function AccountsInventoryPanel({
-  accounts,
-  totalAccounts,
-  accountSearch,
-  statusFilter,
-  selectedIds,
-  setAccountSearch,
-  setStatusFilter,
-  setSelectedIds,
-  refresh,
-  flash,
-  guarded,
-  askDialog,
-}: Pick<
-  AccountsScreenProps,
-  | "selectedIds"
-  | "setSelectedIds"
-  | "refresh"
-  | "flash"
-  | "guarded"
-  | "askDialog"
-> & {
-  accounts: Account[]
-  totalAccounts: number
-  accountSearch: string
-  statusFilter: string
-  setAccountSearch: React.Dispatch<React.SetStateAction<string>>
-  setStatusFilter: React.Dispatch<React.SetStateAction<string>>
-}) {
-  return (
-    <Panel className="space-y-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <StepHeading
-          step={<IconUsers />}
-          title="Accounts"
-          detail={`${accounts.length} of ${totalAccounts} shown. Validate, fetch dialogs, rename, logout, or delete local sessions.`}
-        />
-        <div className="grid gap-2 sm:grid-cols-[minmax(14rem,1fr)_10rem]">
-          <Input
-            value={accountSearch}
-            onChange={(event) => setAccountSearch(event.target.value)}
-            placeholder="Search accounts"
-            autoComplete="off"
-          />
-          <Select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
-          >
-            <option value="all">All statuses</option>
-            <option value="ready">Ready</option>
-            <option value="pending">Pending login</option>
-            <option value="needs login">Needs login</option>
-            <option value="error">Error</option>
-          </Select>
-        </div>
-      </div>
-      <AccountsTable
-        accounts={accounts}
-        selectedIds={selectedIds}
-        setSelectedIds={setSelectedIds}
-        refresh={refresh}
-        flash={flash}
-        guarded={guarded}
-        askDialog={askDialog}
-      />
-    </Panel>
-  )
-}
-
 function useFilteredAccounts(
   accounts: Account[],
   accountSearch: string,
@@ -578,4 +671,248 @@ async function submitPassword(accountId: string, password: string) {
     method: "POST",
     body: toForm({ account_id: accountId, password }),
   })
+}
+
+// ---------------------------------------------------------------------------
+// Import / Export panels (the former Sessions screen)
+// ---------------------------------------------------------------------------
+
+type TransferPanelProps = Pick<
+  AccountsScreenProps,
+  "guarded" | "refresh" | "flash" | "loading"
+>
+
+function ImportPanel({ guarded, refresh, flash, loading }: TransferPanelProps) {
+  const importFormRef = React.useRef<HTMLFormElement>(null)
+  const [fileError, setFileError] = React.useState("")
+
+  function handleSubmit(event: FormSubmitEvent) {
+    event.preventDefault()
+    const formElement = event.currentTarget
+    const formData = new FormData(formElement)
+    const file = formData.get("file")
+    if (!(file instanceof File) || !file.name) {
+      setFileError("Choose a .session file to import.")
+      return
+    }
+    if (!file.name.toLowerCase().endsWith(".session")) {
+      setFileError("Only Telethon .session files can be imported.")
+      return
+    }
+    setFileError("")
+    guarded(async () => {
+      await api("/api/sessions/import-file", { method: "POST", body: formData })
+      importFormRef.current?.reset()
+      flash("Session imported.")
+      await refresh()
+    })
+  }
+
+  return (
+    <Panel className="space-y-4">
+      <StepHeading
+        step={<IconFileImport />}
+        title="Import .session file"
+        detail="Copy an existing Telethon .session file into TeleManager and validate it locally."
+      />
+      <form ref={importFormRef} className="grid gap-3" onSubmit={handleSubmit}>
+        <Field label="Label">
+          <Input
+            name="label"
+            required
+            maxLength={120}
+            autoComplete="nickname"
+            placeholder="Imported account"
+          />
+        </Field>
+        <Field label="Session file">
+          <Input
+            name="file"
+            type="file"
+            accept=".session"
+            required
+            aria-invalid={Boolean(fileError)}
+            onChange={() => setFileError("")}
+          />
+          {fileError ? (
+            <span className="text-xs text-destructive normal-case">
+              {fileError}
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground normal-case">
+              Must be a Telethon .session file from this or another machine.
+            </span>
+          )}
+        </Field>
+        <Button type="submit" disabled={loading}>
+          {loading ? <IconLoader2 className="size-3.5 animate-spin" /> : <IconUpload />}
+          Import Session
+        </Button>
+      </form>
+    </Panel>
+  )
+}
+
+function ExportPanel({
+  accounts,
+  selectedIds,
+  setSelectedIds,
+  guarded,
+  flash,
+  loading,
+  askDialog,
+}: Pick<
+  AccountsScreenProps,
+  | "accounts"
+  | "selectedIds"
+  | "setSelectedIds"
+  | "guarded"
+  | "flash"
+  | "loading"
+  | "askDialog"
+>) {
+  const selectedCount = accounts.filter((account) =>
+    selectedIds.has(account.id)
+  ).length
+  const allSelected = accounts.length > 0 && selectedCount === accounts.length
+
+  function toggle(accountId: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (next.has(accountId)) next.delete(accountId)
+      else next.add(accountId)
+      return next
+    })
+  }
+
+  return (
+    <Panel className="space-y-4">
+      <StepHeading
+        step={<IconDownload />}
+        title="Export selected sessions"
+        detail="Pick the sessions to export as a private ZIP. Session files can access Telegram accounts — keep the export private."
+        trailing={
+          <Badge tone="border-border bg-muted/40 text-muted-foreground">
+            {selectedCount} selected
+          </Badge>
+        }
+      />
+
+      {accounts.length === 0 ? (
+        <EmptyState
+          title="No accounts to export"
+          detail="Add or import a Telegram session first, then choose which sessions to export here."
+          className="px-4 py-8"
+        />
+      ) : (
+        <>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              disabled={!accounts.length}
+              onClick={() =>
+                setSelectedIds(
+                  allSelected
+                    ? new Set()
+                    : new Set(accounts.map((account) => account.id))
+                )
+              }
+            >
+              {allSelected ? "Clear all" : "Select all"}
+            </Button>
+          </div>
+          <div className="max-h-72 space-y-2 overflow-auto">
+            {accounts.map((account) => (
+              <ExportAccountRow
+                key={account.id}
+                account={account}
+                selected={selectedIds.has(account.id)}
+                onToggle={() => toggle(account.id)}
+              />
+            ))}
+          </div>
+        </>
+      )}
+
+      <Button
+        disabled={loading || !selectedCount}
+        onClick={() => guarded(() => exportSessions(selectedIds, askDialog, flash))}
+      >
+        {loading ? <IconLoader2 className="size-3.5 animate-spin" /> : <IconDownload />}
+        Export {selectedCount || ""} Session{selectedCount === 1 ? "" : "s"}
+      </Button>
+    </Panel>
+  )
+}
+
+function ExportAccountRow({
+  account,
+  selected,
+  onToggle,
+}: {
+  account: Account
+  selected: boolean
+  onToggle: () => void
+}) {
+  const status = accountStatus(account)
+  return (
+    <label
+      className={`flex items-center gap-3 border p-3 text-sm transition-colors ${
+        selected
+          ? "border-primary/40 bg-primary/5"
+          : "border-border hover:bg-muted/20"
+      }`}
+    >
+      <input
+        type="checkbox"
+        aria-label={`Export ${account.label || account.session_name}`}
+        checked={selected}
+        onChange={onToggle}
+      />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate">
+          {account.label || account.session_name}
+        </span>
+        <span className="block truncate font-mono text-xs text-muted-foreground">
+          {account.session_name}.session
+        </span>
+      </span>
+      <Badge tone={statusTone(status)}>{status}</Badge>
+    </label>
+  )
+}
+
+async function exportSessions(
+  selectedIds: Set<string>,
+  askDialog: AccountsScreenProps["askDialog"],
+  flash: AccountsScreenProps["flash"]
+) {
+  if (!selectedIds.size) {
+    flash("Select at least one session.")
+    return
+  }
+  const confirmed = await askDialog({
+    title: "Export session credentials?",
+    description:
+      "Exported session files can access Telegram accounts. Keep the ZIP private and do not upload it anywhere.",
+    confirmLabel: "Export ZIP",
+    danger: true,
+  })
+  if (!confirmed) return
+  const response = await fetch("/api/sessions/export", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ account_ids: [...selectedIds], redact_phone: true }),
+  })
+  if (!response.ok) {
+    try {
+      const payload = (await response.json()) as { detail?: string }
+      throw new Error(payload.detail || "Export failed")
+    } catch {
+      throw new Error("Export failed")
+    }
+  }
+  const blob = await response.blob()
+  downloadBlob(blob, "telemanager-sessions.zip")
+  flash("Session export created.")
 }

@@ -1,24 +1,23 @@
-import { IconKey, IconShieldLock } from "@tabler/icons-react"
+import {
+  IconInfoCircle,
+  IconKey,
+  IconShieldLock,
+  IconTimeline,
+} from "@tabler/icons-react"
 import * as React from "react"
 
 import { Button } from "../ui/button"
 
 import { SafetyEditor } from "../components/safety-editor"
-import { Field, Input, Panel, StepHeading } from "../components/ui"
+import { Field, Input, Panel, StepHeading, Tabs } from "../components/ui"
 import { api } from "../lib/api"
-import type { SafetySettings } from "../types"
+import type { ActivityEvent, SafetySettings } from "../types"
+import { AboutScreen } from "./about-screen"
+import { ActivityScreen } from "./activity-screen"
 
-export function SettingsScreen({
-  safety,
-  setSafety,
-  apiConfigured,
-  configApiId,
-  configStatus,
-  guarded,
-  loading,
-  refresh,
-  flash,
-}: {
+type SettingsTab = "api" | "safety" | "activity" | "about"
+
+type SettingsScreenProps = {
   safety: SafetySettings
   setSafety: React.Dispatch<React.SetStateAction<SafetySettings>>
   apiConfigured: boolean
@@ -28,7 +27,46 @@ export function SettingsScreen({
   loading: boolean
   refresh: () => Promise<void>
   flash: (message: string) => void
-}) {
+  activity: ActivityEvent[]
+}
+
+export function SettingsScreen(props: SettingsScreenProps) {
+  const [tab, setTab] = React.useState<SettingsTab>("api")
+
+  return (
+    <div className="space-y-4">
+      <Tabs<SettingsTab>
+        value={tab}
+        onChange={setTab}
+        items={[
+          { id: "api", label: "API", icon: IconKey },
+          { id: "safety", label: "Safety", icon: IconShieldLock },
+          {
+            id: "activity",
+            label: "Activity",
+            icon: IconTimeline,
+            badge: props.activity.length || undefined,
+          },
+          { id: "about", label: "About", icon: IconInfoCircle },
+        ]}
+      />
+      {tab === "api" ? <ApiPanel {...props} /> : null}
+      {tab === "safety" ? <SafetyPanel {...props} /> : null}
+      {tab === "activity" ? <ActivityScreen activity={props.activity} /> : null}
+      {tab === "about" ? <AboutScreen flash={props.flash} /> : null}
+    </div>
+  )
+}
+
+function ApiPanel({
+  apiConfigured,
+  configApiId,
+  configStatus,
+  guarded,
+  loading,
+  refresh,
+  flash,
+}: SettingsScreenProps) {
   const [showApiHash, setShowApiHash] = React.useState(false)
 
   async function saveApiSettings(event: React.SyntheticEvent<HTMLFormElement>) {
@@ -54,85 +92,94 @@ export function SettingsScreen({
   }
 
   return (
-    <div className="grid gap-4 xl:grid-cols-2">
-      <Panel className="space-y-4">
-        <StepHeading
-          step={<IconKey />}
-          title="Telegram API"
-          detail="Use your own API ID and API hash from my.telegram.org. The hash stays local and is not rendered back into the UI."
-        />
-        <form className="grid gap-3" onSubmit={saveApiSettings}>
-          <Field label="API ID">
+    <Panel className="max-w-2xl space-y-4">
+      <StepHeading
+        step={<IconKey />}
+        title="Telegram API"
+        detail="Use your own API ID and API hash from my.telegram.org. The hash stays local and is not rendered back into the UI."
+      />
+      <form className="grid gap-3" onSubmit={saveApiSettings}>
+        <Field label="API ID">
+          <Input
+            name="api_id"
+            type="number"
+            min={1}
+            required
+            autoComplete="off"
+            placeholder="123456"
+            defaultValue={configApiId || ""}
+            key={configApiId || "empty"}
+          />
+        </Field>
+        <Field label="API Hash">
+          <div className="flex gap-2">
             <Input
-              name="api_id"
-              type="number"
-              min={1}
-              required
+              name="api_hash"
+              type={showApiHash ? "text" : "password"}
+              required={!apiConfigured}
+              maxLength={120}
               autoComplete="off"
-              placeholder="123456"
-              defaultValue={configApiId || ""}
-              key={configApiId || "empty"}
+              placeholder={
+                apiConfigured
+                  ? "Leave blank to keep saved hash"
+                  : "Telegram API hash"
+              }
             />
-          </Field>
-          <Field label="API Hash">
-            <div className="flex gap-2">
-              <Input
-                name="api_hash"
-                type={showApiHash ? "text" : "password"}
-                required={!apiConfigured}
-                maxLength={120}
-                autoComplete="off"
-                placeholder={
-                  apiConfigured
-                    ? "Leave blank to keep saved hash"
-                    : "Telegram API hash"
-                }
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowApiHash((current) => !current)}
-              >
-                {showApiHash ? "Hide" : "Show"}
-              </Button>
-            </div>
-          </Field>
-          <Button type="submit" loading={loading}>
-            Save API Settings
-          </Button>
-        </form>
-        <p className="text-sm text-muted-foreground">{configStatus}</p>
-        {apiConfigured ? (
-          <p className="text-xs leading-5 text-muted-foreground">
-            To rotate the API hash, paste a new hash and save. Leaving it blank
-            keeps the existing saved hash.
-          </p>
-        ) : null}
-      </Panel>
-      <Panel className="space-y-4">
-        <StepHeading
-          step={<IconShieldLock />}
-          title="Safety defaults"
-          detail="These values prefill new queues and are enforced by the backend when a request omits values."
-        />
-        <SafetyEditor safety={safety} setSafety={setSafety} />
-        <Button
-          loading={loading}
-          onClick={() =>
-            guarded(async () => {
-              await api("/api/settings/safety", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(safety),
-              })
-              flash("Safety defaults saved.")
-            })
-          }
-        >
-          <IconShieldLock />
-          Save Safety Defaults
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowApiHash((current) => !current)}
+            >
+              {showApiHash ? "Hide" : "Show"}
+            </Button>
+          </div>
+        </Field>
+        <Button type="submit" loading={loading}>
+          Save API Settings
         </Button>
-      </Panel>
-    </div>
+      </form>
+      <p className="text-sm text-muted-foreground">{configStatus}</p>
+      {apiConfigured ? (
+        <p className="text-xs leading-5 text-muted-foreground">
+          To rotate the API hash, paste a new hash and save. Leaving it blank
+          keeps the existing saved hash.
+        </p>
+      ) : null}
+    </Panel>
+  )
+}
+
+function SafetyPanel({
+  safety,
+  setSafety,
+  guarded,
+  loading,
+  flash,
+}: SettingsScreenProps) {
+  return (
+    <Panel className="max-w-2xl space-y-4">
+      <StepHeading
+        step={<IconShieldLock />}
+        title="Safety defaults"
+        detail="These values prefill new queues and are enforced by the backend when a request omits values."
+      />
+      <SafetyEditor safety={safety} setSafety={setSafety} />
+      <Button
+        loading={loading}
+        onClick={() =>
+          guarded(async () => {
+            await api("/api/settings/safety", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(safety),
+            })
+            flash("Safety defaults saved.")
+          })
+        }
+      >
+        <IconShieldLock />
+        Save Safety Defaults
+      </Button>
+    </Panel>
   )
 }

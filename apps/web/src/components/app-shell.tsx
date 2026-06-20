@@ -336,7 +336,7 @@ function Sidebar({
         <IconX className="size-4" />
       </button>
       <button
-        onClick={() => openView("command")}
+        onClick={() => openView("accounts")}
         className="mb-8 flex items-center gap-3 text-left"
       >
         <span className="grid size-10 place-items-center border border-sidebar-border bg-sidebar-accent font-heading text-lg text-sidebar-accent-foreground">
@@ -350,7 +350,7 @@ function Sidebar({
         </span>
       </button>
       <nav className="space-y-5">
-        {["Workspace", "Management", "System"].map((group) => (
+        {["Workspace", "System"].map((group) => (
           <SidebarGroup
             key={group}
             group={group}

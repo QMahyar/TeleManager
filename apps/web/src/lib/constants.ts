@@ -1,9 +1,5 @@
 import {
-  IconActivity,
-  IconArchive,
   IconClockHour4,
-  IconDatabase,
-  IconInfoCircle,
   IconMessageCircle,
   IconPlayerPlay,
   IconSettings,
@@ -19,12 +15,7 @@ export const navItems: Array<{
   group: string
   icon: React.ElementType
 }> = [
-  {
-    id: "command",
-    label: "Command Center",
-    group: "Workspace",
-    icon: IconDatabase,
-  },
+  { id: "accounts", label: "Accounts", group: "Workspace", icon: IconUsers },
   {
     id: "dialogs",
     label: "Dialogs",
@@ -38,21 +29,7 @@ export const navItems: Array<{
     group: "Workspace",
     icon: IconClockHour4,
   },
-  { id: "accounts", label: "Accounts", group: "Management", icon: IconUsers },
-  {
-    id: "sessions",
-    label: "Import / Export",
-    group: "Management",
-    icon: IconArchive,
-  },
-  {
-    id: "activity",
-    label: "Activity",
-    group: "Management",
-    icon: IconActivity,
-  },
   { id: "settings", label: "Settings", group: "System", icon: IconSettings },
-  { id: "about", label: "About", group: "System", icon: IconInfoCircle },
 ]
 
 export type ActionCategory =

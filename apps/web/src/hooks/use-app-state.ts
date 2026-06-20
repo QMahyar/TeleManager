@@ -7,7 +7,7 @@ import {
   serializeFields,
   validateFields,
 } from "../lib/action-schema"
-import { validateTargets } from "../lib/targeting"
+import { partitionTargets } from "../lib/targeting"
 import { dialogKind, dialogTarget, splitTargets } from "../lib/helpers"
 import type {
   Account,
@@ -52,10 +52,19 @@ export function useAppState(flash: (message: string) => void) {
   }
 }
 
+const KNOWN_VIEWS: ReadonlySet<View> = new Set<View>([
+  "accounts",
+  "dialogs",
+  "actions",
+  "schedules",
+  "settings",
+])
+
 function useViewState() {
-  const [view, setView] = React.useState<View>(
-    () => (window.location.hash.replace("#", "") as View) || "command"
-  )
+  const [view, setView] = React.useState<View>(() => {
+    const hash = window.location.hash.replace("#", "") as View
+    return KNOWN_VIEWS.has(hash) ? hash : "accounts"
+  })
 
   React.useEffect(() => {
     window.location.hash = view
@@ -195,7 +204,8 @@ function useResourceState(flash: (message: string) => void, view: View) {
   }, [])
 
   React.useEffect(() => {
-    if (view !== "activity") return undefined
+    // Activity now lives as a tab inside Settings, so load it there.
+    if (view !== "settings") return undefined
 
     const initialTask = window.setTimeout(() => {
       loadActivity().catch((error) => flash(error.message))
@@ -270,43 +280,49 @@ function useQueueState(
   const [scheduleSeed, setScheduleSeed] = React.useState<ScheduleSeed | null>(
     null
   )
-  const [confirmed, setConfirmed] = React.useState(false)
 
   function addQueueStep() {
-    const targets = splitTargets(actionDraft.target)
     const account_ids = [...actionAccountIds]
     if (!account_ids.length) return flash("Select action accounts first.")
-    if (!targets.length) return flash("Add at least one target.")
+    const { valid, invalid } = partitionTargets(
+      splitTargets(actionDraft.target),
+      actionDraft.action_type
+    )
+    if (!valid.length) {
+      return flash(
+        invalid.length
+          ? "No compatible targets for this action — every target was greyed out."
+          : "Add at least one target."
+      )
+    }
     const blocker = actionDraftBlocker(actionDraft)
     if (blocker) return flash(blocker)
-    const targetError = validateTargets(targets, actionDraft.action_type)
-    if (targetError) return flash(targetError)
 
     setQueue((current) => [
       ...current,
-      queueStepFromDraft(actionDraft, targets, account_ids),
+      queueStepFromDraft(actionDraft, valid, account_ids),
     ])
-    setActionDraft((current) => ({
-      ...current,
-      target: "",
-      fields: defaultFieldValues(current.action_type),
-    }))
+    // Keep the action + filled fields so "same message, next batch" is one edit;
+    // only clear the targets that were just queued.
+    setActionDraft((current) => ({ ...current, target: "" }))
     setQuickActionContext(null)
-    setConfirmed(false)
-    flash("Action step added to queue.")
+    flash(
+      invalid.length
+        ? `Queued ${valid.length} target(s); skipped ${invalid.length} incompatible.`
+        : "Action step added to queue."
+    )
   }
 
   return {
     actionDraft,
     addQueueStep,
-    confirmed,
     pendingAccountId,
     queue,
-    queuePayload: { steps: queue, confirm: confirmed, ...safety },
+    // confirm is set at run time by the Run dialog, the backend requires it true.
+    queuePayload: { steps: queue, ...safety },
     quickActionContext,
     scheduleSeed,
     setActionDraft,
-    setConfirmed,
     setPendingAccountId,
     setQueue,
     setQuickActionContext,

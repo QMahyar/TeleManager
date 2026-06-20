@@ -1,0 +1,177 @@
+import * as React from "react"
+
+import { IconAlertTriangle, IconPlus, IconX } from "@tabler/icons-react"
+
+import { Button } from "../ui/button"
+import { cn } from "../ui/utils"
+import { actionMeta } from "../lib/constants"
+import { splitTargets } from "../lib/helpers"
+import { analyzeTarget } from "../lib/targeting"
+import type { Account, ActionType } from "../types"
+import { DialogPicker } from "./dialog-picker"
+import { Input } from "./ui"
+
+// The canonical target store stays a newline-joined string (what the backend
+// already parses); this component just presents it as an editable chip list.
+// Type-and-Add or Pick-from-chats both append; chips incompatible with the
+// current action grey out and are skipped at queue time.
+export function TargetComposer({
+  value,
+  onChange,
+  actionType,
+  accounts,
+  defaultAccountId,
+  flash,
+}: {
+  value: string
+  onChange: (next: string) => void
+  actionType: ActionType
+  accounts: Account[]
+  defaultAccountId: string
+  flash: (message: string) => void
+}) {
+  const [draft, setDraft] = React.useState("")
+  const targets = splitTargets(value)
+  const meta = actionMeta[actionType]
+
+  function addTargets(extra: string[]) {
+    const merged = [...new Set([...targets, ...extra])]
+    if (merged.length === targets.length) {
+      flash("Those targets are already in the list.")
+      return
+    }
+    onChange(merged.join("\n"))
+  }
+
+  function commitDraft() {
+    const parts = splitTargets(draft)
+    if (!parts.length) return
+    addTargets(parts)
+    setDraft("")
+  }
+
+  function removeTarget(target: string) {
+    onChange(targets.filter((item) => item !== target).join("\n"))
+  }
+
+  const analyzed = targets.map((target) => ({
+    target,
+    result: analyzeTarget(target, actionType),
+  }))
+  const invalidCount = analyzed.filter(({ result }) => result.error).length
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <Input
+          value={draft}
+          maxLength={500}
+          autoComplete="off"
+          placeholder={meta.targetHint}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault()
+              commitDraft()
+            }
+          }}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          onClick={commitDraft}
+          disabled={!draft.trim()}
+        >
+          <IconPlus /> Add
+        </Button>
+      </div>
+
+      <DialogPicker
+        accounts={accounts}
+        defaultAccountId={defaultAccountId}
+        onAdd={addTargets}
+        flash={flash}
+      />
+
+      {targets.length ? (
+        <>
+          <div className="flex flex-wrap gap-1.5">
+            {analyzed.map(({ target, result }) => (
+              <TargetChip
+                key={target}
+                target={target}
+                invalid={Boolean(result.error)}
+                warning={Boolean(result.warning)}
+                reason={result.error || result.warning}
+                onRemove={() => removeTarget(target)}
+              />
+            ))}
+          </div>
+          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span>
+              {targets.length} target(s)
+              {invalidCount ? (
+                <span className="ml-1 text-amber-600 dark:text-amber-400">
+                  · {invalidCount} greyed, will be skipped
+                </span>
+              ) : null}
+            </span>
+            <button
+              type="button"
+              className="underline-offset-2 hover:underline"
+              onClick={() => onChange("")}
+            >
+              Clear all
+            </button>
+          </div>
+        </>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Type a target and press Enter, or pick from chats. Separate several with
+          commas or new lines.
+        </p>
+      )}
+    </div>
+  )
+}
+
+function TargetChip({
+  target,
+  invalid,
+  warning,
+  reason,
+  onRemove,
+}: {
+  target: string
+  invalid: boolean
+  warning: boolean
+  reason?: string
+  onRemove: () => void
+}) {
+  return (
+    <span
+      title={reason}
+      className={cn(
+        "inline-flex items-center gap-1 border px-2 py-1 text-xs",
+        invalid
+          ? "border-border/60 bg-muted/40 text-muted-foreground line-through opacity-60"
+          : warning
+            ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+            : "border-primary/30 bg-primary/5 text-foreground"
+      )}
+    >
+      {invalid || warning ? (
+        <IconAlertTriangle className="size-3 shrink-0 no-underline" />
+      ) : null}
+      <code className="max-w-[11rem] truncate">{target}</code>
+      <button
+        type="button"
+        aria-label={`Remove ${target}`}
+        onClick={onRemove}
+        className="shrink-0 no-underline opacity-60 hover:opacity-100"
+      >
+        <IconX className="size-3" />
+      </button>
+    </span>
+  )
+}

@@ -65,7 +65,7 @@ export type TargetAnalysis = {
 }
 
 // Single source of truth for target classification + per-action validity, used
-// by both the inline target validator and the TargetPreview component.
+// by the target composer chips and the queue-time partitioning.
 export function analyzeTarget(
   target: string,
   actionType?: ActionType
@@ -117,4 +117,21 @@ export function validateTargets(
     }
   }
   return null
+}
+
+// Split a target list into those compatible with the action and those that are
+// not, so the UI can grey incompatible targets and quietly skip them at queue
+// time instead of blocking the whole step.
+export function partitionTargets(
+  targets: string[],
+  actionType: ActionType
+): { valid: string[]; invalid: Array<{ target: string; reason: string }> } {
+  const valid: string[] = []
+  const invalid: Array<{ target: string; reason: string }> = []
+  for (const target of targets) {
+    const result = analyzeTarget(target, actionType)
+    if (result.error) invalid.push({ target, reason: result.error })
+    else valid.push(target)
+  }
+  return { valid, invalid }
 }

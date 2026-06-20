@@ -1,15 +1,11 @@
 import type * as React from "react"
 
 export type View =
-  | "command"
+  | "accounts"
+  | "dialogs"
   | "actions"
   | "schedules"
-  | "dialogs"
-  | "accounts"
-  | "sessions"
-  | "activity"
   | "settings"
-  | "about"
 
 export type ActionType =
   | "join_chat"

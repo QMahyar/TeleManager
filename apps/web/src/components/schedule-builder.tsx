@@ -5,6 +5,7 @@ import { IconClockPlus } from "@tabler/icons-react"
 import { Button } from "../ui/button"
 import { api } from "../lib/api"
 import {
+  carryFieldValues,
   defaultFieldValues,
   getActionSchema,
   isActionFormValid,
@@ -25,7 +26,7 @@ import {
   validateRecurrence,
   type RecurrenceForm,
 } from "../lib/schedules"
-import { validateTargets } from "../lib/targeting"
+import { partitionTargets } from "../lib/targeting"
 import type {
   Account,
   ActionType,
@@ -33,6 +34,7 @@ import type {
   ScheduleSeed,
 } from "../types"
 import { ActionFields } from "./action-fields"
+import { TargetComposer } from "./target-composer"
 import {
   Badge,
   EmptyState,
@@ -110,9 +112,14 @@ export function ScheduleBuilder({
   const meta = actionMeta[actionType]
   const schema = getActionSchema(actionType)
   const targets = splitTargets(target)
+  const { valid: validTargets, invalid: invalidTargets } = partitionTargets(
+    targets,
+    actionType
+  )
   const readyAccounts = accounts.filter(
     (account) => account.authorized && !account.last_error
   )
+  const firstAccountId = [...accountIds][0] || readyAccounts[0]?.id || ""
 
   function clearPreview() {
     setPreview(null)
@@ -120,7 +127,7 @@ export function ScheduleBuilder({
 
   function changeAction(next: ActionType) {
     setActionType(next)
-    setFields(defaultFieldValues(next))
+    setFields(carryFieldValues(next, fields))
     setSubmitAttempted(false)
     clearPreview()
   }
@@ -137,10 +144,12 @@ export function ScheduleBuilder({
 
   function blocker(): string | null {
     if (!accountIds.size) return "Select at least one account."
-    if (!targets.length) return "Add at least one target (comma or newline separated)."
+    if (!validTargets.length) {
+      return invalidTargets.length
+        ? "No compatible targets — every target is greyed out for this action."
+        : "Add at least one target."
+    }
     if (!isActionFormValid(actionType, fields)) return "Fill in the required fields."
-    const targetError = validateTargets(targets, actionType)
-    if (targetError) return targetError
     if (name.trim().length < 3) return "Name the schedule (3+ characters)."
     return validateRecurrence(form)
   }
@@ -153,7 +162,7 @@ export function ScheduleBuilder({
           {
             action_type: actionType,
             account_ids: [...accountIds],
-            targets,
+            targets: validTargets,
             message: serializeFields(actionType, fields),
           },
         ],
@@ -204,102 +213,112 @@ export function ScheduleBuilder({
         detail="Pick accounts, an action, targets, and how often to repeat — all here. Text-only schedules are delivered by Telegram and keep firing while the app is closed."
       />
 
-      <section className="space-y-2">
-        <AccountPicker
-          accounts={accounts}
-          readyAccounts={readyAccounts}
-          accountIds={accountIds}
-          toggleAccount={toggleAccount}
-          setAccountIds={(ids) => {
-            setAccountIds(ids)
-            clearPreview()
-          }}
-        />
-      </section>
+      <AccountPicker
+        accounts={accounts}
+        readyAccounts={readyAccounts}
+        accountIds={accountIds}
+        toggleAccount={toggleAccount}
+        setAccountIds={(ids) => {
+          setAccountIds(ids)
+          clearPreview()
+        }}
+      />
 
-      <section className="grid gap-3 lg:grid-cols-2">
-        <Field label="Action">
-          <Select
-            value={actionType}
-            onChange={(event) => changeAction(event.target.value as ActionType)}
-          >
-            {groupedActions.map((group) => (
-              <optgroup key={group.category} label={group.label}>
-                {group.actions.map(([value, actionMetaItem]) => (
-                  <option key={value} value={value}>
-                    {actionMetaItem.label}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Targets">
-          <Input
-            value={target}
-            maxLength={1000}
-            autoComplete="off"
-            placeholder={meta.targetHint}
-            onChange={(event) => {
-              setTarget(event.target.value)
-              clearPreview()
-            }}
-          />
-        </Field>
-      </section>
-      <p className="text-xs text-muted-foreground">
-        {meta.description} Separate multiple chats with commas or new lines.
-      </p>
-
-      {schema ? (
-        <section className="border-t border-border pt-4">
-          <ActionFields
-            actionType={actionType}
-            values={fields}
-            setValues={(next) => {
-              setFields(next)
-              clearPreview()
-            }}
-            showErrors={submitAttempted}
-          />
+      <div className="grid gap-5 border-t border-border pt-4 lg:grid-cols-2">
+        {/* Left: what gets sent */}
+        <section className="space-y-3">
+          <Subhead>Message</Subhead>
+          <Field label="Action">
+            <Select
+              value={actionType}
+              onChange={(event) => changeAction(event.target.value as ActionType)}
+            >
+              {groupedActions.map((group) => (
+                <optgroup key={group.category} label={group.label}>
+                  {group.actions.map(([value, actionMetaItem]) => (
+                    <option key={value} value={value}>
+                      {actionMetaItem.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Targets">
+            <TargetComposer
+              value={target}
+              onChange={(next) => {
+                setTarget(next)
+                clearPreview()
+              }}
+              actionType={actionType}
+              accounts={accounts}
+              defaultAccountId={firstAccountId}
+              flash={flash}
+            />
+          </Field>
+          <p className="text-xs text-muted-foreground">{meta.description}</p>
+          {schema ? (
+            <ActionFields
+              actionType={actionType}
+              values={fields}
+              setValues={(next) => {
+                setFields(next)
+                clearPreview()
+              }}
+              showErrors={submitAttempted}
+            />
+          ) : null}
         </section>
-      ) : null}
 
-      <RecurrenceFields form={form} setForm={(next) => { setForm(next); clearPreview() }} />
-
-      <Field label="Schedule name">
-        <Input
-          value={name}
-          maxLength={80}
-          autoComplete="off"
-          placeholder="Daily hello"
-          onChange={(event) => {
-            setName(event.target.value)
-            clearPreview()
-          }}
-        />
-      </Field>
-
-      <p className="text-xs text-muted-foreground">
-        {describeRecurrence(buildRecurrence(form))}
-      </p>
-
-      {preview ? <SchedulePreviewCard preview={preview} /> : null}
-
-      <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
-        <Button variant="outline" onClick={() => guarded(previewSchedule)}>
-          Preview
-        </Button>
-        <Button onClick={() => guarded(createSchedule)}>
-          <IconClockPlus /> Create Schedule
-        </Button>
-        {currentBlocker ? (
-          <span className="text-xs text-muted-foreground">{currentBlocker}</span>
-        ) : (
-          <span className="text-xs text-primary">Ready to schedule.</span>
-        )}
+        {/* Right: when + how often */}
+        <section className="space-y-3 lg:border-l lg:border-border lg:pl-5">
+          <Subhead>Cadence</Subhead>
+          <RecurrenceFields
+            form={form}
+            setForm={(next) => {
+              setForm(next)
+              clearPreview()
+            }}
+          />
+          <Field label="Schedule name">
+            <Input
+              value={name}
+              maxLength={80}
+              autoComplete="off"
+              placeholder="Daily hello"
+              onChange={(event) => {
+                setName(event.target.value)
+                clearPreview()
+              }}
+            />
+          </Field>
+          <p className="border border-border bg-muted/20 p-2 text-xs text-muted-foreground">
+            {describeRecurrence(buildRecurrence(form))}
+          </p>
+          {preview ? <SchedulePreviewCard preview={preview} /> : null}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={() => guarded(previewSchedule)}>
+              Preview
+            </Button>
+            <Button onClick={() => guarded(createSchedule)}>
+              <IconClockPlus /> Create Schedule
+            </Button>
+          </div>
+          <p className={`text-xs ${currentBlocker ? "text-muted-foreground" : "text-primary"}`}>
+            {currentBlocker || "Ready to schedule."}
+          </p>
+        </section>
       </div>
     </Panel>
+  )
+}
+
+function Subhead({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase">
+      {children}
+    </span>
   )
 }
 
@@ -392,10 +411,7 @@ function RecurrenceFields({
     setForm({ ...form, ...patch })
 
   return (
-    <section className="space-y-3 border-t border-border pt-4">
-      <span className="text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase">
-        Repeat
-      </span>
+    <section className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Every">
           <div className="flex gap-2">
