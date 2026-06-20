@@ -672,32 +672,18 @@ function DialogsTablePanel({
           ))}
         </div>
       </div>
-      <TableWrap>
-        <Table className="min-w-[50rem]">
-          <TableHeader>
-            <TableRow>
-              <TableHead>
-                <input
-                  type="checkbox"
-                  aria-label={
-                    allFilteredSelected
-                      ? "Deselect filtered dialogs"
-                      : "Select filtered dialogs"
-                  }
-                  checked={allFilteredSelected}
-                  onChange={toggleSelectAll}
-                />
-              </TableHead>
-              <TableHead>Dialog</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Activity</TableHead>
-              <TableHead>Target</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+      {filteredDialogs.length === 0 ? (
+        <EmptyState
+          icon={IconMessageCircle}
+          title="No dialogs"
+          detail="Select an account and fetch dialogs, or adjust search and type filters."
+        />
+      ) : (
+        <>
+          {/* Mobile: stacked cards instead of a sideways-scrolling table. */}
+          <div className="space-y-2 lg:hidden">
             {filteredDialogs.map((dialog) => (
-              <DialogRow
+              <DialogCard
                 key={String(dialog.id)}
                 dialog={dialog}
                 applyQuickAction={applyQuickAction}
@@ -708,21 +694,52 @@ function DialogsTablePanel({
                 openMessages={openMessages}
               />
             ))}
-            {filteredDialogs.length === 0 ? (
-              <TableRow>
-                <TableCell className="p-0" colSpan={6}>
-                  <EmptyState
-                    icon={IconMessageCircle}
-                    title="No dialogs"
-                    detail="Select an account and fetch dialogs, or adjust search and type filters."
-                    className="border-0 bg-transparent"
-                  />
-                </TableCell>
-              </TableRow>
-            ) : null}
-          </TableBody>
-        </Table>
-      </TableWrap>
+          </div>
+
+          {/* Desktop: full table. */}
+          <div className="hidden lg:block">
+            <TableWrap>
+              <Table className="min-w-[50rem]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>
+                      <input
+                        type="checkbox"
+                        aria-label={
+                          allFilteredSelected
+                            ? "Deselect filtered dialogs"
+                            : "Select filtered dialogs"
+                        }
+                        checked={allFilteredSelected}
+                        onChange={toggleSelectAll}
+                      />
+                    </TableHead>
+                    <TableHead>Dialog</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Activity</TableHead>
+                    <TableHead>Target</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredDialogs.map((dialog) => (
+                    <DialogRow
+                      key={String(dialog.id)}
+                      dialog={dialog}
+                      applyQuickAction={applyQuickAction}
+                      selectedDialogTargets={selectedDialogTargets}
+                      setSelectedDialogTargets={setSelectedDialogTargets}
+                      toggleSelected={toggleSelected}
+                      stageTargetInActions={stageTargetInActions}
+                      openMessages={openMessages}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </TableWrap>
+          </div>
+        </>
+      )}
     </Panel>
   )
 }
@@ -862,6 +879,98 @@ function DialogRow({
         </div>
       </TableCell>
     </TableRow>
+  )
+}
+
+function DialogCard({
+  dialog,
+  applyQuickAction,
+  selectedDialogTargets,
+  setSelectedDialogTargets,
+  toggleSelected,
+  stageTargetInActions,
+  openMessages,
+}: {
+  dialog: TelegramDialog
+  applyQuickAction: (
+    actionType: ActionType,
+    dialogs: TelegramDialog[],
+    sourceLabel: string
+  ) => void
+  selectedDialogTargets: Set<string>
+  setSelectedDialogTargets: DialogsScreenProps["setSelectedDialogTargets"]
+  toggleSelected: DialogsScreenProps["toggleSelected"]
+  stageTargetInActions: (target: string) => void
+  openMessages: (dialog: TelegramDialog) => Promise<void>
+}) {
+  const target = dialogTarget(dialog)
+  const kind = dialogKind(dialog)
+  const isSelected = selectedDialogTargets.has(target)
+  const username = dialog.username ? `@${dialog.username}` : "No username"
+  const unreadCount = Number(dialog.unread_count || 0)
+
+  return (
+    <div
+      className={`space-y-3 border p-3 ${
+        isSelected ? "border-primary/40 bg-primary/5" : "border-border"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <input
+          type="checkbox"
+          className="mt-1"
+          aria-label={`Select ${dialog.title}`}
+          checked={isSelected}
+          onChange={() => toggleSelected(target, setSelectedDialogTargets)}
+        />
+        <div className="min-w-0 flex-1">
+          <strong className="block truncate text-sm">{dialog.title}</strong>
+          <span className="block truncate text-xs text-muted-foreground">
+            {username}
+          </span>
+        </div>
+        <Badge tone="border-border bg-muted/40 text-muted-foreground">
+          {kind}
+        </Badge>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+        <span>{unreadCount ? `${unreadCount} unread` : "read"}</span>
+        <span className="font-mono break-all">{target}</span>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          size="sm"
+          variant={OUTLINE_VARIANT}
+          onClick={() => openMessages(dialog)}
+        >
+          Messages
+        </Button>
+        <Button
+          size="sm"
+          variant={OUTLINE_VARIANT}
+          onClick={() => stageTargetInActions(target)}
+        >
+          <IconArrowRight className="size-3" />
+          Use
+        </Button>
+        {quickActionsForDialog(dialog).map((actionType) => (
+          <Button
+            key={actionType}
+            size="sm"
+            variant={
+              actionMeta[actionType].destructive
+                ? "destructive"
+                : OUTLINE_VARIANT
+            }
+            onClick={() =>
+              applyQuickAction(actionType, [dialog], dialog.title || target)
+            }
+          >
+            {actionMeta[actionType].label}
+          </Button>
+        ))}
+      </div>
+    </div>
   )
 }
 

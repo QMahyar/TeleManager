@@ -47,41 +47,116 @@ type AccountActionProps = Pick<
 
 export function AccountsTable(props: AccountsTableProps) {
   const { accounts, selectedIds, setSelectedIds } = props
-  const allSelected =
-    accounts.length > 0 &&
-    accounts.every((account) => selectedIds.has(account.id))
+
+  if (!accounts.length) {
+    return (
+      <EmptyState
+        title="No accounts yet"
+        detail="Add or import a Telegram session to start managing accounts, dialogs, and action queues."
+      />
+    )
+  }
+
+  const allSelected = accounts.every((account) => selectedIds.has(account.id))
+  const selectedCount = accounts.filter((account) =>
+    selectedIds.has(account.id)
+  ).length
+
+  function toggleAll(checked: boolean) {
+    setSelectedIds(
+      checked ? new Set(accounts.map((account) => account.id)) : new Set()
+    )
+  }
 
   return (
-    <TableWrap>
-      <Table className="min-w-[62rem]">
-        <TableHeader>
-          <TableRow>
-            <TableHead>
-              <input
-                type="checkbox"
-                aria-label={
-                  allSelected ? "Deselect all accounts" : "Select all accounts"
-                }
-                checked={allSelected}
-                onChange={(event) =>
-                  setSelectedIds(
-                    event.target.checked
-                      ? new Set(accounts.map((account) => account.id))
-                      : new Set()
-                  )
-                }
-              />
-            </TableHead>
-            <TableHead>Account</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Dialogs</TableHead>
-            <TableHead>Session</TableHead>
-            <TableHead>Controls</TableHead>
-          </TableRow>
-        </TableHeader>
-        <AccountsTableBody {...props} />
-      </Table>
-    </TableWrap>
+    <>
+      {/* Mobile: stacked cards (the wide table scrolls awkwardly on phones). */}
+      <div className="space-y-3 lg:hidden">
+        <div className="flex items-center gap-3 border border-border bg-muted/20 p-3 text-sm">
+          <input
+            type="checkbox"
+            aria-label={allSelected ? "Deselect all accounts" : "Select all accounts"}
+            checked={allSelected}
+            onChange={(event) => toggleAll(event.target.checked)}
+          />
+          <span className="text-muted-foreground">
+            {selectedCount} of {accounts.length} selected
+          </span>
+        </div>
+        {accounts.map((account) => (
+          <AccountCard key={account.id} {...props} account={account} />
+        ))}
+      </div>
+
+      {/* Desktop: full table. */}
+      <div className="hidden lg:block">
+        <TableWrap>
+          <Table className="min-w-[62rem]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>
+                  <input
+                    type="checkbox"
+                    aria-label={
+                      allSelected
+                        ? "Deselect all accounts"
+                        : "Select all accounts"
+                    }
+                    checked={allSelected}
+                    onChange={(event) => toggleAll(event.target.checked)}
+                  />
+                </TableHead>
+                <TableHead>Account</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Dialogs</TableHead>
+                <TableHead>Session</TableHead>
+                <TableHead>Controls</TableHead>
+              </TableRow>
+            </TableHeader>
+            <AccountsTableBody {...props} />
+          </Table>
+        </TableWrap>
+      </div>
+    </>
+  )
+}
+
+function AccountCard({
+  account,
+  selectedIds,
+  setSelectedIds,
+  ...actions
+}: AccountRowProps) {
+  const status = accountStatus(account)
+  const isSelected = selectedIds.has(account.id)
+
+  return (
+    <div
+      className={`space-y-3 border p-3 ${
+        isSelected ? "border-primary/40 bg-primary/5" : "border-border"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <input
+          type="checkbox"
+          className="mt-1"
+          aria-label={`Select ${account.label || account.session_name}`}
+          checked={isSelected}
+          onChange={() => toggleAccountSelection(account.id, setSelectedIds)}
+        />
+        <div className="min-w-0 flex-1">
+          <AccountIdentity account={account} />
+        </div>
+        <Badge tone={statusTone(status)}>{status}</Badge>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {account.dialog_count || 0} dialogs ·{" "}
+        <span className="font-mono break-all">
+          {account.session_name}.session
+        </span>
+      </p>
+      <AccountActions account={account} {...actions} />
+    </div>
   )
 }
 

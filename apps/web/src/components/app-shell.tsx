@@ -455,7 +455,7 @@ function Header({
   openPalette: () => void
 }) {
   return (
-    <header className="mb-6 flex flex-col gap-4 border border-border bg-card p-5 md:flex-row md:items-center md:justify-between">
+    <header className="mb-6 flex flex-col gap-4 border border-border bg-card p-4 sm:p-5 md:flex-row md:items-center md:justify-between">
       <div className="flex items-start gap-3">
         <Button
           variant="outline"
@@ -466,20 +466,26 @@ function Header({
         >
           <IconMenu2 />
         </Button>
-        <div>
+        <div className="min-w-0">
           <p className="text-[0.65rem] font-semibold tracking-[0.28em] text-primary uppercase">
             {activeItem?.group || "Workspace"}
           </p>
-          <h1 className="font-heading text-4xl tracking-tight">
+          <h1 className="font-heading text-2xl tracking-tight sm:text-3xl xl:text-4xl">
             {activeItem?.label}
           </h1>
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone="border-border bg-muted/40 text-muted-foreground">
-          {selectedCount} selected
-        </Badge>
-        <Button variant="outline" onClick={openPalette}>
+        <span className="hidden sm:block">
+          <Badge tone="border-border bg-muted/40 text-muted-foreground">
+            {selectedCount} selected
+          </Badge>
+        </span>
+        <Button
+          variant="outline"
+          className="hidden sm:inline-flex"
+          onClick={openPalette}
+        >
           <IconCommand /> Ctrl+K
         </Button>
         <Button variant="outline" onClick={openSettings}>

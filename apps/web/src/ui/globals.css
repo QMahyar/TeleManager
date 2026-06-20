@@ -127,4 +127,29 @@
   button:not(:disabled), [role="button"]:not(:disabled) {
     cursor: pointer;
     }
+  /* Native checkboxes/radios are tiny and unthemed by default. Give them the
+     brand accent and a slightly larger, easier-to-tap box everywhere. */
+  input[type="checkbox"], input[type="radio"] {
+    accent-color: var(--primary);
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+    }
+}
+
+/* Touch devices only (phones/tablets where the primary pointer is coarse).
+   Desktops with a mouse keep the dense layout untouched. Enlarges hit targets
+   to comfortable sizes without changing widths of full-width buttons. */
+@media (pointer: coarse) {
+  [data-slot="button"] {
+    min-height: 2.5rem;
+    min-width: 2.5rem;
+    }
+  [data-slot="input"], [data-slot="select"] {
+    min-height: 2.75rem;
+    }
+  input[type="checkbox"], input[type="radio"] {
+    width: 1.25rem;
+    height: 1.25rem;
+    }
 }

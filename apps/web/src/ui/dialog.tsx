@@ -82,7 +82,7 @@ function DialogInput({
             onConfirm(inputRef.current?.value.trim())
           }
         }}
-        className="h-9 border border-input bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
+        className="h-9 border border-input bg-background px-3 text-base text-foreground outline-none focus:border-primary sm:text-sm"
       />
     </label>
   )

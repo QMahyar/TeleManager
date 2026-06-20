@@ -58,7 +58,7 @@ export function QueueTable({
                   {step.targets.slice(0, 4).map((target) => (
                     <p
                       key={target}
-                      className="font-mono text-xs text-muted-foreground"
+                      className="font-mono text-xs break-all text-muted-foreground"
                     >
                       {target}
                     </p>

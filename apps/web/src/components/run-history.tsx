@@ -100,7 +100,7 @@ export function RunHistory({
               <div className="space-y-3">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <strong>{run.id}</strong>
+                    <strong className="break-all">{run.id}</strong>
                     <Badge tone={statusTone(run.status)}>{run.status}</Badge>
                     {run.schedule_id ? (
                       <Badge tone="border-primary/30 bg-primary/10 text-primary">
@@ -298,7 +298,10 @@ function RunDetailsDialog({
             <p className="text-[0.65rem] font-semibold tracking-[0.28em] text-primary uppercase">
               Queue run details
             </p>
-            <h2 id="queue-run-title" className="mt-2 font-heading text-2xl">
+            <h2
+              id="queue-run-title"
+              className="mt-2 font-heading text-2xl break-all"
+            >
               {run.id}
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
