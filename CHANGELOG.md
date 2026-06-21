@@ -11,6 +11,34 @@ section below, with auto-generated commit/PR notes appended.
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-06-21
+
+Frontend refresh and polish pass. Keeps the existing dense, green identity and
+layout; no backend or API changes.
+
+### Added
+
+- **Toast tones**: feedback toasts are now coloured by outcome — success (green), error (red, with `role="alert"` / `aria-live="assertive"` so screen readers interrupt), and info — each with an icon, so a failed request no longer looks identical to a success.
+- **Command-palette actions**: Ctrl+K lists app actions (Add account, Refresh data, Switch theme) alongside screen navigation, and the palette now closes when you pick something.
+- **Clickable fleet stats**: the Accounts metric tiles (Total / Ready / Needs attention) double as one-tap status filters, including a new roll-up "Needs attention" filter that matches every not-ready session.
+- **Loading skeleton** for the Accounts table's first load instead of a brief flash of the empty state.
+
+### Changed
+
+- **Context-aware header**: "Add Account" now deep-links straight to the Add / Login tab (previously it landed on the Fleet tab), and the "N selected" chip only shows on the Accounts screen, where it actually reflects the session selection.
+- **Row action menus** (Accounts, Dialogs) are proper dropdowns that close on outside-click and Escape and expose `aria-haspopup` / `aria-expanded`, replacing native `<details>` menus that stayed open.
+- **Modals share one implementation** with a focus trap, body scroll-lock, and Escape handling (command palette, confirm/prompt dialog, message inspector, run details), so keyboard focus no longer escapes an open modal.
+- **Subtle visual refresh** that preserves the dense green identity: a gentle corner radius and card elevation, a green focus ring across inputs/selects/textareas, and consistently rounded cards, tiles, chips, and list rows.
+
+### Fixed
+
+- The Accounts dialog picker no longer calls `setState` inside an effect (which could trigger cascading re-renders); the active account is now derived from props/state.
+
+### Internal
+
+- New shared UI primitives: `Modal` + `useFocusTrap`, `Menu` (controlled dropdown), and `Skeleton` / `StatCard`.
+- `flash()` gained an optional `tone` parameter (shared `Flash` type) threaded through screen props; removed the unused `--chart-*` design tokens.
+
 ## [1.4.0] - 2026-06-21
 
 ### Added
