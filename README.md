@@ -14,7 +14,7 @@ platform. Its job is narrower and safer:
 - build **guarded** one-off action queues
 - keep a local audit trail of what ran
 
-Current release: **`v1.3.0`**
+Current release: **`v1.4.0`**
 
 ## Why it exists
 

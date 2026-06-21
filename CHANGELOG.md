@@ -11,6 +11,8 @@ section below, with auto-generated commit/PR notes appended.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-06-21
+
 ### Added
 
 - **Standalone schedule builder** on the Schedules page: create a recurring schedule end-to-end (accounts, action, target chats, message, recurrence) without going through the Actions queue builder.
