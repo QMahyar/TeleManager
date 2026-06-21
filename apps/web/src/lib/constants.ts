@@ -1,4 +1,5 @@
 import {
+  IconInfoCircle,
   IconMessageCircle,
   IconPlayerPlay,
   IconSettings,
@@ -23,6 +24,10 @@ export const navItems: Array<{
   },
   { id: "actions", label: "Actions", group: "Workspace", icon: IconPlayerPlay },
   { id: "settings", label: "Settings", group: "System", icon: IconSettings },
+  // Group "About" is intentionally not one of the rendered sidebar groups
+  // ("Workspace"/"System"); About is pinned separately at the sidebar bottom.
+  // Listing it here still lets the Header title and command palette resolve it.
+  { id: "about", label: "About", group: "About", icon: IconInfoCircle },
 ]
 
 export type ActionCategory =

@@ -2,6 +2,7 @@ import * as React from "react"
 
 import {
   IconCommand,
+  IconInfoCircle,
   IconMenu2,
   IconMoon,
   IconPower,
@@ -412,6 +413,18 @@ function Sidebar({
         ))}
       </nav>
       <div className="mt-auto space-y-3">
+        <button
+          onClick={() => openView("about")}
+          className={cn(
+            "flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition",
+            view === "about"
+              ? "border-sidebar-primary bg-sidebar-primary text-sidebar-primary-foreground"
+              : "border-transparent hover:border-sidebar-border hover:bg-sidebar-accent"
+          )}
+        >
+          <IconInfoCircle className="size-4" />
+          <span className="flex-1">About</span>
+        </button>
         <Badge tone="border-primary/30 bg-primary/10 text-primary">
           127.0.0.1 only
         </Badge>

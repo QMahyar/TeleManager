@@ -12,6 +12,7 @@ export type View =
   | "actions"
   | "schedules"
   | "settings"
+  | "about"
 
 export type AccountsTab = "fleet" | "login" | "transfer"
 

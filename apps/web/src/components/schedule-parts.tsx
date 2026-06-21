@@ -46,7 +46,7 @@ export function RecurrenceFields({
 
   return (
     <section className="space-y-3">
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3">
         <Field label="Every">
           <div className="flex gap-2">
             <Input
@@ -87,7 +87,7 @@ export function RecurrenceFields({
         </Field>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3">
         <Field label="Starts">
           <Select
             value={form.startMode}

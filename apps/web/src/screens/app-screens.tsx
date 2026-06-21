@@ -1,3 +1,4 @@
+import { AboutScreen } from "./about-screen"
 import { AccountsScreen } from "./accounts-screen"
 import { ActionsScreen } from "./actions-screen"
 import { DialogsScreen } from "./dialogs-screen"
@@ -17,5 +18,6 @@ export function AppScreens({ view, screenProps, activity }: AppScreensProps) {
   if (view === "actions") return <ActionsScreen {...screenProps} />
   if (view === "settings")
     return <SettingsScreen {...screenProps} activity={activity} />
+  if (view === "about") return <AboutScreen flash={screenProps.flash} />
   return null
 }

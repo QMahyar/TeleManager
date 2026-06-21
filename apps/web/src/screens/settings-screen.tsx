@@ -1,9 +1,4 @@
-import {
-  IconInfoCircle,
-  IconKey,
-  IconShieldLock,
-  IconTimeline,
-} from "@tabler/icons-react"
+import { IconKey, IconShieldLock, IconTimeline } from "@tabler/icons-react"
 import * as React from "react"
 
 import { Button } from "../ui/button"
@@ -12,10 +7,9 @@ import { SafetyEditor } from "../components/safety-editor"
 import { Field, Input, Panel, StepHeading, Tabs } from "../components/ui"
 import { api } from "../lib/api"
 import type { ActivityEvent, Flash, SafetySettings } from "../types"
-import { AboutScreen } from "./about-screen"
 import { ActivityScreen } from "./activity-screen"
 
-type SettingsTab = "api" | "safety" | "activity" | "about"
+type SettingsTab = "api" | "safety" | "activity"
 
 type SettingsScreenProps = {
   safety: SafetySettings
@@ -47,13 +41,11 @@ export function SettingsScreen(props: SettingsScreenProps) {
             icon: IconTimeline,
             badge: props.activity.length || undefined,
           },
-          { id: "about", label: "About", icon: IconInfoCircle },
         ]}
       />
       {tab === "api" ? <ApiPanel {...props} /> : null}
       {tab === "safety" ? <SafetyPanel {...props} /> : null}
       {tab === "activity" ? <ActivityScreen activity={props.activity} /> : null}
-      {tab === "about" ? <AboutScreen flash={props.flash} /> : null}
     </div>
   )
 }

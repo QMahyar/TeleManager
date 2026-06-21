@@ -112,7 +112,7 @@ export function ActionsScreen(props: ActionsScreenProps) {
         cancelActiveRun={queueRunner.cancelActiveRun}
         guarded={props.guarded}
       />
-      <div className="grid gap-4 xl:grid-cols-[15rem_minmax(0,1fr)_19rem]">
+      <div className="grid gap-4 xl:grid-cols-[15rem_minmax(0,1fr)_22rem]">
         <AccountsColumn props={props} />
         <BuilderColumn props={props} />
         <QueueColumn
@@ -789,7 +789,7 @@ function QueueColumn({
           Delays & limits
         </summary>
         <div className="pt-2">
-          <SafetyEditor safety={props.safety} setSafety={props.setSafety} />
+          <SafetyEditor safety={props.safety} setSafety={props.setSafety} dense />
         </div>
       </details>
 

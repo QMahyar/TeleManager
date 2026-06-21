@@ -1,17 +1,23 @@
 import * as React from "react"
 
+import { cn } from "../ui/utils"
+
 import type { SafetySettings } from "../types"
 import { Field, Input } from "./ui"
 
 export function SafetyEditor({
   safety,
   setSafety,
+  dense = false,
 }: {
   safety: SafetySettings
   setSafety: React.Dispatch<React.SetStateAction<SafetySettings>>
+  // `dense` stacks the three fields into one column for narrow containers (the
+  // Actions right rail). Default keeps the 3-up grid used on the Settings page.
+  dense?: boolean
 }) {
   return (
-    <div className="grid gap-3 md:grid-cols-3">
+    <div className={cn("grid gap-3", dense ? "grid-cols-1" : "md:grid-cols-3")}>
       <Field label="Account delay (s)">
         <Input
           type="number"
