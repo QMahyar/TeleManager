@@ -265,7 +265,7 @@ function AccountsColumn({ props }: { props: ActionsScreenProps }) {
           return (
             <label
               key={account.id}
-              className={`flex items-center gap-2 border p-2 text-xs transition-colors ${
+              className={`flex items-center gap-2 rounded-md border p-2 text-xs transition-colors ${
                 isSelected
                   ? "border-primary/40 bg-primary/5"
                   : "border-border hover:bg-muted/20"
@@ -333,7 +333,7 @@ function PresetSection({ props }: { props: ActionsScreenProps }) {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ name, queue: queuePayload }),
             })
-            flash("Preset saved.")
+            flash("Preset saved.", "success")
             await loadPresets()
           })
         }
@@ -353,7 +353,7 @@ function PresetSection({ props }: { props: ActionsScreenProps }) {
         />
       ))}
       {presets.length === 0 ? (
-        <p className="border border-dashed border-border bg-muted/20 px-3 py-4 text-center text-xs text-muted-foreground">
+        <p className="rounded-lg border border-dashed border-border bg-muted/20 px-3 py-4 text-center text-xs text-muted-foreground">
           Saved queues appear here for one-click reuse.
         </p>
       ) : null}
@@ -379,7 +379,7 @@ function PresetRow({
   askDialog: ActionsScreenProps["askDialog"]
 }) {
   return (
-    <div className="flex items-center gap-2 border border-border p-2 text-xs">
+    <div className="flex items-center gap-2 rounded-md border border-border p-2 text-xs">
       <button
         className="flex-1 text-left"
         onClick={() => {
@@ -413,7 +413,7 @@ function PresetRow({
             })
             if (!confirmed) return
             await api(`/api/actions/presets/${preset.id}`, { method: "DELETE" })
-            flash("Preset deleted.")
+            flash("Preset deleted.", "success")
             await loadPresets()
           })
         }
@@ -604,7 +604,7 @@ function QueueColumn({
       />
       <QueueTable queue={props.queue} setQueue={props.setQueue} onEdit={editStep} />
 
-      <details className="border border-border bg-muted/10 p-2 text-xs" open>
+      <details className="rounded-md border border-border bg-muted/10 p-2 text-xs" open>
         <summary className="cursor-pointer font-medium text-muted-foreground">
           Delays & limits
         </summary>
@@ -614,7 +614,7 @@ function QueueColumn({
       </details>
 
       {destructiveCount ? (
-        <p className="flex items-center gap-1.5 border border-destructive/40 bg-destructive/10 p-2 text-xs font-medium text-destructive">
+        <p className="flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs font-medium text-destructive">
           <IconAlertTriangle className="size-3.5 shrink-0" />
           {destructiveCount} destructive operation(s) queued.
         </p>
@@ -644,7 +644,10 @@ function QueueColumn({
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ ...props.queuePayload, confirm: true }),
             })
-            props.flash(`Queue started: ${response.operation_count} operations.`)
+            props.flash(
+              `Queue started: ${response.operation_count} operations.`,
+              "success"
+            )
             void pollQueueRun(response.run_id)
           })
         }
@@ -713,7 +716,7 @@ function ActiveRunBanner({
       : ""
 
   return (
-    <div className="flex flex-col gap-3 border border-sky-500/40 bg-sky-500/10 p-4 text-sm md:flex-row md:items-center md:justify-between">
+    <div className="flex flex-col gap-3 rounded-lg border border-sky-500/40 bg-sky-500/10 p-4 text-sm md:flex-row md:items-center md:justify-between">
       <div className="flex min-w-0 items-center gap-3">
         <IconLoader2 className="size-4 shrink-0 animate-spin text-sky-600 dark:text-sky-400" />
         <div className="min-w-0">
@@ -747,7 +750,7 @@ function QuickActionNotice({
   if (!quickActionContext) return null
 
   return (
-    <div className="border border-primary/30 bg-primary/10 p-2.5 text-xs">
+    <div className="rounded-lg border border-primary/30 bg-primary/10 p-2.5 text-xs">
       <div className="flex flex-wrap items-center gap-2">
         <strong>{quickActionContext.title}</strong>
         <Badge tone="border-primary/30 bg-background text-primary">

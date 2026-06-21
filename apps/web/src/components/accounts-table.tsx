@@ -9,6 +9,7 @@ import {
 } from "@tabler/icons-react"
 
 import { Button } from "../ui/button"
+import { Menu } from "../ui/menu"
 import {
   Table,
   TableBody,
@@ -21,15 +22,16 @@ import {
 
 import { api, toForm } from "../lib/api"
 import { accountStatus, statusTone } from "../lib/helpers"
-import type { Account, AskDialog } from "../types"
-import { Badge, EmptyState } from "./ui"
+import type { Account, AskDialog, Flash } from "../types"
+import { Badge, EmptyState, Skeleton } from "./ui"
 
 type AccountsTableProps = {
   accounts: Account[]
+  loaded?: boolean
   selectedIds: Set<string>
   setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>
   refresh: () => Promise<void>
-  flash: (message: string) => void
+  flash: Flash
   guarded: (work: () => Promise<void>) => Promise<void>
   askDialog: AskDialog
 }
@@ -46,7 +48,13 @@ type AccountActionProps = Pick<
 }
 
 export function AccountsTable(props: AccountsTableProps) {
-  const { accounts, selectedIds, setSelectedIds } = props
+  const { accounts, loaded = true, selectedIds, setSelectedIds } = props
+
+  // First load in flight: show skeleton rows so the panel keeps its shape
+  // instead of flashing the empty state before data arrives.
+  if (!loaded && !accounts.length) {
+    return <AccountsTableSkeleton />
+  }
 
   if (!accounts.length) {
     return (
@@ -72,7 +80,7 @@ export function AccountsTable(props: AccountsTableProps) {
     <>
       {/* Mobile: stacked cards (the wide table scrolls awkwardly on phones). */}
       <div className="space-y-3 lg:hidden">
-        <div className="flex items-center gap-3 border border-border bg-muted/20 p-3 text-sm">
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/20 p-3 text-sm">
           <input
             type="checkbox"
             aria-label={allSelected ? "Deselect all accounts" : "Select all accounts"}
@@ -121,6 +129,26 @@ export function AccountsTable(props: AccountsTableProps) {
   )
 }
 
+function AccountsTableSkeleton() {
+  return (
+    <div className="space-y-2" aria-busy="true" aria-label="Loading accounts">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <div
+          key={index}
+          className="flex items-center gap-3 rounded-lg border border-border p-3"
+        >
+          <Skeleton className="size-4" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-3.5 w-40" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+          <Skeleton className="h-6 w-16" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function AccountCard({
   account,
   selectedIds,
@@ -132,7 +160,7 @@ function AccountCard({
 
   return (
     <div
-      className={`space-y-3 border p-3 ${
+      className={`space-y-3 rounded-lg border p-3 ${
         isSelected ? "border-primary/40 bg-primary/5" : "border-border"
       }`}
     >
@@ -264,62 +292,56 @@ function AccountActions({
       >
         Dialogs
       </Button>
-      <details className="relative">
-        <summary className="flex h-6 cursor-pointer list-none items-center justify-center border border-border bg-background px-2 text-sm text-foreground hover:bg-muted/40">
-          <IconDotsVertical className="size-4" />
-        </summary>
-        <div className="absolute right-0 z-10 mt-2 grid min-w-44 gap-1 border border-border bg-card p-2 shadow-xl">
-          <Button
-            size="sm"
-            variant="outline"
-            className="justify-start"
-            onClick={() =>
-              guarded(() => renameAccount(account, refresh, flash, askDialog))
-            }
-          >
-            <IconPencil className="size-3.5" />
-            Rename Label
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="justify-start"
-            onClick={() =>
-              guarded(() =>
-                renameSessionFile(account, refresh, flash, askDialog)
-              )
-            }
-          >
-            <IconFileText className="size-3.5" />
-            Rename File
-          </Button>
-          <div className="my-1 border-t border-border" />
-          <Button
-            size="sm"
-            variant="destructive"
-            className="justify-start"
-            onClick={() =>
-              guarded(() => logoutAccount(account, refresh, flash, askDialog))
-            }
-          >
-            <IconLogout className="size-3.5" />
-            Logout
-          </Button>
-          <Button
-            size="sm"
-            variant="destructive"
-            className="justify-start"
-            onClick={() =>
-              guarded(() =>
-                deleteLocalSession(account, refresh, flash, askDialog)
-              )
-            }
-          >
-            <IconTrash className="size-3.5" />
-            Delete Local
-          </Button>
-        </div>
-      </details>
+      <Menu
+        label={`More actions for ${account.label || account.session_name}`}
+        trigger={<IconDotsVertical className="size-4" />}
+      >
+        <Button
+          size="sm"
+          variant="outline"
+          className="justify-start"
+          onClick={() =>
+            guarded(() => renameAccount(account, refresh, flash, askDialog))
+          }
+        >
+          <IconPencil className="size-3.5" />
+          Rename Label
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="justify-start"
+          onClick={() =>
+            guarded(() => renameSessionFile(account, refresh, flash, askDialog))
+          }
+        >
+          <IconFileText className="size-3.5" />
+          Rename File
+        </Button>
+        <div className="my-1 border-t border-border" />
+        <Button
+          size="sm"
+          variant="destructive"
+          className="justify-start"
+          onClick={() =>
+            guarded(() => logoutAccount(account, refresh, flash, askDialog))
+          }
+        >
+          <IconLogout className="size-3.5" />
+          Logout
+        </Button>
+        <Button
+          size="sm"
+          variant="destructive"
+          className="justify-start"
+          onClick={() =>
+            guarded(() => deleteLocalSession(account, refresh, flash, askDialog))
+          }
+        >
+          <IconTrash className="size-3.5" />
+          Delete Local
+        </Button>
+      </Menu>
     </div>
   )
 }
@@ -339,29 +361,29 @@ function toggleAccountSelection(
 async function validateAccount(
   account: Account,
   refresh: () => Promise<void>,
-  flash: (message: string) => void
+  flash: Flash
 ) {
   await api(`/api/accounts/${account.id}/validate`, { method: "POST" })
-  flash("Session validated.")
+  flash("Session validated.", "success")
   await refresh()
 }
 
 async function fetchAccountDialogs(
   account: Account,
   refresh: () => Promise<void>,
-  flash: (message: string) => void
+  flash: Flash
 ) {
   await api(`/api/accounts/${account.id}/dialogs/fetch?limit=500`, {
     method: "POST",
   })
-  flash("Dialogs fetched.")
+  flash("Dialogs fetched.", "success")
   await refresh()
 }
 
 async function renameAccount(
   account: Account,
   refresh: () => Promise<void>,
-  flash: (message: string) => void,
+  flash: Flash,
   askDialog: AskDialog
 ) {
   const label = await askDialog({
@@ -382,14 +404,14 @@ async function renameAccount(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ label }),
   })
-  flash("Account renamed.")
+  flash("Account renamed.", "success")
   await refresh()
 }
 
 async function renameSessionFile(
   account: Account,
   refresh: () => Promise<void>,
-  flash: (message: string) => void,
+  flash: Flash,
   askDialog: AskDialog
 ) {
   const sessionName = await askDialog({
@@ -411,14 +433,14 @@ async function renameSessionFile(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ session_name: sessionName }),
   })
-  flash("Session file renamed.")
+  flash("Session file renamed.", "success")
   await refresh()
 }
 
 async function deleteLocalSession(
   account: Account,
   refresh: () => Promise<void>,
-  flash: (message: string) => void,
+  flash: Flash,
   askDialog: AskDialog
 ) {
   const confirmed = await askDialog({
@@ -429,14 +451,14 @@ async function deleteLocalSession(
   })
   if (!confirmed) return
   await api(`/api/accounts/${account.id}`, { method: "DELETE" })
-  flash("Local session deleted.")
+  flash("Local session deleted.", "success")
   await refresh()
 }
 
 async function logoutAccount(
   account: Account,
   refresh: () => Promise<void>,
-  flash: (message: string) => void,
+  flash: Flash,
   askDialog: AskDialog
 ) {
   const confirmed = await askDialog({
@@ -451,6 +473,6 @@ async function logoutAccount(
     method: "POST",
     body: toForm({ account_id: account.id }),
   })
-  flash("Account logged out.")
+  flash("Account logged out.", "success")
   await refresh()
 }

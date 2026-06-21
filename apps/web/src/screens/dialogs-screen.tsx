@@ -9,6 +9,8 @@ import {
 } from "@tabler/icons-react"
 
 import { Button } from "../ui/button"
+import { Menu } from "../ui/menu"
+import { Modal } from "../ui/modal"
 import {
   Table,
   TableBody,
@@ -407,13 +409,13 @@ function DialogsSourcePanel({
         detail="Pick one account, load cached or live dialogs, then stage selected chats into Actions."
       />
       <div className="grid grid-cols-2 gap-2 text-xs">
-        <div className="border border-border bg-muted/20 p-3">
+        <div className="rounded-lg border border-border bg-muted/20 p-3">
           <span className="text-muted-foreground">Selected</span>
           <strong className="mt-1 block font-heading text-2xl">
             {selectedDialogTargets.size}
           </strong>
         </div>
-        <div className="border border-border bg-muted/20 p-3">
+        <div className="rounded-lg border border-border bg-muted/20 p-3">
           <span className="text-muted-foreground">Source</span>
           <strong className="mt-1 block truncate text-sm">
             {selectedAccount?.label || selectedAccount?.session_name || "None"}
@@ -454,7 +456,7 @@ function DialogsSourcePanel({
         </Button>
       </div>
       {fetchStatus ? (
-        <div className="border border-border bg-background p-3 text-xs leading-5 text-muted-foreground">
+        <div className="rounded-lg border border-border bg-background p-3 text-xs leading-5 text-muted-foreground">
           {fetchStatus}
         </div>
       ) : null}
@@ -503,13 +505,13 @@ function DialogsSourcePanel({
               ))}
             </div>
           ) : (
-            <p className="border border-dashed border-border bg-muted/20 p-3 text-center text-xs text-muted-foreground">
+            <p className="rounded-lg border border-dashed border-border bg-muted/20 p-3 text-center text-xs text-muted-foreground">
               No bulk action applies to all selected chat types. Narrow the
               selection to one kind for more options.
             </p>
           )
         ) : (
-          <p className="border border-dashed border-border bg-muted/20 p-3 text-center text-xs text-muted-foreground">
+          <p className="rounded-lg border border-dashed border-border bg-muted/20 p-3 text-center text-xs text-muted-foreground">
             Select one or more dialogs to see bulk actions.
           </p>
         )}
@@ -746,7 +748,7 @@ function DialogsTablePanel({
 
 function DialogMetric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="border border-border bg-muted/20 p-3 text-xs">
+    <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs">
       <span className="text-muted-foreground">{label}</span>
       <strong className="mt-1 block font-heading text-2xl">{value}</strong>
     </div>
@@ -849,33 +851,29 @@ function DialogRow({
             <IconArrowRight className="size-3" />
             Use
           </Button>
-          <details className="relative">
-            <summary className="flex h-6 cursor-pointer list-none items-center justify-center border border-border bg-background px-2 text-sm text-foreground hover:bg-muted/40">
-              <IconDotsVertical className="size-4" />
-            </summary>
-            <div className="absolute right-0 z-10 mt-2 grid min-w-48 gap-1 border border-border bg-card p-2 shadow-xl">
-              {quickActionsForDialog(dialog).map((actionType) => (
-                <Button
-                  key={actionType}
-                  size="sm"
-                  variant={
-                    actionMeta[actionType].destructive
-                      ? "destructive"
-                      : OUTLINE_VARIANT
-                  }
-                  onClick={() =>
-                    applyQuickAction(
-                      actionType,
-                      [dialog],
-                      dialog.title || target
-                    )
-                  }
-                >
-                  {actionMeta[actionType].label}
-                </Button>
-              ))}
-            </div>
-          </details>
+          <Menu
+            label={`Quick actions for ${dialog.title || target}`}
+            trigger={<IconDotsVertical className="size-4" />}
+            panelClassName="min-w-48"
+          >
+            {quickActionsForDialog(dialog).map((actionType) => (
+              <Button
+                key={actionType}
+                size="sm"
+                className="justify-start"
+                variant={
+                  actionMeta[actionType].destructive
+                    ? "destructive"
+                    : OUTLINE_VARIANT
+                }
+                onClick={() =>
+                  applyQuickAction(actionType, [dialog], dialog.title || target)
+                }
+              >
+                {actionMeta[actionType].label}
+              </Button>
+            ))}
+          </Menu>
         </div>
       </TableCell>
     </TableRow>
@@ -911,7 +909,7 @@ function DialogCard({
 
   return (
     <div
-      className={`space-y-3 border p-3 ${
+      className={`space-y-3 rounded-lg border p-3 ${
         isSelected ? "border-primary/40 bg-primary/5" : "border-border"
       }`}
     >
@@ -1007,27 +1005,34 @@ function DialogMessagesPanel({
   ) => void
   onClose: () => void
 }) {
-  if (!panel) {
-    return null
-  }
-  const dialog = panel.dialog
-  const messages = panel.messages
-  const target = dialogTarget(dialog)
+  const dialog = panel?.dialog
+  const messages = panel?.messages ?? []
+  const target = dialog ? dialogTarget(dialog) : ""
 
   function stageMessage(actionType: ActionType, message: TelegramMessage) {
+    if (!dialog) return
     onStageMessage(actionType, dialog, message)
     onClose()
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-end bg-background/80 p-4 backdrop-blur-sm">
-      <section className="max-h-[90vh] w-full max-w-4xl overflow-hidden border border-border bg-card shadow-2xl">
+    <Modal
+      open={Boolean(panel)}
+      onClose={onClose}
+      align="end"
+      className="max-h-[90vh] max-w-4xl overflow-hidden"
+      labelledBy="dialog-messages-title"
+    >
+      {dialog ? (
+        <>
         <div className="flex items-start justify-between gap-3 border-b border-border p-4">
           <div>
             <p className="text-[0.65rem] font-semibold tracking-[0.24em] text-primary uppercase">
               Message inspector
             </p>
-            <h2 className="font-heading text-2xl">{dialog.title}</h2>
+            <h2 id="dialog-messages-title" className="font-heading text-2xl">
+              {dialog.title}
+            </h2>
             <p className="font-mono text-xs text-muted-foreground">{target}</p>
           </div>
           <Button variant={OUTLINE_VARIANT} onClick={onClose}>
@@ -1040,7 +1045,7 @@ function DialogMessagesPanel({
               {messages.map((message) => (
                 <div
                   key={message.id}
-                  className="border border-border p-3 text-sm"
+                  className="rounded-lg border border-border p-3 text-sm"
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge tone="border-border bg-muted/40 text-muted-foreground">
@@ -1106,7 +1111,8 @@ function DialogMessagesPanel({
             />
           )}
         </div>
-      </section>
-    </div>
+        </>
+      ) : null}
+    </Modal>
   )
 }

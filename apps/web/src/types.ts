@@ -1,11 +1,19 @@
 import type * as React from "react"
 
+export type ToastTone = "info" | "success" | "error"
+
+// Surface a transient toast. Tone is optional and defaults to "info" so existing
+// call sites keep working; pass "success"/"error" to colour the feedback.
+export type Flash = (message: string, tone?: ToastTone) => void
+
 export type View =
   | "accounts"
   | "dialogs"
   | "actions"
   | "schedules"
   | "settings"
+
+export type AccountsTab = "fleet" | "login" | "transfer"
 
 export type ActionType =
   | "join_chat"

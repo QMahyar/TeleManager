@@ -5,7 +5,13 @@ import { IconRefresh, IconTrash } from "@tabler/icons-react"
 import { Button } from "../ui/button"
 import { api } from "../lib/api"
 import { humanTime } from "../lib/helpers"
-import type { Account, AskDialog, Schedule, ScheduledInspect } from "../types"
+import type {
+  Account,
+  AskDialog,
+  Flash,
+  Schedule,
+  ScheduledInspect,
+} from "../types"
 import { Badge, EmptyState, Field, Input, Panel, Select, StepHeading } from "./ui"
 
 export function ScheduledInspector({
@@ -18,7 +24,7 @@ export function ScheduledInspector({
   accounts: Account[]
   schedules: Schedule[]
   guarded: (work: () => Promise<void>) => Promise<void>
-  flash: (message: string) => void
+  flash: Flash
   askDialog: AskDialog
 }) {
   const readyAccounts = accounts.filter(
@@ -72,7 +78,7 @@ export function ScheduledInspector({
         body: JSON.stringify({ target: result.target, ids }),
       }
     )
-    flash(`Cleared ${payload.cleared} scheduled message(s).`)
+    flash(`Cleared ${payload.cleared} scheduled message(s).`, "success")
     await fetchScheduled()
   }
 
@@ -201,7 +207,7 @@ function ScheduledResult({
         {result.messages.map((message) => (
           <label
             key={message.id}
-            className="flex items-center gap-3 border border-border p-2 text-sm"
+            className="flex items-center gap-3 rounded-md border border-border p-2 text-sm"
           >
             <input
               type="checkbox"

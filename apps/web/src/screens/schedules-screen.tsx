@@ -118,12 +118,15 @@ function ScheduleCard({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     })
-    flash(status === "active" ? "Schedule resumed." : "Schedule paused.")
+    flash(
+      status === "active" ? "Schedule resumed." : "Schedule paused.",
+      "success"
+    )
     await loadSchedules()
   }
 
   return (
-    <div className="grid gap-3 border border-border p-3 text-sm md:grid-cols-[1fr_auto]">
+    <div className="grid gap-3 rounded-lg border border-border p-3 text-sm md:grid-cols-[1fr_auto]">
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <strong>{schedule.name}</strong>
@@ -183,7 +186,7 @@ function ScheduleCard({
                 await api(`/api/schedules/${schedule.id}/run-now`, {
                   method: "POST",
                 })
-                flash("Immediate run started.")
+                flash("Immediate run started.", "success")
                 await loadSchedules()
               })
             }
@@ -207,7 +210,7 @@ function ScheduleCard({
               })
               if (!confirmed) return
               await api(`/api/schedules/${schedule.id}`, { method: "DELETE" })
-              flash("Schedule deleted.")
+              flash("Schedule deleted.", "success")
               await loadSchedules()
             })
           }

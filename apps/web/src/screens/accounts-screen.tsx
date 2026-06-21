@@ -22,19 +22,20 @@ import {
   Input,
   Panel,
   Select,
+  StatCard,
   StepHeading,
   Tabs,
 } from "../components/ui"
 import { api, toForm } from "../lib/api"
 import { accountStatus, downloadBlob, statusTone } from "../lib/helpers"
-import type { Account } from "../types"
+import type { Account, AccountsTab } from "../types"
 import type { AccountsScreenProps } from "./screen-props"
 
 type FormSubmitEvent = React.SyntheticEvent<HTMLFormElement>
-type AccountsTab = "fleet" | "login" | "transfer"
 
 export function AccountsScreen(props: AccountsScreenProps) {
-  const [tab, setTab] = React.useState<AccountsTab>("fleet")
+  const tab = props.accountsTab
+  const setTab = props.setAccountsTab
   const pendingCount = props.accounts.filter(
     (account) =>
       account.status === "login_pending" ||
@@ -97,13 +98,35 @@ function FleetTab({ props }: { props: AccountsScreenProps }) {
     props.setView("dialogs")
   }
 
+  // Clicking a metric drives the table's status filter, so the stats double as
+  // one-tap filters. "Total" clears any filter; "Known dialogs" isn't a status
+  // so it stays non-interactive.
+  function filterBy(next: string) {
+    setStatusFilter((current) => (current === next ? "all" : next))
+  }
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="Total" value={props.accounts.length} primary />
-        <Stat label="Ready" value={props.metrics.ready} />
-        <Stat label="Needs attention" value={props.metrics.attention} />
-        <Stat label="Known dialogs" value={props.metrics.knownDialogs} />
+        <StatCard
+          label="Total"
+          value={props.accounts.length}
+          active={statusFilter === "all"}
+          onClick={() => setStatusFilter("all")}
+        />
+        <StatCard
+          label="Ready"
+          value={props.metrics.ready}
+          active={statusFilter === "ready"}
+          onClick={() => filterBy("ready")}
+        />
+        <StatCard
+          label="Needs attention"
+          value={props.metrics.attention}
+          active={statusFilter === "attention"}
+          onClick={() => filterBy("attention")}
+        />
+        <StatCard label="Known dialogs" value={props.metrics.knownDialogs} />
       </div>
       <Panel className="space-y-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
@@ -134,6 +157,7 @@ function FleetTab({ props }: { props: AccountsScreenProps }) {
           >
             <option value="all">All statuses</option>
             <option value="ready">Ready</option>
+            <option value="attention">Needs attention</option>
             <option value="pending">Pending login</option>
             <option value="needs login">Needs login</option>
             <option value="error">Error</option>
@@ -141,6 +165,7 @@ function FleetTab({ props }: { props: AccountsScreenProps }) {
         </div>
         <AccountsTable
           accounts={filteredAccounts}
+          loaded={props.accountsLoaded}
           selectedIds={props.selectedIds}
           setSelectedIds={props.setSelectedIds}
           refresh={props.refresh}
@@ -149,29 +174,6 @@ function FleetTab({ props }: { props: AccountsScreenProps }) {
           askDialog={props.askDialog}
         />
       </Panel>
-    </div>
-  )
-}
-
-function Stat({
-  label,
-  value,
-  primary,
-}: {
-  label: string
-  value: number
-  primary?: boolean
-}) {
-  return (
-    <div
-      className={`border p-3 ${
-        primary ? "border-primary/40 bg-primary/10" : "border-border bg-card"
-      }`}
-    >
-      <span className="text-[0.65rem] tracking-[0.18em] text-muted-foreground uppercase">
-        {label}
-      </span>
-      <strong className="mt-1 block font-heading text-2xl">{value}</strong>
     </div>
   )
 }
@@ -286,7 +288,7 @@ function useAccountLoginFlow(props: AccountsScreenProps) {
       formElement.reset()
       props.setPendingAccountId("")
       await props.refresh()
-      props.flash("2FA confirmed. The local session is ready.")
+      props.flash("2FA confirmed. The local session is ready.", "success")
     })
   }
 
@@ -442,7 +444,7 @@ function FinishLoginPanel({
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
           <form
-            className="grid gap-2 border border-border p-3"
+            className="grid gap-2 rounded-lg border border-border p-3"
             onSubmit={onCodeSubmit}
           >
             <div className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -473,7 +475,7 @@ function FinishLoginPanel({
             </Button>
           </form>
           <form
-            className="grid gap-2 border border-border p-3"
+            className="grid gap-2 rounded-lg border border-border p-3"
             onSubmit={onPasswordSubmit}
           >
             <div className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -514,7 +516,7 @@ function FinishLoginPanel({
 
 function LoginChecklist() {
   return (
-    <div className="grid gap-2 border border-border bg-background/60 p-3 text-xs leading-5 text-muted-foreground">
+    <div className="grid gap-2 rounded-lg border border-border bg-background/60 p-3 text-xs leading-5 text-muted-foreground">
       <strong className="text-foreground">If no code arrives:</strong>
       <span>Keep Telegram open on the phone or desktop account.</span>
       <span>Confirm the phone number includes the country code.</span>
@@ -527,7 +529,7 @@ function PendingAccountCard({ account }: { account?: Account }) {
   if (!account) return null
 
   return (
-    <div className="border border-border bg-background/70 p-4 text-sm">
+    <div className="rounded-lg border border-border bg-background/70 p-4 text-sm">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <strong>{account.label || account.session_name}</strong>
         <span className="text-xs tracking-[0.18em] text-muted-foreground uppercase">
@@ -562,7 +564,11 @@ function useFilteredAccounts(
 }
 
 function accountMatchesStatus(status: string, statusFilter: string) {
-  return statusFilter === "all" || status === statusFilter
+  if (statusFilter === "all") return true
+  // "attention" is a roll-up pseudo-status: everything that isn't ready needs
+  // some action (pending, needs login, or error). Mirrors the metric count.
+  if (statusFilter === "attention") return status !== "ready"
+  return status === statusFilter
 }
 
 function accountMatchesSearch(account: Account, query: string) {
@@ -663,7 +669,7 @@ function handleCodeResponse(
     return
   }
   props.setPendingAccountId("")
-  props.flash("Account login completed.")
+  props.flash("Account login completed.", "success")
 }
 
 async function submitPassword(accountId: string, password: string) {
@@ -703,7 +709,7 @@ function ImportPanel({ guarded, refresh, flash, loading }: TransferPanelProps) {
     guarded(async () => {
       await api("/api/sessions/import-file", { method: "POST", body: formData })
       importFormRef.current?.reset()
-      flash("Session imported.")
+      flash("Session imported.", "success")
       await refresh()
     })
   }
@@ -857,7 +863,7 @@ function ExportAccountRow({
   const status = accountStatus(account)
   return (
     <label
-      className={`flex items-center gap-3 border p-3 text-sm transition-colors ${
+      className={`flex items-center gap-3 rounded-lg border p-3 text-sm transition-colors ${
         selected
           ? "border-primary/40 bg-primary/5"
           : "border-border hover:bg-muted/20"
@@ -914,5 +920,5 @@ async function exportSessions(
   }
   const blob = await response.blob()
   downloadBlob(blob, "telemanager-sessions.zip")
-  flash("Session export created.")
+  flash("Session export created.", "success")
 }

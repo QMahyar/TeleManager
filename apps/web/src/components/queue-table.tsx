@@ -18,7 +18,7 @@ export function QueueTable({
   onEdit?: (step: QueueStep, index: number) => void
 }) {
   return (
-    <div className="border border-border">
+    <div className="overflow-hidden rounded-lg border border-border">
       <div className="grid grid-cols-[1fr_auto] border-b border-border p-3 text-xs tracking-[0.16em] text-muted-foreground uppercase">
         <span>Queued steps</span>
         <span>

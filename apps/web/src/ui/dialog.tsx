@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { Button } from "./button"
+import { Modal } from "./modal"
 import { cn } from "./utils"
 
 type DialogProps = {
@@ -21,42 +22,6 @@ type DialogProps = {
   onConfirm: (value?: string) => void
 }
 
-function useDialogLifecycle({
-  input,
-  inputRef,
-  onCancel,
-  open,
-}: {
-  input?: DialogProps["input"]
-  inputRef: React.RefObject<HTMLInputElement | null>
-  onCancel: () => void
-  open: boolean
-}) {
-  React.useEffect(() => {
-    if (!open) {
-      return undefined
-    }
-
-    const task = window.setTimeout(() => {
-      if (input) {
-        inputRef.current?.focus()
-      }
-    }, 0)
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onCancel()
-      }
-    }
-
-    window.addEventListener("keydown", onKeyDown)
-    return () => {
-      window.clearTimeout(task)
-      window.removeEventListener("keydown", onKeyDown)
-    }
-  }, [input, inputRef, onCancel, open])
-}
-
 function DialogInput({
   input,
   inputRef,
@@ -74,6 +39,7 @@ function DialogInput({
       <input
         ref={inputRef}
         key={`${title}-${input.value || ""}`}
+        autoFocus
         defaultValue={input.value || ""}
         type={input.type || "text"}
         placeholder={input.placeholder}
@@ -82,7 +48,7 @@ function DialogInput({
             onConfirm(inputRef.current?.value.trim())
           }
         }}
-        className="h-9 border border-input bg-background px-3 text-base text-foreground outline-none focus:border-primary sm:text-sm"
+        className="h-9 rounded-md border border-input bg-background px-3 text-base text-foreground outline-none transition-colors focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/30 sm:text-sm"
       />
     </label>
   )
@@ -136,64 +102,49 @@ function Dialog({
 }: DialogProps) {
   const inputRef = React.useRef<HTMLInputElement>(null)
 
-  useDialogLifecycle({ input, inputRef, onCancel, open })
-
-  if (!open) {
-    return null
-  }
-
   return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-center bg-background/80 p-4 backdrop-blur-sm"
-      onClick={(event) => {
-        if (event.target === event.currentTarget) {
-          onCancel()
-        }
-      }}
+    <Modal
+      open={open}
+      onClose={onCancel}
+      className="max-w-md p-5"
+      labelledBy="app-dialog-title"
+      describedBy={description ? "app-dialog-description" : undefined}
     >
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="app-dialog-title"
-        aria-describedby={description ? "app-dialog-description" : undefined}
-        className="w-full max-w-md border border-border bg-card p-5 text-card-foreground shadow-2xl"
+      <p className="text-[0.65rem] font-semibold tracking-[0.28em] text-primary uppercase">
+        {kicker}
+      </p>
+      <h2
+        id="app-dialog-title"
+        className="mt-2 font-heading text-2xl text-foreground"
       >
-        <p className="text-[0.65rem] font-semibold tracking-[0.28em] text-primary uppercase">
-          {kicker}
-        </p>
-        <h2
-          id="app-dialog-title"
-          className="mt-2 font-heading text-2xl text-foreground"
+        {title}
+      </h2>
+      {description ? (
+        <p
+          id="app-dialog-description"
+          className="mt-2 text-sm leading-6 text-muted-foreground"
         >
-          {title}
-        </h2>
-        {description ? (
-          <p
-            id="app-dialog-description"
-            className="mt-2 text-sm leading-6 text-muted-foreground"
-          >
-            {description}
-          </p>
-        ) : null}
-        {input ? (
-          <DialogInput
-            input={input}
-            inputRef={inputRef}
-            onConfirm={onConfirm}
-            title={title}
-          />
-        ) : null}
-        <DialogActions
-          cancelLabel={cancelLabel}
-          confirmLabel={confirmLabel}
-          danger={danger}
+          {description}
+        </p>
+      ) : null}
+      {input ? (
+        <DialogInput
           input={input}
           inputRef={inputRef}
-          onCancel={onCancel}
           onConfirm={onConfirm}
+          title={title}
         />
-      </section>
-    </div>
+      ) : null}
+      <DialogActions
+        cancelLabel={cancelLabel}
+        confirmLabel={confirmLabel}
+        danger={danger}
+        input={input}
+        inputRef={inputRef}
+        onCancel={onCancel}
+        onConfirm={onConfirm}
+      />
+    </Modal>
   )
 }
 

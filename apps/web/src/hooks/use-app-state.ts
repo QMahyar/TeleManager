@@ -11,8 +11,10 @@ import { partitionTargets } from "../lib/targeting"
 import { dialogKind, dialogTarget, splitTargets } from "../lib/helpers"
 import type {
   Account,
+  AccountsTab,
   ActionDraft,
   ActivityEvent,
+  Flash,
   Preset,
   QueueRun,
   QueueStep,
@@ -65,16 +67,22 @@ function useViewState() {
     const hash = window.location.hash.replace("#", "") as View
     return KNOWN_VIEWS.has(hash) ? hash : "accounts"
   })
+  // Which Accounts sub-tab is active. Lifted to app state so other surfaces (the
+  // header "Add Account" button) can deep-link straight to the login form.
+  const [accountsTab, setAccountsTab] = React.useState<AccountsTab>("fleet")
 
   React.useEffect(() => {
     window.location.hash = view
   }, [view])
 
-  return { setView, view }
+  return { accountsTab, setAccountsTab, setView, view }
 }
 
 function useAccountState() {
   const [accounts, setAccounts] = React.useState<Account[]>([])
+  // Distinguishes "still loading the first time" from "loaded, genuinely empty"
+  // so the UI can show skeletons rather than a premature empty state.
+  const [accountsLoaded, setAccountsLoaded] = React.useState(false)
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [actionAccountIds, setActionAccountIds] = React.useState<Set<string>>(
     new Set()
@@ -103,12 +111,14 @@ function useAccountState() {
     setConfigStatus(configStatusLabel(config))
     setApiConfigured(Boolean(config.api_hash_configured))
     setConfigApiId(config.api_id || null)
+    setAccountsLoaded(true)
   }, [])
 
   const metrics = React.useMemo(() => sessionMetrics(accounts), [accounts])
 
   return {
     accounts,
+    accountsLoaded,
     actionAccountIds,
     apiConfigured,
     configApiId,
@@ -265,7 +275,7 @@ function useResourceState(flash: (message: string) => void, view: View) {
 
 function useQueueState(
   actionAccountIds: Set<string>,
-  flash: (message: string) => void,
+  flash: Flash,
   safety: SafetySettings
 ) {
   const [queue, setQueue] = React.useState<QueueStep[]>([])
@@ -336,7 +346,7 @@ function useInitialLoad({
   loadRuns,
   refresh,
 }: {
-  flash: (message: string) => void
+  flash: Flash
   loadPresets: () => Promise<void>
   loadRuns: () => Promise<void>
   refresh: () => Promise<void>

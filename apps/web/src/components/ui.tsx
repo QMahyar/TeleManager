@@ -115,7 +115,7 @@ export function Metric({
   return (
     <div
       className={cn(
-        "border border-border bg-card p-5",
+        "rounded-lg border border-border bg-card p-5",
         primary && "border-primary/40 bg-primary/10"
       )}
     >
@@ -165,7 +165,7 @@ export function Tabs<T extends string>({
             aria-selected={active}
             onClick={() => onChange(item.id)}
             className={cn(
-              "flex items-center gap-1.5 border px-3 py-1.5 text-xs font-medium transition-colors [&_svg]:size-3.5",
+              "flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors [&_svg]:size-3.5",
               active
                 ? "border-primary/40 bg-primary/10 text-primary"
                 : "border-transparent text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground"
@@ -185,6 +185,64 @@ export function Tabs<T extends string>({
   )
 }
 
+// Pulsing placeholder block for async-loading content. Compose several to mimic
+// the shape of the data that will replace them.
+export function Skeleton({ className }: { className?: string }) {
+  return (
+    <div
+      aria-hidden
+      className={cn("animate-pulse rounded-md bg-muted/60", className)}
+    />
+  )
+}
+
+// Compact metric tile. When `onClick` is provided it renders as a button so a
+// stat can double as a filter control; `active` highlights the current filter.
+export function StatCard({
+  label,
+  value,
+  primary,
+  active,
+  onClick,
+}: {
+  label: string
+  value: React.ReactNode
+  primary?: boolean
+  active?: boolean
+  onClick?: () => void
+}) {
+  const className = cn(
+    "rounded-lg border p-3 text-left transition-colors",
+    primary
+      ? "border-primary/40 bg-primary/10"
+      : active
+        ? "border-primary/40 bg-primary/5"
+        : "border-border bg-card",
+    onClick && "hover:border-primary/40 hover:bg-primary/5"
+  )
+  const body = (
+    <>
+      <span className="text-[0.65rem] tracking-[0.18em] text-muted-foreground uppercase">
+        {label}
+      </span>
+      <strong className="mt-1 block font-heading text-2xl">{value}</strong>
+    </>
+  )
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        aria-pressed={active}
+        onClick={onClick}
+        className={className}
+      >
+        {body}
+      </button>
+    )
+  }
+  return <div className={className}>{body}</div>
+}
+
 export function EmptyState({
   icon: Icon,
   title,
@@ -199,7 +257,7 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center gap-3 border border-dashed border-border bg-muted/20 px-6 py-10 text-center",
+        "flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-muted/20 px-6 py-10 text-center",
         className
       )}
     >

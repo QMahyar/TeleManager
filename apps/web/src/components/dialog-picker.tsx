@@ -10,7 +10,7 @@ import {
   type DialogKind,
 } from "../lib/dialog-actions"
 import { dialogKind, dialogTarget } from "../lib/helpers"
-import type { Account, ActionType, TelegramDialog } from "../types"
+import type { Account, ActionType, Flash, TelegramDialog } from "../types"
 import { Badge, EmptyState, Input, Select } from "./ui"
 
 // Filter buttons map a friendly label to the kinds they include.
@@ -40,16 +40,18 @@ export function DialogPicker({
   actionType: ActionType
   existingTargets: Set<string>
   onAdd: (targets: string[]) => void
-  flash: (message: string) => void
+  flash: Flash
 }) {
   const [open, setOpen] = React.useState(false)
   const readyAccounts = accounts.filter(
     (account) => account.authorized && !account.last_error
   )
   const firstReadyId = readyAccounts[0]?.id
-  const [accountId, setAccountId] = React.useState(
-    defaultAccountId || firstReadyId || ""
-  )
+  // Only explicit user picks live in state; the effective account falls back to
+  // the action's account, then the first ready one. Deriving (instead of syncing
+  // state in an effect) avoids cascading renders.
+  const [accountId, setAccountId] = React.useState("")
+  const effectiveId = accountId || defaultAccountId || firstReadyId || ""
   const [dialogs, setDialogs] = React.useState<TelegramDialog[]>([])
   const [search, setSearch] = React.useState("")
   const [kindFilter, setKindFilter] = React.useState("all")
@@ -78,26 +80,23 @@ export function DialogPicker({
     }
   }, [])
 
-  // Resolve the account when the picker opens, not at mount: accounts load
-  // asynchronously (so the lazy initializer can land on ""), and the action's
-  // account may be chosen after this component first renders. Default to that
-  // account, falling back to the first ready one, while keeping any pick the
-  // user made inside the picker this session.
+  // Load the effective account's cached dialogs when the picker opens (or when
+  // the effective account changes). Accounts load asynchronously and the action's
+  // account may be chosen after this component first renders, so this reacts to
+  // effectiveId rather than reading it once at mount.
   React.useEffect(() => {
     if (!open) return undefined
-    const id = accountId || defaultAccountId || firstReadyId || ""
-    if (id && id !== accountId) setAccountId(id)
-    const task = window.setTimeout(() => loadCached(id), 0)
+    const task = window.setTimeout(() => loadCached(effectiveId), 0)
     return () => window.clearTimeout(task)
-  }, [open, accountId, defaultAccountId, firstReadyId, loadCached])
+  }, [open, effectiveId, loadCached])
 
   async function fetchLive() {
-    if (!accountId) return
+    if (!effectiveId) return
     setBusy(true)
     setStatus("Fetching chats from Telegram…")
     try {
       const payload = await api<{ dialogs: TelegramDialog[] }>(
-        `/api/accounts/${accountId}/dialogs/fetch?limit=500`,
+        `/api/accounts/${effectiveId}/dialogs/fetch?limit=500`,
         { method: "POST" }
       )
       setDialogs(payload.dialogs || [])
@@ -184,11 +183,11 @@ export function DialogPicker({
   }
 
   return (
-    <div className="space-y-2 border border-border bg-background p-3">
+    <div className="space-y-2 rounded-lg border border-border bg-background p-3">
       <div className="flex flex-wrap items-center gap-2">
         <Select
           className="h-7 flex-1 text-xs"
-          value={accountId}
+          value={effectiveId}
           onChange={(event) => {
             setAccountId(event.target.value)
             setPicked(new Set())
@@ -209,7 +208,7 @@ export function DialogPicker({
           size="sm"
           loading={busy}
           onClick={fetchLive}
-          disabled={!accountId}
+          disabled={!effectiveId}
         >
           <IconRefresh /> Live
         </Button>
@@ -235,7 +234,7 @@ export function DialogPicker({
             key={item.id}
             type="button"
             onClick={() => setKindFilter(item.id)}
-            className={`border px-2 py-0.5 text-xs transition-colors ${
+            className={`rounded-md border px-2 py-0.5 text-xs transition-colors ${
               kindFilter === item.id
                 ? "border-primary/40 bg-primary/10 text-primary"
                 : "border-border text-muted-foreground hover:bg-muted/40"
@@ -263,7 +262,7 @@ export function DialogPicker({
               <label
                 key={target}
                 title={added ? "Already in the target list" : reason}
-                className={`flex items-center gap-2 border border-border px-2 py-1.5 text-xs ${
+                className={`flex items-center gap-2 rounded-md border border-border px-2 py-1.5 text-xs ${
                   disabled ? "opacity-50" : "hover:bg-muted/30"
                 }`}
               >

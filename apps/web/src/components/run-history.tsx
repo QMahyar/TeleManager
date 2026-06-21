@@ -6,6 +6,7 @@ import {
   IconProgressCheck,
 } from "@tabler/icons-react"
 import { Button } from "../ui/button"
+import { Modal } from "../ui/modal"
 import {
   Table,
   TableBody,
@@ -24,7 +25,7 @@ import {
   queueRunProgress,
   statusTone,
 } from "../lib/helpers"
-import type { AskDialog, ActionType, QueueRun } from "../types"
+import type { AskDialog, ActionType, Flash, QueueRun } from "../types"
 import { Badge, EmptyState, SectionTitle } from "./ui"
 
 const TERMINAL_RUN_STATUSES = new Set([
@@ -46,7 +47,7 @@ export function RunHistory({
   runs: QueueRun[]
   guarded: (work: () => Promise<void>) => Promise<void>
   loadRuns: () => Promise<void>
-  flash: (message: string) => void
+  flash: Flash
   askDialog: AskDialog
   onRetryQueued?: (runId: string) => Promise<void>
 }) {
@@ -76,7 +77,7 @@ export function RunHistory({
                   "/api/actions/queue/runs",
                   { method: "DELETE" }
                 )
-                flash(`Cleared ${payload.removed} queue run(s).`)
+                flash(`Cleared ${payload.removed} queue run(s).`, "success")
                 await loadRuns()
               })
             }
@@ -95,7 +96,7 @@ export function RunHistory({
           return (
             <div
               key={run.id}
-              className="grid gap-3 border border-border p-3 text-sm md:grid-cols-[1fr_auto]"
+              className="grid gap-3 rounded-lg border border-border p-3 text-sm md:grid-cols-[1fr_auto]"
             >
               <div className="space-y-3">
                 <div>
@@ -184,7 +185,7 @@ export function RunHistory({
                         }>(`/api/actions/queue/runs/${run.id}/retry-failed`, {
                           method: "POST",
                         })
-                        flash("Retry queued.")
+                        flash("Retry queued.", "success")
                         await loadRuns()
                         if (onRetryQueued) void onRetryQueued(payload.run_id)
                       })
@@ -227,7 +228,7 @@ export function RunHistory({
                         await api(`/api/actions/queue/runs/${run.id}`, {
                           method: "DELETE",
                         })
-                        flash("Queue run deleted.")
+                        flash("Queue run deleted.", "success")
                         await loadRuns()
                       })
                     }
@@ -261,38 +262,21 @@ function RunDetailsDialog({
   run: QueueRun | null
   onClose: () => void
 }) {
-  React.useEffect(() => {
-    if (!run) return undefined
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
-    }
-
-    window.addEventListener("keydown", onKeyDown)
-    return () => window.removeEventListener("keydown", onKeyDown)
-  }, [run, onClose])
-
-  if (!run) return null
-
-  const operations = run.operations || []
-  const results = run.results || []
-  const error = run.error
-  const current = run.current
-  const progress = queueRunProgress(run)
+  const operations = run?.operations || []
+  const results = run?.results || []
+  const error = run?.error
+  const current = run?.current
+  const progress = run ? queueRunProgress(run) : null
 
   return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-center bg-background/80 p-4 backdrop-blur-sm"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
+    <Modal
+      open={Boolean(run)}
+      onClose={onClose}
+      className="max-h-[90vh] max-w-5xl overflow-hidden"
+      labelledBy="queue-run-title"
     >
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="queue-run-title"
-        className="max-h-[90vh] w-full max-w-5xl overflow-hidden border border-border bg-card text-card-foreground shadow-2xl"
-      >
+      {run && progress ? (
+        <>
         <div className="flex flex-col gap-3 border-b border-border p-5 md:flex-row md:items-start md:justify-between">
           <div>
             <p className="text-[0.65rem] font-semibold tracking-[0.28em] text-primary uppercase">
@@ -335,8 +319,9 @@ function RunDetailsDialog({
           <RunErrorPanel error={error} />
           <RunOperationsTable operations={operations} />
         </div>
-      </section>
-    </div>
+        </>
+      ) : null}
+    </Modal>
   )
 }
 
@@ -346,7 +331,7 @@ function CurrentOperationPanel({ current }: { current: QueueRun["current"] }) {
   }
 
   return (
-    <div className="border border-primary/30 bg-primary/10 p-3 text-sm">
+    <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 text-sm">
       <div className="flex items-center gap-2">
         <IconProgressCheck className="size-4 text-primary" />
         <strong>Current operation</strong>
@@ -367,7 +352,7 @@ function RunErrorPanel({ error }: { error: QueueRun["error"] }) {
   }
 
   return (
-    <div className="border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+    <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
       <div className="flex items-center gap-2">
         <IconAlertTriangle className="size-4" />
         <strong>Run error</strong>
@@ -452,7 +437,7 @@ function RunOperationsTable({
 
 function RunStat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="border border-border bg-background p-3">
+    <div className="rounded-lg border border-border bg-background p-3">
       <span className="text-[0.65rem] font-semibold tracking-[0.2em] text-muted-foreground uppercase">
         {label}
       </span>
@@ -478,9 +463,9 @@ function RunProgressBar({
         </span>
         <span>{progress}%</span>
       </div>
-      <div className="h-2 overflow-hidden border border-border bg-muted/40">
+      <div className="h-2 overflow-hidden rounded-full border border-border bg-muted/40">
         <div
-          className="h-full bg-primary transition-[width] duration-300"
+          className="h-full rounded-full bg-primary transition-[width] duration-300"
           style={{ width: `${progress}%` }}
         />
       </div>

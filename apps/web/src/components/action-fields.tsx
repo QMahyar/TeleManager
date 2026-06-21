@@ -76,7 +76,7 @@ function ActionFieldRow({
 }) {
   if (field.kind === "checkbox") {
     return (
-      <label className="flex items-center gap-3 border border-border bg-muted/20 p-3 text-sm">
+      <label className="flex items-center gap-3 rounded-md border border-border bg-muted/20 p-3 text-sm">
         <input
           type="checkbox"
           checked={value === true}

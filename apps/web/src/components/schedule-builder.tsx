@@ -31,6 +31,7 @@ import { partitionTargets } from "../lib/targeting"
 import type {
   Account,
   ActionType,
+  Flash,
   Preset,
   QueueStep,
   SchedulePreview,
@@ -85,7 +86,7 @@ export function ScheduleBuilder({
   accounts: Account[]
   presets: Preset[]
   guarded: (work: () => Promise<void>) => Promise<void>
-  flash: (message: string) => void
+  flash: Flash
   loadSchedules: () => Promise<void>
   scheduleSeed: ScheduleSeed | null
   setScheduleSeed: React.Dispatch<React.SetStateAction<ScheduleSeed | null>>
@@ -256,7 +257,7 @@ export function ScheduleBuilder({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload()),
     })
-    flash("Schedule created.")
+    flash("Schedule created.", "success")
     setName("")
     setTarget("")
     setFields(defaultFieldValues(actionType))
@@ -390,7 +391,7 @@ export function ScheduleBuilder({
               }}
             />
           </Field>
-          <p className="border border-border bg-muted/20 p-2 text-xs text-muted-foreground">
+          <p className="rounded-md border border-border bg-muted/20 p-2 text-xs text-muted-foreground">
             {describeRecurrence(buildRecurrence(form))}
           </p>
           {preview ? <SchedulePreviewCard preview={preview} /> : null}
@@ -472,7 +473,7 @@ function AccountPicker({
             return (
               <label
                 key={account.id}
-                className={`flex items-center gap-2 border p-2 text-sm transition-colors ${
+                className={`flex items-center gap-2 rounded-md border p-2 text-sm transition-colors ${
                   selected
                     ? "border-primary/40 bg-primary/5"
                     : "border-border hover:bg-muted/20"
@@ -634,7 +635,7 @@ function RecurrenceFields({
 
 function SchedulePreviewCard({ preview }: { preview: SchedulePreview }) {
   return (
-    <div className="space-y-2 border border-border bg-background p-3 text-sm">
+    <div className="space-y-2 rounded-lg border border-border bg-background p-3 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={engineTone(preview.engine)}>
           {engineLabel(preview.engine)}

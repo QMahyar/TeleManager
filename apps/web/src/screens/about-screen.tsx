@@ -18,6 +18,7 @@ import { Button } from "../ui/button"
 
 import { Badge, Panel, StepHeading } from "../components/ui"
 import { api } from "../lib/api"
+import type { Flash } from "../types"
 
 type VersionInfo = {
   version: string
@@ -101,7 +102,7 @@ const CRYPTO_WALLETS: Array<{
   },
 ]
 
-export function AboutScreen({ flash }: { flash: (message: string) => void }) {
+export function AboutScreen({ flash }: { flash: Flash }) {
   const [versionInfo, setVersionInfo] = React.useState<VersionInfo | null>(null)
   const [update, setUpdate] = React.useState<UpdateState>({ status: "idle" })
 
@@ -200,7 +201,7 @@ function UpdateStatus({ state }: { state: UpdateState }) {
 
   if (state.status === "error") {
     return (
-      <div className="border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+      <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
         {state.message}
       </div>
     )
@@ -209,7 +210,7 @@ function UpdateStatus({ state }: { state: UpdateState }) {
   const { info } = state
   if (info.update_available) {
     return (
-      <div className="flex flex-col gap-3 border border-primary/40 bg-primary/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 rounded-lg border border-primary/40 bg-primary/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-0.5">
           <strong className="block text-sm text-foreground">
             Update available — v{info.latest}
@@ -227,7 +228,7 @@ function UpdateStatus({ state }: { state: UpdateState }) {
   }
 
   return (
-    <div className="flex items-center gap-2 border border-border bg-muted/30 px-4 py-3 text-sm text-foreground">
+    <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-foreground">
       <IconCheck className="size-4 text-primary" />
       You are on the latest version (v{info.current}).
     </div>
@@ -239,7 +240,7 @@ function SocialRow({
   flash,
 }: {
   social: (typeof SOCIAL_LINKS)[number]
-  flash: (message: string) => void
+  flash: Flash
 }) {
   const Icon = social.icon
   const inner = (
@@ -262,7 +263,7 @@ function SocialRow({
   )
 
   const className =
-    "flex items-center gap-3 border border-border px-3 py-2 text-left transition hover:border-primary/40 hover:bg-muted/40"
+    "flex items-center gap-3 rounded-lg border border-border px-3 py-2 text-left transition hover:border-primary/40 hover:bg-muted/40"
 
   if (social.href) {
     return (
@@ -295,7 +296,7 @@ function WalletRow({
   flash,
 }: {
   wallet: (typeof CRYPTO_WALLETS)[number]
-  flash: (message: string) => void
+  flash: Flash
 }) {
   const [copied, setCopied] = React.useState(false)
 
@@ -312,7 +313,7 @@ function WalletRow({
   }, [flash, wallet.address, wallet.chain])
 
   return (
-    <div className="space-y-2 border border-border p-3">
+    <div className="space-y-2 rounded-lg border border-border p-3">
       <div className="flex items-center justify-between gap-2">
         <strong className="text-sm text-foreground">{wallet.chain}</strong>
         {wallet.recommended ? (
@@ -323,7 +324,7 @@ function WalletRow({
       </div>
       <p className="text-xs leading-5 text-muted-foreground">{wallet.note}</p>
       <div className="flex items-center gap-2">
-        <code className="min-w-0 flex-1 truncate border border-border bg-muted/40 px-2 py-1.5 font-mono text-xs text-foreground">
+        <code className="min-w-0 flex-1 truncate rounded-md border border-border bg-muted/40 px-2 py-1.5 font-mono text-xs text-foreground">
           {wallet.address}
         </code>
         <Button variant="outline" size="sm" onClick={handleCopy}>
@@ -341,7 +342,7 @@ function openExternal(url: string) {
 
 async function copyToClipboard(
   value: string,
-  flash: (message: string) => void,
+  flash: Flash,
   message: string
 ): Promise<boolean> {
   try {
