@@ -11,7 +11,7 @@ import { Button } from "../ui/button"
 import { SafetyEditor } from "../components/safety-editor"
 import { Field, Input, Panel, StepHeading, Tabs } from "../components/ui"
 import { api } from "../lib/api"
-import type { ActivityEvent, SafetySettings } from "../types"
+import type { ActivityEvent, Flash, SafetySettings } from "../types"
 import { AboutScreen } from "./about-screen"
 import { ActivityScreen } from "./activity-screen"
 
@@ -26,7 +26,7 @@ type SettingsScreenProps = {
   guarded: (work: () => Promise<void>) => Promise<void>
   loading: boolean
   refresh: () => Promise<void>
-  flash: (message: string) => void
+  flash: Flash
   activity: ActivityEvent[]
 }
 
@@ -86,7 +86,7 @@ function ApiPanel({
       const hashInput = formElement.elements.namedItem("api_hash")
       if (hashInput instanceof HTMLInputElement) hashInput.value = ""
       setShowApiHash(false)
-      flash("API settings saved locally.")
+      flash("API settings saved locally.", "success")
       await refresh()
     })
   }
@@ -173,7 +173,7 @@ function SafetyPanel({
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(safety),
             })
-            flash("Safety defaults saved.")
+            flash("Safety defaults saved.", "success")
           })
         }
       >

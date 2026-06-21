@@ -2,8 +2,10 @@ import type * as React from "react"
 
 import type {
   Account,
+  AccountsTab,
   ActionDraft,
   AskDialog,
+  Flash,
   Preset,
   QueueRun,
   QueueStep,
@@ -16,9 +18,12 @@ import type {
 
 export type AppScreenProps = {
   accounts: Account[]
+  accountsLoaded: boolean
   selectedIds: Set<string>
   setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>
   setView: React.Dispatch<React.SetStateAction<View>>
+  accountsTab: AccountsTab
+  setAccountsTab: React.Dispatch<React.SetStateAction<AccountsTab>>
   metrics: {
     ready: number
     attention: number
@@ -30,7 +35,7 @@ export type AppScreenProps = {
   guarded: (work: () => Promise<void>) => Promise<void>
   loading: boolean
   refresh: () => Promise<void>
-  flash: (message: string) => void
+  flash: Flash
   askDialog: AskDialog
   pendingAccountId: string
   setPendingAccountId: React.Dispatch<React.SetStateAction<string>>
@@ -81,9 +86,12 @@ export type AppScreenProps = {
 export type AccountsScreenProps = Pick<
   AppScreenProps,
   | "accounts"
+  | "accountsLoaded"
   | "selectedIds"
   | "setSelectedIds"
   | "setView"
+  | "accountsTab"
+  | "setAccountsTab"
   | "metrics"
   | "setActionAccountIds"
   | "setDialogAccountId"

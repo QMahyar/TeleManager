@@ -8,10 +8,12 @@ import {
   IconRefresh,
   IconSearch,
   IconSun,
+  IconUserPlus,
   IconX,
 } from "@tabler/icons-react"
 
 import { Button } from "../ui/button"
+import { Modal } from "../ui/modal"
 import { cn } from "../ui/utils"
 
 import { useTheme } from "../components/theme-provider"
@@ -25,13 +27,25 @@ type AppShellProps = React.PropsWithChildren<{
   setView: (view: View) => void
   onRefresh: () => void
   onExit: () => void
+  onAddAccount: () => void
 }>
 
 type NavItem = (typeof navItems)[number]
 
+// A palette entry: either screen navigation or an app action. `shortcut` is the
+// Alt+N hint shown for navigable screens (actions have none).
+type PaletteCommand = {
+  id: string
+  label: string
+  group: string
+  icon: React.ElementType
+  shortcut?: number
+  run: () => void
+}
+
 type CommandPaletteState = {
   clampedIndex: number
-  filteredItems: NavItem[]
+  filteredItems: PaletteCommand[]
   paletteOpen: boolean
   paletteQuery: string
   closePalette: () => void
@@ -127,7 +141,7 @@ function handleAltNavigationKey(
   return true
 }
 
-function usePaletteState(openView: (view: View) => void): CommandPaletteState {
+function usePaletteState(commands: PaletteCommand[]): CommandPaletteState {
   const [paletteOpen, setPaletteOpen] = React.useState(false)
   const [paletteQuery, setPaletteQuery] = React.useState("")
   const [paletteIndex, setPaletteIndex] = React.useState(0)
@@ -146,12 +160,12 @@ function usePaletteState(openView: (view: View) => void): CommandPaletteState {
   const filteredItems = React.useMemo(() => {
     const query = paletteQuery.trim().toLowerCase()
     if (!query) {
-      return navItems
+      return commands
     }
-    return navItems.filter((item) =>
+    return commands.filter((item) =>
       `${item.label} ${item.group}`.toLowerCase().includes(query)
     )
-  }, [paletteQuery])
+  }, [commands, paletteQuery])
 
   const clampedIndex = Math.min(
     paletteIndex,
@@ -170,9 +184,10 @@ function usePaletteState(openView: (view: View) => void): CommandPaletteState {
   const submitPaletteSelection = React.useCallback(() => {
     const item = filteredItems[clampedIndex]
     if (item) {
-      openView(item.id)
+      item.run()
+      closePalette()
     }
-  }, [clampedIndex, filteredItems, openView])
+  }, [clampedIndex, closePalette, filteredItems])
 
   return {
     clampedIndex,
@@ -234,6 +249,7 @@ export function AppShell({
   setView,
   onRefresh,
   onExit,
+  onAddAccount,
   children,
 }: AppShellProps) {
   const { theme, setTheme } = useTheme()
@@ -252,7 +268,43 @@ export function AppShell({
     setTheme(theme === "dark" ? "light" : "dark")
   }, [setTheme, theme])
 
-  const palette = usePaletteState(openView)
+  // Screen navigation first (with Alt+N hints), then app actions.
+  const commands = React.useMemo<PaletteCommand[]>(() => {
+    const navCommands: PaletteCommand[] = navItems.map((item, index) => ({
+      id: item.id,
+      label: item.label,
+      group: item.group,
+      icon: item.icon,
+      shortcut: index + 1,
+      run: () => openView(item.id),
+    }))
+    const actionCommands: PaletteCommand[] = [
+      {
+        id: "action:add-account",
+        label: "Add account",
+        group: "Actions",
+        icon: IconUserPlus,
+        run: onAddAccount,
+      },
+      {
+        id: "action:refresh",
+        label: "Refresh data",
+        group: "Actions",
+        icon: IconRefresh,
+        run: onRefresh,
+      },
+      {
+        id: "action:theme",
+        label: theme === "dark" ? "Switch to light theme" : "Switch to dark theme",
+        group: "Actions",
+        icon: theme === "dark" ? IconSun : IconMoon,
+        run: toggleTheme,
+      },
+    ]
+    return [...navCommands, ...actionCommands]
+  }, [onAddAccount, onRefresh, openView, theme, toggleTheme])
+
+  const palette = usePaletteState(commands)
   usePaletteHotkeys(palette, openView)
 
   return (
@@ -280,7 +332,8 @@ export function AppShell({
           <Header
             activeItem={activeItem}
             selectedCount={selectedCount}
-            openAccounts={() => openView("accounts")}
+            showSelectedCount={view === "accounts"}
+            onAddAccount={onAddAccount}
             openSettings={() => openView("settings")}
             openSidebar={() => setSidebarOpen(true)}
             openPalette={palette.openPalette}
@@ -292,7 +345,6 @@ export function AppShell({
         clampedIndex={palette.clampedIndex}
         filteredItems={palette.filteredItems}
         open={palette.paletteOpen}
-        openView={openView}
         paletteQuery={palette.paletteQuery}
         closePalette={palette.closePalette}
         setPaletteIndex={palette.setPaletteIndex}
@@ -330,7 +382,7 @@ function Sidebar({
     >
       <button
         onClick={closeSidebar}
-        className="absolute top-4 right-4 grid size-8 place-items-center border border-sidebar-border lg:hidden"
+        className="absolute top-4 right-4 grid size-8 place-items-center rounded-md border border-sidebar-border lg:hidden"
         aria-label="Close navigation"
       >
         <IconX className="size-4" />
@@ -339,7 +391,7 @@ function Sidebar({
         onClick={() => openView("accounts")}
         className="mb-8 flex items-center gap-3 text-left"
       >
-        <span className="grid size-10 place-items-center border border-sidebar-border bg-sidebar-accent font-heading text-lg text-sidebar-accent-foreground">
+        <span className="grid size-10 place-items-center rounded-md border border-sidebar-border bg-sidebar-accent font-heading text-lg text-sidebar-accent-foreground">
           TM
         </span>
         <span>
@@ -426,7 +478,7 @@ function SidebarItem({
     <button
       onClick={() => openView(item.id)}
       className={cn(
-        "flex w-full items-center gap-2 border px-3 py-2 text-left text-sm transition",
+        "flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition",
         view === item.id
           ? "border-sidebar-primary bg-sidebar-primary text-sidebar-primary-foreground"
           : "border-transparent hover:border-sidebar-border hover:bg-sidebar-accent"
@@ -442,20 +494,22 @@ function SidebarItem({
 function Header({
   activeItem,
   selectedCount,
-  openAccounts,
+  showSelectedCount,
+  onAddAccount,
   openSettings,
   openSidebar,
   openPalette,
 }: {
   activeItem?: NavItem
   selectedCount: number
-  openAccounts: () => void
+  showSelectedCount: boolean
+  onAddAccount: () => void
   openSettings: () => void
   openSidebar: () => void
   openPalette: () => void
 }) {
   return (
-    <header className="mb-6 flex flex-col gap-4 border border-border bg-card p-4 sm:p-5 md:flex-row md:items-center md:justify-between">
+    <header className="mb-6 flex flex-col gap-4 rounded-lg border border-border bg-card p-4 shadow-sm sm:p-5 md:flex-row md:items-center md:justify-between">
       <div className="flex items-start gap-3">
         <Button
           variant="outline"
@@ -476,11 +530,13 @@ function Header({
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="hidden sm:block">
-          <Badge tone="border-border bg-muted/40 text-muted-foreground">
-            {selectedCount} selected
-          </Badge>
-        </span>
+        {showSelectedCount && selectedCount > 0 ? (
+          <span className="hidden sm:block">
+            <Badge tone="border-primary/30 bg-primary/10 text-primary">
+              {selectedCount} selected
+            </Badge>
+          </span>
+        ) : null}
         <Button
           variant="outline"
           className="hidden sm:inline-flex"
@@ -491,7 +547,7 @@ function Header({
         <Button variant="outline" onClick={openSettings}>
           Settings
         </Button>
-        <Button onClick={openAccounts}>Add Account</Button>
+        <Button onClick={onAddAccount}>Add Account</Button>
       </div>
     </header>
   )
@@ -501,40 +557,32 @@ function CommandPalette({
   clampedIndex,
   filteredItems,
   open,
-  openView,
   paletteQuery,
   closePalette,
   setPaletteIndex,
   setPaletteQuery,
 }: {
   clampedIndex: number
-  filteredItems: NavItem[]
+  filteredItems: PaletteCommand[]
   open: boolean
-  openView: (view: View) => void
   paletteQuery: string
   closePalette: () => void
   setPaletteIndex: React.Dispatch<React.SetStateAction<number>>
   setPaletteQuery: React.Dispatch<React.SetStateAction<string>>
 }) {
-  if (!open) {
-    return null
+  const runCommand = (command: PaletteCommand) => {
+    command.run()
+    closePalette()
   }
-
   return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-start bg-background/80 p-4 pt-[10vh] backdrop-blur-sm"
-      onClick={(event) => {
-        if (event.target === event.currentTarget) {
-          closePalette()
-        }
-      }}
+    <Modal
+      open={open}
+      onClose={closePalette}
+      align="start"
+      className="mx-auto max-w-xl p-3"
+      labelledBy="command-palette-title"
     >
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="command-palette-title"
-        className="mx-auto w-full max-w-xl border border-border bg-card p-3 shadow-2xl"
-      >
+      <div>
         <div className="mb-2 flex items-center justify-between border-b border-border pb-2">
           <strong id="command-palette-title" className="text-sm">
             Command palette
@@ -553,7 +601,7 @@ function CommandPalette({
               setPaletteQuery(event.target.value)
               setPaletteIndex(0)
             }}
-            placeholder="Search screens"
+            placeholder="Search screens and actions"
             aria-label="Search command palette"
           />
         </div>
@@ -564,37 +612,36 @@ function CommandPalette({
                 key={item.id}
                 item={item}
                 active={filteredIndex === clampedIndex}
-                openView={openView}
+                onRun={runCommand}
               />
             ))
           ) : (
-            <div className="border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
-              No screens match that search.
+            <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+              No commands match that search.
             </div>
           )}
         </div>
-      </section>
-    </div>
+      </div>
+    </Modal>
   )
 }
 
 function PaletteItem({
   item,
   active,
-  openView,
+  onRun,
 }: {
-  item: NavItem
+  item: PaletteCommand
   active: boolean
-  openView: (view: View) => void
+  onRun: (command: PaletteCommand) => void
 }) {
   const Icon = item.icon
-  const index = navItems.findIndex((nav) => nav.id === item.id)
 
   return (
     <button
-      onClick={() => openView(item.id)}
+      onClick={() => onRun(item)}
       className={cn(
-        "flex w-full items-center gap-3 border px-3 py-2 text-left text-sm",
+        "flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left text-sm",
         active
           ? "border-border bg-muted/40"
           : "border-transparent hover:border-border hover:bg-muted/40"
@@ -602,7 +649,9 @@ function PaletteItem({
     >
       <Icon className="size-4" />
       <span className="flex-1">{item.label}</span>
-      <kbd className="text-xs text-muted-foreground">Alt+{index + 1}</kbd>
+      {item.shortcut ? (
+        <kbd className="text-xs text-muted-foreground">Alt+{item.shortcut}</kbd>
+      ) : null}
     </button>
   )
 }

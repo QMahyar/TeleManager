@@ -7,7 +7,7 @@ import { cn } from "../ui/utils"
 import { actionMeta } from "../lib/constants"
 import { splitTargets } from "../lib/helpers"
 import { analyzeTarget } from "../lib/targeting"
-import type { Account, ActionType } from "../types"
+import type { Account, ActionType, Flash } from "../types"
 import { DialogPicker } from "./dialog-picker"
 import { Input } from "./ui"
 
@@ -28,7 +28,7 @@ export function TargetComposer({
   actionType: ActionType
   accounts: Account[]
   defaultAccountId: string
-  flash: (message: string) => void
+  flash: Flash
 }) {
   const [draft, setDraft] = React.useState("")
   const targets = splitTargets(value)
@@ -154,7 +154,7 @@ function TargetChip({
     <span
       title={reason}
       className={cn(
-        "inline-flex items-center gap-1 border px-2 py-1 text-xs",
+        "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs",
         invalid
           ? "border-border/60 bg-muted/40 text-muted-foreground line-through opacity-60"
           : warning

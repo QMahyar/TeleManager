@@ -6,7 +6,7 @@ function TableWrap({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="table-wrap"
-      className={cn("overflow-auto", className)}
+      className={cn("overflow-auto rounded-lg border border-border", className)}
       {...props}
     />
   )
