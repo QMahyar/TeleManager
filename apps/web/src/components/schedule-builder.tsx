@@ -7,6 +7,7 @@ import { api } from "../lib/api"
 import {
   carryFieldValues,
   defaultFieldValues,
+  deserializeFields,
   getActionSchema,
   isActionFormValid,
   serializeFields,
@@ -30,10 +31,13 @@ import { partitionTargets } from "../lib/targeting"
 import type {
   Account,
   ActionType,
+  Preset,
+  QueueStep,
   SchedulePreview,
   ScheduleSeed,
 } from "../types"
 import { ActionFields } from "./action-fields"
+import { QueueTable } from "./queue-table"
 import { TargetComposer } from "./target-composer"
 import {
   Badge,
@@ -71,6 +75,7 @@ function seedAccountIds(
 
 export function ScheduleBuilder({
   accounts,
+  presets,
   guarded,
   flash,
   loadSchedules,
@@ -78,6 +83,7 @@ export function ScheduleBuilder({
   setScheduleSeed,
 }: {
   accounts: Account[]
+  presets: Preset[]
   guarded: (work: () => Promise<void>) => Promise<void>
   flash: (message: string) => void
   loadSchedules: () => Promise<void>
@@ -100,6 +106,10 @@ export function ScheduleBuilder({
   const [form, setForm] = React.useState<RecurrenceForm>(defaultRecurrenceForm)
   const [preview, setPreview] = React.useState<SchedulePreview | null>(null)
   const [submitAttempted, setSubmitAttempted] = React.useState(false)
+  // Extra steps beyond the one being composed below. Empty = a one-action
+  // schedule (the compose area is the step); non-empty = a multi-step queue and
+  // the compose area becomes "add another step".
+  const [steps, setSteps] = React.useState<QueueStep[]>([])
 
   // Clear the consumed seed asynchronously (off the effect body) so it does not
   // re-prefill on a later visit.
@@ -142,7 +152,17 @@ export function ScheduleBuilder({
     clearPreview()
   }
 
-  function blocker(): string | null {
+  function composedStep(): QueueStep {
+    return {
+      action_type: actionType,
+      account_ids: [...accountIds],
+      targets: validTargets,
+      message: serializeFields(actionType, fields),
+    }
+  }
+
+  // Validity of just the step being composed below (accounts/targets/fields).
+  function stepBlocker(): string | null {
     if (!accountIds.size) return "Select at least one account."
     if (!validTargets.length) {
       return invalidTargets.length
@@ -150,23 +170,63 @@ export function ScheduleBuilder({
         : "Add at least one target."
     }
     if (!isActionFormValid(actionType, fields)) return "Fill in the required fields."
+    return null
+  }
+
+  // When steps already exist, the schedule is built from them, so the compose
+  // area need not be valid — only the name + cadence must be.
+  function blocker(): string | null {
+    if (!steps.length) {
+      const stepError = stepBlocker()
+      if (stepError) return stepError
+    }
     if (name.trim().length < 3) return "Name the schedule (3+ characters)."
     return validateRecurrence(form)
+  }
+
+  function addStep() {
+    setSubmitAttempted(true)
+    const error = stepBlocker()
+    if (error) return flash(error)
+    setSteps((current) => [...current, composedStep()])
+    setTarget("")
+    setFields(defaultFieldValues(actionType))
+    setSubmitAttempted(false)
+    clearPreview()
+    flash("Step added.")
+  }
+
+  function loadPreset(id: string) {
+    const preset = presets.find((item) => item.id === id)
+    if (!preset) return
+    const presetSteps = (preset.queue.steps || []).map((step) => ({
+      ...step,
+      targets: [...step.targets],
+      account_ids: [...step.account_ids],
+    }))
+    if (!presetSteps.length) return flash("That preset has no steps.")
+    setSteps(presetSteps)
+    clearPreview()
+    flash(`Loaded preset: ${preset.name} (${presetSteps.length} step(s)).`)
+  }
+
+  // Pop a step back into the compose area, removing it from the list so it isn't
+  // duplicated when re-added.
+  function editStep(step: QueueStep, index: number) {
+    setActionType(step.action_type)
+    setTarget(step.targets.join("\n"))
+    setFields(deserializeFields(step.action_type, step.message ?? ""))
+    setAccountIds(new Set(step.account_ids))
+    setSteps((current) => current.filter((_, i) => i !== index))
+    setSubmitAttempted(false)
+    clearPreview()
+    flash("Step loaded below. Edit it, then Add step.")
   }
 
   function payload() {
     return {
       name: name.trim(),
-      queue: {
-        steps: [
-          {
-            action_type: actionType,
-            account_ids: [...accountIds],
-            targets: validTargets,
-            message: serializeFields(actionType, fields),
-          },
-        ],
-      },
+      queue: { steps: steps.length ? steps : [composedStep()] },
       recurrence: buildRecurrence(form),
     }
   }
@@ -186,6 +246,9 @@ export function ScheduleBuilder({
 
   async function createSchedule() {
     setSubmitAttempted(true)
+    if (steps.length && splitTargets(target).length) {
+      return flash("You have an unadded step below — Add step or clear its targets first.")
+    }
     const error = blocker()
     if (error) return flash(error)
     await api("/api/schedules", {
@@ -198,6 +261,7 @@ export function ScheduleBuilder({
     setTarget("")
     setFields(defaultFieldValues(actionType))
     setForm(defaultRecurrenceForm)
+    setSteps([])
     setSubmitAttempted(false)
     clearPreview()
     await loadSchedules()
@@ -227,7 +291,31 @@ export function ScheduleBuilder({
       <div className="grid gap-5 border-t border-border pt-4 lg:grid-cols-2">
         {/* Left: what gets sent */}
         <section className="space-y-3">
-          <Subhead>Message</Subhead>
+          <div className="flex items-center justify-between gap-2">
+            <Subhead>{steps.length ? "Steps" : "Message"}</Subhead>
+            {presets.length ? (
+              <Select
+                className="h-7 w-auto text-xs"
+                value=""
+                onChange={(event) => loadPreset(event.target.value)}
+              >
+                <option value="">Load from preset…</option>
+                {presets.map((preset) => (
+                  <option key={preset.id} value={preset.id}>
+                    {preset.name} ({(preset.queue.steps || []).length})
+                  </option>
+                ))}
+              </Select>
+            ) : null}
+          </div>
+
+          {steps.length ? (
+            <>
+              <QueueTable queue={steps} setQueue={setSteps} onEdit={editStep} />
+              <Subhead>Add another step</Subhead>
+            </>
+          ) : null}
+
           <Field label="Action">
             <Select
               value={actionType}
@@ -269,6 +357,15 @@ export function ScheduleBuilder({
               showErrors={submitAttempted}
             />
           ) : null}
+          <div className="flex items-center gap-2 border-t border-border pt-3">
+            <Button variant="outline" size="sm" onClick={addStep}>
+              + Add step
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              Optional — combine several actions in one schedule. A single action
+              creates directly.
+            </span>
+          </div>
         </section>
 
         {/* Right: when + how often */}

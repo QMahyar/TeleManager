@@ -31,6 +31,11 @@ export type ActionField = {
 export type ActionFormSchema = {
   fields: ActionField[]
   serialize: (values: FieldValues) => string
+  // Inverse of serialize: rebuild field values from a stored message string so a
+  // queued/preset step can be loaded back into the form. Omit when the action
+  // has no fields. Returns only the keys it can recover; callers merge over
+  // defaults.
+  deserialize?: (message: string) => FieldValues
 }
 
 const TME_HOSTS = ["t.me", "telegram.me", "www.t.me", "www.telegram.me"]
@@ -125,6 +130,38 @@ function normalizeSchedule(value: string): string {
   return date.toISOString()
 }
 
+// Pull `key=value` lines out of a message, returning the map plus the remaining
+// lines (everything that wasn't a recognized key=value pair). Used to invert the
+// serialize() forms back into field values.
+function splitKeyedLines(
+  message: string,
+  keys: string[]
+): { keyed: Record<string, string>; rest: string } {
+  const keyed: Record<string, string> = {}
+  const leftover: string[] = []
+  for (const line of message.split("\n")) {
+    const match = /^([a-z_]+)=(.*)$/i.exec(line)
+    if (match && keys.includes(match[1])) keyed[match[1]] = match[2]
+    else leftover.push(line)
+  }
+  return { keyed, rest: leftover.join("\n").trim() }
+}
+
+// ISO timestamp -> the value a <input type="datetime-local"> expects.
+// ponytail: drops seconds + renders in local tz; the picker only has minute precision.
+function isoToLocalInput(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function deserializeSchedule(value: string): string {
+  const clean = value.trim()
+  if (/^\+\d+[mhd]$/i.test(clean)) return clean.toLowerCase()
+  return isoToLocalInput(clean)
+}
+
 const PARSE_MODE_OPTIONS: ActionFieldOption[] = [
   { value: "none", label: "Plain text" },
   { value: "markdown", label: "Markdown" },
@@ -152,6 +189,7 @@ const SCHEMAS: Partial<Record<ActionType, ActionFormSchema>> = {
       },
     ],
     serialize: (v) => str(v.text).trim(),
+    deserialize: (m) => ({ text: m }),
   },
   send_media: {
     fields: [
@@ -185,6 +223,14 @@ const SCHEMAS: Partial<Record<ActionType, ActionFormSchema>> = {
       if (caption) lines.push(caption)
       return lines.join("\n")
     },
+    deserialize: (m) => {
+      const { keyed, rest } = splitKeyedLines(m, ["file", "parse_mode"])
+      return {
+        file: keyed.file ?? "",
+        parse_mode: keyed.parse_mode || "none",
+        caption: rest,
+      }
+    },
   },
   schedule_message: {
     fields: [
@@ -205,6 +251,10 @@ const SCHEMAS: Partial<Record<ActionType, ActionFormSchema>> = {
       },
     ],
     serialize: (v) => `schedule=${normalizeSchedule(str(v.schedule))}\n${str(v.text).trim()}`,
+    deserialize: (m) => {
+      const { keyed, rest } = splitKeyedLines(m, ["schedule"])
+      return { schedule: deserializeSchedule(keyed.schedule ?? ""), text: rest }
+    },
   },
   forward_message: {
     fields: [
@@ -219,6 +269,7 @@ const SCHEMAS: Partial<Record<ActionType, ActionFormSchema>> = {
       },
     ],
     serialize: (v) => str(v.source).trim(),
+    deserialize: (m) => ({ source: m }),
   },
   edit_message: {
     fields: [
@@ -240,6 +291,10 @@ const SCHEMAS: Partial<Record<ActionType, ActionFormSchema>> = {
       },
     ],
     serialize: (v) => `id=${str(v.id).trim()}\n${str(v.text).trim()}`,
+    deserialize: (m) => {
+      const { keyed, rest } = splitKeyedLines(m, ["id"])
+      return { id: keyed.id ?? "", text: rest }
+    },
   },
   delete_messages: {
     fields: [
@@ -260,6 +315,10 @@ const SCHEMAS: Partial<Record<ActionType, ActionFormSchema>> = {
       },
     ],
     serialize: (v) => `ids=${str(v.ids).trim()}\nrevoke=${v.revoke === false ? "false" : "true"}`,
+    deserialize: (m) => {
+      const { keyed } = splitKeyedLines(m, ["ids", "revoke"])
+      return { ids: keyed.ids ?? "", revoke: keyed.revoke !== "false" }
+    },
   },
   pin_message: {
     fields: [
@@ -279,6 +338,10 @@ const SCHEMAS: Partial<Record<ActionType, ActionFormSchema>> = {
       },
     ],
     serialize: (v) => `id=${str(v.id).trim()}\nnotify=${v.notify === true ? "true" : "false"}`,
+    deserialize: (m) => {
+      const { keyed } = splitKeyedLines(m, ["id", "notify"])
+      return { id: keyed.id ?? "", notify: keyed.notify === "true" }
+    },
   },
   unpin_message: {
     fields: [
@@ -294,6 +357,7 @@ const SCHEMAS: Partial<Record<ActionType, ActionFormSchema>> = {
     // Always emit id= so the step has a non-empty message; an empty value tells
     // the backend to unpin all pins.
     serialize: (v) => `id=${str(v.id).trim()}`,
+    deserialize: (m) => ({ id: splitKeyedLines(m, ["id"]).keyed.id ?? "" }),
   },
   download_media: {
     fields: [
@@ -308,6 +372,7 @@ const SCHEMAS: Partial<Record<ActionType, ActionFormSchema>> = {
       },
     ],
     serialize: (v) => `id=${str(v.id).trim()}`,
+    deserialize: (m) => ({ id: splitKeyedLines(m, ["id"]).keyed.id ?? "" }),
   },
   start_bot: {
     fields: [
@@ -333,6 +398,18 @@ const SCHEMAS: Partial<Record<ActionType, ActionFormSchema>> = {
       if (!value) return ""
       const mode = str(v.referral_mode) || "start"
       return `${mode}=${value}`
+    },
+    deserialize: (m) => {
+      const { keyed } = splitKeyedLines(m, ["start", "startapp"])
+      const result: FieldValues = {}
+      if ("startapp" in keyed) {
+        result.referral_mode = "startapp"
+        result.referral_value = keyed.startapp
+      } else if ("start" in keyed) {
+        result.referral_mode = "start"
+        result.referral_value = keyed.start
+      }
+      return result
     },
   },
 }
@@ -389,6 +466,19 @@ export function validateFields(
     if (error) errors[field.name] = error
   }
   return errors
+}
+
+// Inverse of serializeFields: rebuild form values from a stored message string,
+// starting from defaults so any field the schema can't recover stays valid.
+export function deserializeFields(
+  actionType: ActionType,
+  message: string
+): FieldValues {
+  const defaults = defaultFieldValues(actionType)
+  const schema = getActionSchema(actionType)
+  if (!schema?.deserialize) return defaults
+  const recovered = schema.deserialize(message.trim())
+  return { ...defaults, ...recovered }
 }
 
 export function serializeFields(

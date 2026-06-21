@@ -1,6 +1,8 @@
 import type { ActionType, TelegramDialog } from "../types"
 
-import { dialogKind } from "./helpers"
+import { actionMeta } from "./constants"
+import { dialogKind, dialogTarget } from "./helpers"
+import { analyzeTarget } from "./targeting"
 
 export type DialogKind =
   | "bot"
@@ -10,7 +12,7 @@ export type DialogKind =
   | "channel"
   | "unknown"
 
-function normalizeKind(dialog: TelegramDialog): DialogKind {
+export function normalizeKind(dialog: TelegramDialog): DialogKind {
   const kind = dialogKind(dialog)
   if (
     kind === "bot" ||
@@ -168,6 +170,36 @@ const BULK_VALID_BY_KIND: Record<DialogKind, Set<ActionType>> = {
 
 export function quickActionsForDialog(dialog: TelegramDialog): ActionType[] {
   return ROW_ACTIONS[normalizeKind(dialog)]
+}
+
+// Actions that only make sense for certain chat kinds. Everything not listed
+// here is kind-unrestricted (messaging, management, cleanup, message tools apply
+// to any chat) and is judged purely on target format below.
+const KIND_RESTRICTED: Partial<Record<ActionType, Set<DialogKind>>> = {
+  start_bot: new Set<DialogKind>(["bot"]),
+  block_user: new Set<DialogKind>(["personal", "bot"]),
+  unblock_user: new Set<DialogKind>(["personal", "bot"]),
+  leave_chat: new Set<DialogKind>(["group", "supergroup", "channel"]),
+}
+
+// Can this chat be a target for this action? Semantic (chat kind) check first,
+// then the existing format check so the picker greys exactly what the chip list
+// would. Unknown kinds skip the semantic check to avoid false-greying.
+export function dialogCompatibility(
+  dialog: TelegramDialog,
+  actionType: ActionType
+): { compatible: boolean; reason?: string } {
+  const kind = normalizeKind(dialog)
+  const allowed = KIND_RESTRICTED[actionType]
+  if (allowed && kind !== "unknown" && !allowed.has(kind)) {
+    return {
+      compatible: false,
+      reason: `${actionMeta[actionType].label} doesn't apply to a ${kind}.`,
+    }
+  }
+  const analysis = analyzeTarget(dialogTarget(dialog), actionType)
+  if (analysis.error) return { compatible: false, reason: analysis.error }
+  return { compatible: true }
 }
 
 export function selectionKindCounts(

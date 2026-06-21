@@ -9,9 +9,13 @@ import { Badge, EmptyState } from "./ui"
 export function QueueTable({
   queue,
   setQueue,
+  onEdit,
 }: {
   queue: QueueStep[]
   setQueue: React.Dispatch<React.SetStateAction<QueueStep[]>>
+  // When provided, each row gets an Edit button that hands the step back to the
+  // builder. Omitted where there's no builder to load into.
+  onEdit?: (step: QueueStep, index: number) => void
 }) {
   return (
     <div className="border border-border">
@@ -77,17 +81,45 @@ export function QueueTable({
                   </p>
                 ) : null}
               </div>
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() =>
-                  setQueue((current) =>
-                    current.filter((_, stepIndex) => stepIndex !== index)
-                  )
-                }
-              >
-                Remove
-              </Button>
+              <div className="flex gap-1.5 md:flex-col md:items-stretch">
+                {onEdit ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onEdit(step, index)}
+                  >
+                    Edit
+                  </Button>
+                ) : null}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    setQueue((current) => [
+                      ...current.slice(0, index + 1),
+                      {
+                        ...step,
+                        targets: [...step.targets],
+                        account_ids: [...step.account_ids],
+                      },
+                      ...current.slice(index + 1),
+                    ])
+                  }
+                >
+                  Duplicate
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() =>
+                    setQueue((current) =>
+                      current.filter((_, stepIndex) => stepIndex !== index)
+                    )
+                  }
+                >
+                  Remove
+                </Button>
+              </div>
             </div>
           )
         })

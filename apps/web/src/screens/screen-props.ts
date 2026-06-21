@@ -133,6 +133,7 @@ export type SchedulesScreenProps = Pick<
   | "loadSchedules"
   | "scheduleSeed"
   | "setScheduleSeed"
+  | "presets"
   | "guarded"
   | "loading"
   | "flash"

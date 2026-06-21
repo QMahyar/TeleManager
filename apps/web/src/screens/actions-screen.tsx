@@ -18,13 +18,14 @@ import { Badge, EmptyState, Field, Panel, Select } from "../components/ui"
 import { api } from "../lib/api"
 import {
   carryFieldValues,
+  deserializeFields,
   getActionSchema,
   isActionFormValid,
 } from "../lib/action-schema"
 import { actionMeta, categoryLabels, categoryOrder } from "../lib/constants"
 import { accountStatus, splitTargets, statusTone } from "../lib/helpers"
 import { partitionTargets } from "../lib/targeting"
-import type { ActionType, QueueRun } from "../types"
+import type { ActionType, QueueRun, QueueStep } from "../types"
 import type { ActionsScreenProps } from "./screen-props"
 
 const TERMINAL_RUN_STATUSES = new Set([
@@ -562,6 +563,19 @@ function QueueColumn({
   const operationCount = countOperations(props.queue)
   const runDisabled = actionBusy.busy || Boolean(activeRunId) || !props.queue.length
 
+  // Pop a step back into the builder fully populated so a mistake is a tweak,
+  // not a rebuild. Removing it here avoids a duplicate when it's re-added.
+  function editStep(step: QueueStep, index: number) {
+    props.setActionDraft({
+      action_type: step.action_type,
+      target: step.targets.join("\n"),
+      fields: deserializeFields(step.action_type, step.message ?? ""),
+    })
+    props.setActionAccountIds(new Set(step.account_ids))
+    props.setQueue((current) => current.filter((_, i) => i !== index))
+    props.flash("Step loaded into the builder. Edit it, then Add To Queue.")
+  }
+
   async function clearQueue() {
     if (!props.queue.length) return props.flash("Queue is already empty.")
     const confirmed = await props.askDialog({
@@ -588,7 +602,7 @@ function QueueColumn({
           ) : null
         }
       />
-      <QueueTable queue={props.queue} setQueue={props.setQueue} />
+      <QueueTable queue={props.queue} setQueue={props.setQueue} onEdit={editStep} />
 
       <details className="border border-border bg-muted/10 p-2 text-xs" open>
         <summary className="cursor-pointer font-medium text-muted-foreground">

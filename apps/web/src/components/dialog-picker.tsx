@@ -4,21 +4,41 @@ import { IconRefresh, IconSearch } from "@tabler/icons-react"
 
 import { Button } from "../ui/button"
 import { api } from "../lib/api"
+import {
+  dialogCompatibility,
+  normalizeKind,
+  type DialogKind,
+} from "../lib/dialog-actions"
 import { dialogKind, dialogTarget } from "../lib/helpers"
-import type { Account, TelegramDialog } from "../types"
+import type { Account, ActionType, TelegramDialog } from "../types"
 import { Badge, EmptyState, Input, Select } from "./ui"
+
+// Filter buttons map a friendly label to the kinds they include.
+const KIND_FILTERS: Array<{ id: string; label: string; kinds: Set<DialogKind> }> = [
+  { id: "all", label: "All", kinds: new Set() },
+  { id: "user", label: "Users", kinds: new Set(["personal"]) },
+  { id: "group", label: "Groups", kinds: new Set(["group", "supergroup"]) },
+  { id: "channel", label: "Channels", kinds: new Set(["channel"]) },
+  { id: "bot", label: "Bots", kinds: new Set(["bot"]) },
+]
 
 // Inline chat picker for the action builder. Self-contained: it fetches the
 // chosen account's cached dialogs on open (live fetch on demand) and hands the
-// chosen targets back, so the operator never leaves the Actions screen.
+// chosen targets back, so the operator never leaves the Actions screen. Chats
+// that can't take the current action — or are already in the target list — are
+// greyed and can't be ticked, so only valid targets are ever added.
 export function DialogPicker({
   accounts,
   defaultAccountId,
+  actionType,
+  existingTargets,
   onAdd,
   flash,
 }: {
   accounts: Account[]
   defaultAccountId: string
+  actionType: ActionType
+  existingTargets: Set<string>
   onAdd: (targets: string[]) => void
   flash: (message: string) => void
 }) {
@@ -26,11 +46,13 @@ export function DialogPicker({
   const readyAccounts = accounts.filter(
     (account) => account.authorized && !account.last_error
   )
+  const firstReadyId = readyAccounts[0]?.id
   const [accountId, setAccountId] = React.useState(
-    defaultAccountId || readyAccounts[0]?.id || ""
+    defaultAccountId || firstReadyId || ""
   )
   const [dialogs, setDialogs] = React.useState<TelegramDialog[]>([])
   const [search, setSearch] = React.useState("")
+  const [kindFilter, setKindFilter] = React.useState("all")
   const [picked, setPicked] = React.useState<Set<string>>(new Set())
   const [busy, setBusy] = React.useState(false)
   const [status, setStatus] = React.useState("")
@@ -56,11 +78,18 @@ export function DialogPicker({
     }
   }, [])
 
+  // Resolve the account when the picker opens, not at mount: accounts load
+  // asynchronously (so the lazy initializer can land on ""), and the action's
+  // account may be chosen after this component first renders. Default to that
+  // account, falling back to the first ready one, while keeping any pick the
+  // user made inside the picker this session.
   React.useEffect(() => {
     if (!open) return undefined
-    const task = window.setTimeout(() => loadCached(accountId), 0)
+    const id = accountId || defaultAccountId || firstReadyId || ""
+    if (id && id !== accountId) setAccountId(id)
+    const task = window.setTimeout(() => loadCached(id), 0)
     return () => window.clearTimeout(task)
-  }, [open, accountId, loadCached])
+  }, [open, accountId, defaultAccountId, firstReadyId, loadCached])
 
   async function fetchLive() {
     if (!accountId) return
@@ -81,11 +110,34 @@ export function DialogPicker({
   }
 
   const query = search.trim().toLowerCase()
-  const filtered = query
-    ? dialogs.filter((dialog) =>
-        `${dialog.title} ${dialog.username || ""}`.toLowerCase().includes(query)
-      )
-    : dialogs
+  const activeKinds = KIND_FILTERS.find((item) => item.id === kindFilter)?.kinds
+  // Annotate every visible dialog once: its target, whether the current action
+  // can use it, and whether it is already in the target list.
+  const rows = dialogs
+    .filter((dialog) =>
+      query
+        ? `${dialog.title} ${dialog.username || ""}`.toLowerCase().includes(query)
+        : true
+    )
+    .filter((dialog) =>
+      activeKinds && activeKinds.size
+        ? activeKinds.has(normalizeKind(dialog))
+        : true
+    )
+    .map((dialog) => {
+      const target = dialogTarget(dialog)
+      const { compatible, reason } = dialogCompatibility(dialog, actionType)
+      return {
+        dialog,
+        target,
+        compatible,
+        reason,
+        added: existingTargets.has(target),
+      }
+    })
+
+  const compatibleCount = rows.filter((row) => row.compatible && !row.added).length
+  const addedCount = rows.filter((row) => row.added).length
 
   function toggle(target: string) {
     setPicked((current) => {
@@ -94,6 +146,17 @@ export function DialogPicker({
       else next.add(target)
       return next
     })
+  }
+
+  function selectCompatible() {
+    const targets = rows
+      .filter((row) => row.compatible && !row.added)
+      .map((row) => row.target)
+    if (!targets.length) {
+      flash("No compatible chats to select here.")
+      return
+    }
+    setPicked((current) => new Set([...current, ...targets]))
   }
 
   function addPicked() {
@@ -166,8 +229,25 @@ export function DialogPicker({
         />
       </div>
 
+      <div className="flex flex-wrap gap-1">
+        {KIND_FILTERS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setKindFilter(item.id)}
+            className={`border px-2 py-0.5 text-xs transition-colors ${
+              kindFilter === item.id
+                ? "border-primary/40 bg-primary/10 text-primary"
+                : "border-border text-muted-foreground hover:bg-muted/40"
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
       <div className="max-h-56 space-y-1 overflow-auto">
-        {filtered.length === 0 ? (
+        {rows.length === 0 ? (
           <EmptyState
             title={dialogs.length ? "No chats match" : "No chats loaded"}
             detail={
@@ -177,19 +257,28 @@ export function DialogPicker({
             className="px-4 py-6"
           />
         ) : (
-          filtered.map((dialog) => {
-            const target = dialogTarget(dialog)
+          rows.map(({ dialog, target, compatible, reason, added }) => {
+            const disabled = !compatible || added
             return (
               <label
                 key={target}
-                className="flex items-center gap-2 border border-border px-2 py-1.5 text-xs hover:bg-muted/30"
+                title={added ? "Already in the target list" : reason}
+                className={`flex items-center gap-2 border border-border px-2 py-1.5 text-xs ${
+                  disabled ? "opacity-50" : "hover:bg-muted/30"
+                }`}
               >
                 <input
                   type="checkbox"
-                  checked={picked.has(target)}
+                  checked={added || picked.has(target)}
+                  disabled={disabled}
                   onChange={() => toggle(target)}
                 />
                 <span className="min-w-0 flex-1 truncate">{dialog.title}</span>
+                {added ? (
+                  <Badge tone="text-primary border-primary/30 bg-primary/10">
+                    added
+                  </Badge>
+                ) : null}
                 <Badge tone="border-border bg-muted/40 text-muted-foreground">
                   {dialogKind(dialog)}
                 </Badge>
@@ -201,11 +290,23 @@ export function DialogPicker({
 
       <div className="flex items-center justify-between gap-2 border-t border-border pt-2">
         <span className="text-xs text-muted-foreground">
-          {picked.size} picked · {filtered.length} shown
+          {compatibleCount} compatible
+          {addedCount ? ` · ${addedCount} added` : ""} · {rows.length} shown
         </span>
-        <Button type="button" size="sm" onClick={addPicked} disabled={!picked.size}>
-          Add {picked.size || ""} to targets
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={selectCompatible}
+            disabled={!compatibleCount}
+          >
+            Select compatible
+          </Button>
+          <Button type="button" size="sm" onClick={addPicked} disabled={!picked.size}>
+            Add {picked.size || ""} to targets
+          </Button>
+        </div>
       </div>
     </div>
   )

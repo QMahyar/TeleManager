@@ -89,6 +89,8 @@ export function TargetComposer({
       <DialogPicker
         accounts={accounts}
         defaultAccountId={defaultAccountId}
+        actionType={actionType}
+        existingTargets={new Set(targets)}
         onAdd={addTargets}
         flash={flash}
       />

@@ -18,6 +18,9 @@ section below, with auto-generated commit/PR notes appended.
 - **Cross-chat stagger** toggle so identical messages to multiple chats don't all fire at the same instant.
 - **Fully-offline indicator** in the schedule preview when the entire series fits Telegram's 100-per-chat buffer (pre-scheduled all at once, no reopen needed).
 - **Scheduled-message inspector**: pick an account + chat to list what Telegram actually has scheduled (marking TeleManager-created vs manual messages) and clear selected or all — `GET/POST /api/accounts/{id}/scheduled`.
+- **Action-aware chat picker**: "Pick from chats" now greys out and disables chats that can't take the selected action (e.g. Block user hides groups/channels), flags chats already in the target list, adds a kind filter (Users / Groups / Channels / Bots), a "Select compatible" bulk-pick, and live compatible/added counts — so only valid targets can be added.
+- **Edit and duplicate queued steps**: a queued action step can be loaded back into the builder to tweak and re-add, or duplicated in place (previously steps could only be removed).
+- **Multi-step schedules**: the schedule builder can hold several action steps and seed them from a saved Actions preset (Load from preset), instead of being limited to a single action.
 
 ### Changed
 
@@ -30,6 +33,8 @@ section below, with auto-generated commit/PR notes appended.
 
 - `fetch_messages` / `resolve_target` now check authorization live (via a shared short-lived client) instead of trusting a possibly-stale flag, so revoked sessions return a clear message.
 - Target-preview warnings render in amber instead of error-red.
+- Chat picker showed "No chats loaded" on first open until the account was re-selected — it resolved the account before the account list had loaded.
+- Chat picker defaulted to the first ready account instead of the one chosen for the action when multiple accounts were ready.
 
 ### Internal
 

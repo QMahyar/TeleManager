@@ -30,6 +30,7 @@ export function SchedulesScreen({
   loadSchedules,
   scheduleSeed,
   setScheduleSeed,
+  presets,
   guarded,
   flash,
   askDialog,
@@ -38,6 +39,7 @@ export function SchedulesScreen({
     <div className="space-y-4">
       <ScheduleBuilder
         accounts={accounts}
+        presets={presets}
         guarded={guarded}
         flash={flash}
         loadSchedules={loadSchedules}
