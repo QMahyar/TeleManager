@@ -132,20 +132,10 @@ export type ActionsScreenProps = Pick<
   | "loading"
   | "flash"
   | "askDialog"
->
-
-export type SchedulesScreenProps = Pick<
-  AppScreenProps,
-  | "accounts"
   | "schedules"
   | "loadSchedules"
   | "scheduleSeed"
   | "setScheduleSeed"
-  | "presets"
-  | "guarded"
-  | "loading"
-  | "flash"
-  | "askDialog"
 >
 
 export type DialogsScreenProps = Pick<
@@ -156,6 +146,7 @@ export type DialogsScreenProps = Pick<
   | "loading"
   | "refresh"
   | "flash"
+  | "askDialog"
   | "dialogs"
   | "dialogAccountId"
   | "setDialogAccountId"

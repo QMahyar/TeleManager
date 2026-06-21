@@ -1,5 +1,4 @@
 import {
-  IconClockHour4,
   IconMessageCircle,
   IconPlayerPlay,
   IconSettings,
@@ -23,12 +22,6 @@ export const navItems: Array<{
     icon: IconMessageCircle,
   },
   { id: "actions", label: "Actions", group: "Workspace", icon: IconPlayerPlay },
-  {
-    id: "schedules",
-    label: "Schedules",
-    group: "Workspace",
-    icon: IconClockHour4,
-  },
   { id: "settings", label: "Settings", group: "System", icon: IconSettings },
 ]
 

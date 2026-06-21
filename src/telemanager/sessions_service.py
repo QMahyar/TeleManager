@@ -33,14 +33,25 @@ def validate_session_slug(session_name: str) -> None:
         raise ValueError("Session filename must be 3-64 characters using letters, numbers, hyphen, or underscore.")
 
 
-async def import_session_file(manager: AccountManager, upload: UploadFile, label: str) -> AccountRecord:
+def display_name_from_account(account: AccountRecord, fallback: str) -> str:
+    """Human label for an imported account: Telegram @username, else first+last
+    name, else the provided fallback (the uploaded filename stem)."""
+    full_name = " ".join(part for part in [account.first_name, account.last_name] if part).strip()
+    return account.username or full_name or fallback
+
+
+async def import_session_file(
+    manager: AccountManager, upload: UploadFile, label: str | None = None
+) -> AccountRecord:
     ensure_dirs()
     original_name = Path(upload.filename or "imported.session").name
     if not original_name.endswith(".session"):
         raise ValueError("Only .session files can be imported.")
 
+    explicit_label = (label or "").strip()
+    original_stem = original_name.removesuffix(".session")
     account_id = str(uuid.uuid4())
-    session_name = safe_session_slug(f"{label or original_name.removesuffix('.session')}-{account_id[:8]}")
+    session_name = safe_session_slug(f"{explicit_label or original_stem}-{account_id[:8]}")
     destination = session_file_path(session_name)
     if destination.exists():
         raise ValueError("A session with this generated name already exists.")
@@ -50,7 +61,7 @@ async def import_session_file(manager: AccountManager, upload: UploadFile, label
 
     account = AccountRecord(
         id=account_id,
-        label=label.strip() or original_name.removesuffix(".session"),
+        label=explicit_label or original_stem,
         phone="",
         session_name=session_name,
         authorized=False,
@@ -63,10 +74,29 @@ async def import_session_file(manager: AccountManager, upload: UploadFile, label
 
     try:
         await manager.validate_account(account.id)
+        # Auto-name from the real Telegram identity unless an explicit label was
+        # given. validate_account has already fetched username/first/last name.
+        if not explicit_label:
+            account.label = display_name_from_account(account, original_stem)
+            manager._save_accounts()
     except Exception as exc:
         account.last_error = str(exc)
         manager._save_accounts()
     return account
+
+
+async def import_session_files(manager: AccountManager, uploads: list[UploadFile]) -> dict:
+    """Batch-import .session files. Each is copied, validated, and auto-named to
+    its real Telegram name. Returns imported records (some may carry last_error
+    if validation failed) plus files that could not be imported at all."""
+    imported: list[AccountRecord] = []
+    failed: list[dict] = []
+    for upload in uploads:
+        try:
+            imported.append(await import_session_file(manager, upload, None))
+        except ValueError as exc:
+            failed.append({"filename": upload.filename or "unknown", "error": str(exc)})
+    return {"imported": imported, "failed": failed}
 
 
 def export_sessions(manager: AccountManager, account_ids: list[str], redact_phone: bool = True) -> Path:

@@ -45,6 +45,7 @@ from .sessions_service import (
     delete_local_session,
     export_sessions,
     import_session_file,
+    import_session_files,
     rename_account,
     rename_session_file,
 )
@@ -63,6 +64,7 @@ FRONTEND_ROOT_DIR = Path(__file__).resolve().parents[2] / "apps" / "web"
 FRONTEND_DIST_DIR = Path(os.getenv("TELEMANAGER_FRONTEND_DIST_DIR", _default_frontend_dist()))
 FRONTEND_PUBLIC_DIR = Path(os.getenv("TELEMANAGER_FRONTEND_PUBLIC_DIR", FRONTEND_ROOT_DIR / "public"))
 FILE_BODY = File(...)
+FILES_BODY = File(...)
 NO_STORE_HEADERS = {"Cache-Control": "no-store"}
 GITHUB_REPO = "QMahyar/TeleManager"
 GITHUB_LATEST_RELEASE_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
@@ -272,6 +274,24 @@ async def import_session(label: str = Form(...), file: UploadFile = FILE_BODY) -
         return {"account": account.__dict__}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/sessions/import-files")
+async def import_sessions_batch(files: list[UploadFile] = FILES_BODY) -> dict:
+    if not files:
+        raise HTTPException(status_code=400, detail="Select at least one .session file to import.")
+    result = await import_session_files(manager, files)
+    imported = result["imported"]
+    log_event(
+        "sessions_imported",
+        "Sessions imported",
+        f"{len(imported)} session(s)",
+        {"imported": len(imported), "failed": len(result["failed"])},
+    )
+    return {
+        "imported": [account.__dict__ for account in imported],
+        "failed": result["failed"],
+    }
 
 
 @app.post("/api/sessions/export")

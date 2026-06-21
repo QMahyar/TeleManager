@@ -11,6 +11,56 @@ section below, with auto-generated commit/PR notes appended.
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-06-21
+
+Workflow consolidation release. One-off runs and recurring schedules now share a
+single **Actions** page, Dialogs quick actions execute in place, and importing
+sessions is a near-zero-friction batch operation.
+
+### Fixed
+
+- **Multi-account queues/schedules now run on every selected account.** Handing
+  chats off from Dialogs into Actions or Schedules replaced the account selection
+  with the single dialog "source" account, so queues built that way silently
+  collapsed to one account. The handoff now *unions* the source account into the
+  existing selection instead of overwriting it. Verified end-to-end: a two-account
+  send now delivers from both accounts.
+
+### Added
+
+- **In-place quick actions on Dialogs.** The row 3-dot menu (and the bulk action
+  buttons) now *run* the chosen action on the fetched account instead of only
+  staging it into the builder. Parameterless actions (mute, archive, read, leave…)
+  run in one tap; destructive ones confirm first; actions that need input (send
+  message, forward, schedule, ids…) open an inline mini-prompt that reuses the
+  builder's structured form, then run. Results are toasted and recorded in run
+  history.
+- **Automatic batch import.** Import / Export now accepts **many** `.session`
+  files at once (pick or drag-and-drop), validates each, and **auto-names** every
+  account to its real Telegram name (username, else first+last), falling back to
+  the filename. No labels to type.
+- **Schedule mode inside Actions.** The Queue & run column has a **Run now /
+  Schedule** toggle; "Schedule" turns the same built queue into a recurring
+  schedule (cadence, start/end, stagger, preview) without rebuilding it.
+
+### Changed
+
+- **Schedules merged into Actions.** The standalone Schedules screen is gone; its
+  active-schedules list and the Telegram scheduled-message inspector are now tabs
+  beneath the Actions builder (Run history / Schedules / Scheduled inspector).
+  Old `#schedules` deep-links redirect to Actions. The nav drops from five items
+  to four.
+
+### Internal
+
+- New shared `lib/queue-run.ts` (`startQueueRun` / `awaitQueueRun`) powers both
+  the Actions run banner and the in-place quick-action runner. Schedule
+  presentation pieces extracted to `components/schedule-parts.tsx`
+  (`RecurrenceFields`, `SchedulePreviewCard`, `ScheduleCard`); new
+  `components/quick-action-runner.tsx`. Backend adds
+  `POST /api/sessions/import-files` and a `display_name_from_account` helper; the
+  former standalone `schedule-builder.tsx` and `schedules-screen.tsx` are removed.
+
 ## [1.5.0] - 2026-06-21
 
 Frontend refresh and polish pass. Keeps the existing dense, green identity and

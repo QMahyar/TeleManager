@@ -11,6 +11,7 @@ import {
   IconMessage2Bolt,
   IconUpload,
   IconUsers,
+  IconX,
 } from "@tabler/icons-react"
 import { Button } from "../ui/button"
 
@@ -689,27 +690,61 @@ type TransferPanelProps = Pick<
 >
 
 function ImportPanel({ guarded, refresh, flash, loading }: TransferPanelProps) {
-  const importFormRef = React.useRef<HTMLFormElement>(null)
-  const [fileError, setFileError] = React.useState("")
+  const inputRef = React.useRef<HTMLInputElement>(null)
+  const [files, setFiles] = React.useState<File[]>([])
+  const [error, setError] = React.useState("")
+  const [dragging, setDragging] = React.useState(false)
 
-  function handleSubmit(event: FormSubmitEvent) {
-    event.preventDefault()
-    const formElement = event.currentTarget
-    const formData = new FormData(formElement)
-    const file = formData.get("file")
-    if (!(file instanceof File) || !file.name) {
-      setFileError("Choose a .session file to import.")
+  // Accept only .session files; de-dupe by name+size so picking + dropping the
+  // same file twice doesn't import it twice.
+  function addFiles(incoming: FileList | null) {
+    if (!incoming || !incoming.length) return
+    const sessionFiles = [...incoming].filter((file) =>
+      file.name.toLowerCase().endsWith(".session")
+    )
+    const rejected = incoming.length - sessionFiles.length
+    setError(rejected > 0 ? `Skipped ${rejected} non-.session file(s).` : "")
+    setFiles((current) => {
+      const seen = new Set(current.map((file) => `${file.name}:${file.size}`))
+      const merged = [...current]
+      for (const file of sessionFiles) {
+        const key = `${file.name}:${file.size}`
+        if (!seen.has(key)) {
+          merged.push(file)
+          seen.add(key)
+        }
+      }
+      return merged
+    })
+  }
+
+  function clearFiles() {
+    setFiles([])
+    setError("")
+    if (inputRef.current) inputRef.current.value = ""
+  }
+
+  function importAll() {
+    if (!files.length) {
+      setError("Choose one or more .session files to import.")
       return
     }
-    if (!file.name.toLowerCase().endsWith(".session")) {
-      setFileError("Only Telethon .session files can be imported.")
-      return
-    }
-    setFileError("")
     guarded(async () => {
-      await api("/api/sessions/import-file", { method: "POST", body: formData })
-      importFormRef.current?.reset()
-      flash("Session imported.", "success")
+      const formData = new FormData()
+      for (const file of files) formData.append("files", file)
+      const result = await api<{
+        imported: Account[]
+        failed: Array<{ filename: string; error: string }>
+      }>("/api/sessions/import-files", { method: "POST", body: formData })
+      clearFiles()
+      const okCount = result.imported.length
+      const failCount = result.failed.length
+      flash(
+        failCount
+          ? `Imported ${okCount} session(s); ${failCount} could not be read.`
+          : `Imported ${okCount} session(s) — named from Telegram.`,
+        failCount ? "error" : "success"
+      )
       await refresh()
     })
   }
@@ -718,43 +753,88 @@ function ImportPanel({ guarded, refresh, flash, loading }: TransferPanelProps) {
     <Panel className="space-y-4">
       <StepHeading
         step={<IconFileImport />}
-        title="Import .session file"
-        detail="Copy an existing Telethon .session file into TeleManager and validate it locally."
+        title="Import .session files"
+        detail="Drop or pick one or more Telethon .session files. Each is validated and auto-named to its Telegram account — no labels to type."
       />
-      <form ref={importFormRef} className="grid gap-3" onSubmit={handleSubmit}>
-        <Field label="Label">
-          <Input
-            name="label"
-            required
-            maxLength={120}
-            autoComplete="nickname"
-            placeholder="Imported account"
-          />
-        </Field>
-        <Field label="Session file">
-          <Input
-            name="file"
-            type="file"
-            accept=".session"
-            required
-            aria-invalid={Boolean(fileError)}
-            onChange={() => setFileError("")}
-          />
-          {fileError ? (
-            <span className="text-xs text-destructive normal-case">
-              {fileError}
-            </span>
-          ) : (
-            <span className="text-xs text-muted-foreground normal-case">
-              Must be a Telethon .session file from this or another machine.
-            </span>
-          )}
-        </Field>
-        <Button type="submit" disabled={loading}>
-          {loading ? <IconLoader2 className="size-3.5 animate-spin" /> : <IconUpload />}
-          Import Session
+      <div
+        className={`rounded-lg border-2 border-dashed p-6 text-center text-sm transition-colors ${
+          dragging ? "border-primary bg-primary/5" : "border-border"
+        }`}
+        onDragOver={(event) => {
+          event.preventDefault()
+          setDragging(true)
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(event) => {
+          event.preventDefault()
+          setDragging(false)
+          addFiles(event.dataTransfer.files)
+        }}
+      >
+        <IconUpload className="mx-auto mb-2 size-6 text-muted-foreground" />
+        <p className="text-muted-foreground">Drag .session files here, or</p>
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-2"
+          onClick={() => inputRef.current?.click()}
+        >
+          Choose files
         </Button>
-      </form>
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".session"
+          multiple
+          className="hidden"
+          onChange={(event) => addFiles(event.target.files)}
+        />
+      </div>
+      {error ? (
+        <p className="text-xs text-destructive normal-case">{error}</p>
+      ) : null}
+      {files.length ? (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>{files.length} file(s) ready</span>
+            <button
+              type="button"
+              className="underline-offset-2 hover:underline"
+              onClick={clearFiles}
+            >
+              Clear
+            </button>
+          </div>
+          <div className="max-h-40 space-y-1 overflow-auto">
+            {files.map((file, index) => (
+              <div
+                key={`${file.name}-${index}`}
+                className="flex items-center gap-2 rounded-md border border-border p-2 text-xs"
+              >
+                <span className="min-w-0 flex-1 truncate font-mono">
+                  {file.name}
+                </span>
+                <button
+                  type="button"
+                  aria-label={`Remove ${file.name}`}
+                  className="shrink-0 opacity-60 hover:opacity-100"
+                  onClick={() =>
+                    setFiles((current) =>
+                      current.filter((_, i) => i !== index)
+                    )
+                  }
+                >
+                  <IconX className="size-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      <Button disabled={loading || !files.length} onClick={importAll}>
+        {loading ? <IconLoader2 className="size-3.5 animate-spin" /> : <IconUpload />}
+        Import {files.length || ""} Session{files.length === 1 ? "" : "s"}
+      </Button>
     </Panel>
   )
 }
