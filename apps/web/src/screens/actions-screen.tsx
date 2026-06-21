@@ -2,8 +2,12 @@ import * as React from "react"
 
 import {
   IconAlertTriangle,
+  IconClockHour4,
+  IconClockPlus,
+  IconHistory,
   IconLoader2,
   IconPlayerStop,
+  IconRefresh,
   IconTrash,
 } from "@tabler/icons-react"
 
@@ -13,8 +17,23 @@ import { ActionFields } from "../components/action-fields"
 import { QueueTable } from "../components/queue-table"
 import { RunHistory } from "../components/run-history"
 import { SafetyEditor } from "../components/safety-editor"
+import { ScheduledInspector } from "../components/scheduled-inspector"
+import {
+  RecurrenceFields,
+  ScheduleCard,
+  SchedulePreviewCard,
+} from "../components/schedule-parts"
 import { TargetComposer } from "../components/target-composer"
-import { Badge, EmptyState, Field, Panel, Select } from "../components/ui"
+import {
+  Badge,
+  EmptyState,
+  Field,
+  Input,
+  Panel,
+  SectionTitle,
+  Select,
+  Tabs,
+} from "../components/ui"
 import { api } from "../lib/api"
 import {
   carryFieldValues,
@@ -24,17 +43,26 @@ import {
 } from "../lib/action-schema"
 import { actionMeta, categoryLabels, categoryOrder } from "../lib/constants"
 import { accountStatus, splitTargets, statusTone } from "../lib/helpers"
+import { awaitQueueRun, startQueueRun } from "../lib/queue-run"
+import {
+  buildRecurrence,
+  defaultRecurrenceForm,
+  describeRecurrence,
+  validateRecurrence,
+  type RecurrenceForm,
+} from "../lib/schedules"
 import { partitionTargets } from "../lib/targeting"
-import type { ActionType, QueueRun, QueueStep } from "../types"
+import type {
+  ActionType,
+  QueueRun,
+  QueueStep,
+  SchedulePreview,
+} from "../types"
 import type { ActionsScreenProps } from "./screen-props"
 
-const TERMINAL_RUN_STATUSES = new Set([
-  "completed",
-  "failed",
-  "canceled",
-  "interrupted",
-  "flood_wait",
-])
+type RunMode = "run" | "schedule"
+type BottomTab = "history" | "schedules" | "inspector"
+
 const SINGLE_TARGET_ACTIONS = new Set<ActionType>([
   "forward_message",
   "edit_message",
@@ -61,6 +89,20 @@ export function ActionsScreen(props: ActionsScreenProps) {
     props.refresh,
     props.flash
   )
+  const composer = useScheduleComposer(props)
+  const { scheduleSeed, setScheduleSeed } = props
+  const [bottomTab, setBottomTab] = React.useState<BottomTab>(() =>
+    scheduleSeed?.mode === "schedule" ? "schedules" : "history"
+  )
+
+  // The seed is a one-shot prefill staged from another screen (e.g. Dialogs
+  // "Schedule Selected"). Clear it after mount so a later visit doesn't re-flip
+  // the composer into schedule mode.
+  React.useEffect(() => {
+    if (!scheduleSeed) return undefined
+    const timer = window.setTimeout(() => setScheduleSeed(null), 0)
+    return () => window.clearTimeout(timer)
+  }, [scheduleSeed, setScheduleSeed])
 
   return (
     <div className="space-y-4">
@@ -78,18 +120,115 @@ export function ActionsScreen(props: ActionsScreenProps) {
           actionBusy={actionBusy}
           activeRunId={queueRunner.activeRunId}
           pollQueueRun={queueRunner.pollQueueRun}
+          composer={composer}
+          setBottomTab={setBottomTab}
         />
       </div>
       <Panel className="space-y-3">
-        <RunHistory
-          runs={props.runs}
-          guarded={props.guarded}
-          loadRuns={props.loadRuns}
-          flash={props.flash}
-          askDialog={props.askDialog}
-          onRetryQueued={queueRunner.pollQueueRun}
+        <Tabs<BottomTab>
+          value={bottomTab}
+          onChange={setBottomTab}
+          items={[
+            { id: "history", label: "Run history", icon: IconHistory },
+            {
+              id: "schedules",
+              label: "Schedules",
+              icon: IconClockHour4,
+              badge: props.schedules.length || undefined,
+            },
+            { id: "inspector", label: "Scheduled inspector", icon: IconRefresh },
+          ]}
         />
+        {bottomTab === "history" ? (
+          <RunHistory
+            runs={props.runs}
+            guarded={props.guarded}
+            loadRuns={props.loadRuns}
+            flash={props.flash}
+            askDialog={props.askDialog}
+            onRetryQueued={queueRunner.pollQueueRun}
+          />
+        ) : null}
+        {bottomTab === "schedules" ? <SchedulesList props={props} /> : null}
+        {bottomTab === "inspector" ? (
+          <ScheduledInspector
+            accounts={props.accounts}
+            schedules={props.schedules}
+            guarded={props.guarded}
+            flash={props.flash}
+            askDialog={props.askDialog}
+          />
+        ) : null}
       </Panel>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Schedule composer — local state for the Col-3 "Schedule" mode. The schedule
+// is built from the SAME shared queue/queuePayload the run-now mode uses.
+// ---------------------------------------------------------------------------
+
+type ScheduleComposer = ReturnType<typeof useScheduleComposer>
+
+function useScheduleComposer(props: ActionsScreenProps) {
+  const [mode, setMode] = React.useState<RunMode>(() =>
+    props.scheduleSeed?.mode === "schedule" ? "schedule" : "run"
+  )
+  const [name, setName] = React.useState("")
+  const [form, setForm] = React.useState<RecurrenceForm>(defaultRecurrenceForm)
+  // The preview is tagged with the queue it was computed for; it is shown only
+  // while that exact queue is still current, so a queue edit silently
+  // invalidates a stale preview with no effect or ref needed.
+  const [previewState, setPreviewState] = React.useState<{
+    data: SchedulePreview
+    queue: QueueStep[]
+  } | null>(null)
+
+  const setPreview = React.useCallback(
+    (data: SchedulePreview | null) =>
+      setPreviewState(data ? { data, queue: props.queue } : null),
+    [props.queue]
+  )
+  const preview =
+    previewState && previewState.queue === props.queue ? previewState.data : null
+
+  return { mode, setMode, name, setName, form, setForm, preview, setPreview }
+}
+
+function SchedulesList({ props }: { props: ActionsScreenProps }) {
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <SectionTitle
+          kicker="Automation"
+          title="Active schedules"
+          detail="Text-only schedules are delivered by Telegram and survive closing the app; others run only while TeleManager is open."
+        />
+        <Button variant="outline" onClick={() => props.guarded(props.loadSchedules)}>
+          Refresh
+        </Button>
+      </div>
+      {props.schedules.length ? (
+        <div className="space-y-3">
+          {props.schedules.map((schedule) => (
+            <ScheduleCard
+              key={schedule.id}
+              schedule={schedule}
+              guarded={props.guarded}
+              flash={props.flash}
+              askDialog={props.askDialog}
+              loadSchedules={props.loadSchedules}
+            />
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          icon={IconClockHour4}
+          title="No schedules yet"
+          detail="Build a queue above, switch to Schedule mode, and create your first recurring schedule."
+        />
+      )}
     </div>
   )
 }
@@ -155,22 +294,14 @@ function useQueueRunPolling(
   async function pollQueueRun(runId: string) {
     setActiveRunId(runId)
     try {
-      for (;;) {
-        const payload = await api<{ run: QueueRun }>(
-          `/api/actions/queue/runs/${runId}`
-        )
-        const run = payload.run
-        setActiveRun(run)
+      const run = await awaitQueueRun(runId, async (current) => {
+        setActiveRun(current)
         await loadRuns()
-        if (TERMINAL_RUN_STATUSES.has(run.status)) {
-          await refresh()
-          flash(
-            `Queue ${run.status.replace("_", " ")}: ${run.completed_count || 0}/${run.operation_count || 0} succeeded.`
-          )
-          break
-        }
-        await wait(1200)
-      }
+      })
+      await refresh()
+      flash(
+        `Queue ${run.status.replace("_", " ")}: ${run.completed_count || 0}/${run.operation_count || 0} succeeded.`
+      )
     } catch (error) {
       flash(error instanceof Error ? error.message : "Queue polling failed.")
     } finally {
@@ -553,15 +684,64 @@ function QueueColumn({
   actionBusy,
   activeRunId,
   pollQueueRun,
+  composer,
+  setBottomTab,
 }: {
   props: ActionsScreenProps
   actionBusy: ActionBusy
   activeRunId: string | null
   pollQueueRun: (runId: string) => Promise<void>
+  composer: ScheduleComposer
+  setBottomTab: React.Dispatch<React.SetStateAction<BottomTab>>
 }) {
   const destructiveCount = countDestructiveOperations(props.queue)
   const operationCount = countOperations(props.queue)
   const runDisabled = actionBusy.busy || Boolean(activeRunId) || !props.queue.length
+
+  // Schedule mode operates on the SAME built queue (props.queuePayload). A
+  // schedule is just "this queue, on a cadence" — backend ScheduleRequest.queue
+  // is an ActionQueueRequest, so the payload matches directly.
+  function scheduleBlocker(): string | null {
+    if (!props.queue.length) return "Add at least one step to the queue first."
+    if (composer.name.trim().length < 3) return "Name the schedule (3+ characters)."
+    return validateRecurrence(composer.form)
+  }
+
+  function schedulePayload() {
+    return {
+      name: composer.name.trim(),
+      queue: props.queuePayload,
+      recurrence: buildRecurrence(composer.form),
+    }
+  }
+
+  async function previewSchedule() {
+    const blocker = scheduleBlocker()
+    if (blocker) return props.flash(blocker)
+    const result = await api<SchedulePreview>("/api/schedules/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(schedulePayload()),
+    })
+    composer.setPreview(result)
+    props.flash(`Preview ready (${result.engine}).`)
+  }
+
+  async function createSchedule() {
+    const blocker = scheduleBlocker()
+    if (blocker) return props.flash(blocker)
+    await api("/api/schedules", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(schedulePayload()),
+    })
+    props.flash("Schedule created.", "success")
+    composer.setName("")
+    composer.setForm(defaultRecurrenceForm)
+    composer.setPreview(null)
+    await props.loadSchedules()
+    setBottomTab("schedules")
+  }
 
   // Pop a step back into the builder fully populated so a mistake is a tweak,
   // not a rebuild. Removing it here avoids a duplicate when it's re-added.
@@ -620,45 +800,102 @@ function QueueColumn({
         </p>
       ) : null}
 
-      <Button
-        className="w-full"
-        loading={actionBusy.isPending("run")}
-        disabled={runDisabled}
-        onClick={() =>
-          actionBusy.runAction("run", async () => {
-            if (activeRunId) return props.flash("A queue is already running.")
-            if (!props.queue.length) return props.flash("Add at least one step.")
-            const confirmed = await props.askDialog({
-              kicker: destructiveCount ? "Destructive queue" : "Run queue",
-              title: "Run this queue?",
-              description: runConfirmationDetail(operationCount, props.queue.length, destructiveCount),
-              confirmLabel: destructiveCount ? "Run Destructive Queue" : "Run Queue",
-              danger: destructiveCount > 0,
-            })
-            if (!confirmed) return
-            const response = await api<{
-              run_id: string
-              operation_count: number
-            }>("/api/actions/queue/run", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ ...props.queuePayload, confirm: true }),
-            })
-            props.flash(
-              `Queue started: ${response.operation_count} operations.`,
-              "success"
-            )
-            void pollQueueRun(response.run_id)
-          })
-        }
-      >
-        {activeRunId ? "Queue running…" : `Run ${operationCount || ""} operation(s)`}
-      </Button>
-      {!props.queue.length ? (
-        <p className="text-center text-xs text-muted-foreground">
-          Add steps in the builder, then run.
-        </p>
-      ) : null}
+      <div className="flex gap-1 rounded-md border border-border p-1">
+        <Button
+          variant={composer.mode === "run" ? "default" : "ghost"}
+          size="sm"
+          className="flex-1"
+          onClick={() => composer.setMode("run")}
+        >
+          Run now
+        </Button>
+        <Button
+          variant={composer.mode === "schedule" ? "default" : "ghost"}
+          size="sm"
+          className="flex-1"
+          onClick={() => composer.setMode("schedule")}
+        >
+          Schedule
+        </Button>
+      </div>
+
+      {composer.mode === "run" ? (
+        <>
+          <Button
+            className="w-full"
+            loading={actionBusy.isPending("run")}
+            disabled={runDisabled}
+            onClick={() =>
+              actionBusy.runAction("run", async () => {
+                if (activeRunId) return props.flash("A queue is already running.")
+                if (!props.queue.length) return props.flash("Add at least one step.")
+                const confirmed = await props.askDialog({
+                  kicker: destructiveCount ? "Destructive queue" : "Run queue",
+                  title: "Run this queue?",
+                  description: runConfirmationDetail(operationCount, props.queue.length, destructiveCount),
+                  confirmLabel: destructiveCount ? "Run Destructive Queue" : "Run Queue",
+                  danger: destructiveCount > 0,
+                })
+                if (!confirmed) return
+                const response = await startQueueRun(props.queuePayload)
+                props.flash(
+                  `Queue started: ${response.operation_count} operations.`,
+                  "success"
+                )
+                void pollQueueRun(response.run_id)
+              })
+            }
+          >
+            {activeRunId ? "Queue running…" : `Run ${operationCount || ""} operation(s)`}
+          </Button>
+          {!props.queue.length ? (
+            <p className="text-center text-xs text-muted-foreground">
+              Add steps in the builder, then run.
+            </p>
+          ) : null}
+        </>
+      ) : (
+        <div className="space-y-3">
+          <RecurrenceFields
+            form={composer.form}
+            setForm={(next) => {
+              composer.setForm(next)
+              composer.setPreview(null)
+            }}
+          />
+          <Field label="Schedule name">
+            <Input
+              value={composer.name}
+              maxLength={80}
+              autoComplete="off"
+              placeholder="Daily hello"
+              onChange={(event) => {
+                composer.setName(event.target.value)
+                composer.setPreview(null)
+              }}
+            />
+          </Field>
+          <p className="rounded-md border border-border bg-muted/20 p-2 text-xs text-muted-foreground">
+            {describeRecurrence(buildRecurrence(composer.form))}
+          </p>
+          {composer.preview ? (
+            <SchedulePreviewCard preview={composer.preview} />
+          ) : null}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={() => props.guarded(previewSchedule)}>
+              Preview
+            </Button>
+            <Button className="flex-1" onClick={() => props.guarded(createSchedule)}>
+              <IconClockPlus /> Create Schedule
+            </Button>
+          </div>
+          <p
+            className={`text-xs ${scheduleBlocker() ? "text-muted-foreground" : "text-primary"}`}
+          >
+            {scheduleBlocker() || "Ready to schedule."}
+          </p>
+        </div>
+      )}
     </Panel>
   )
 }
@@ -765,8 +1002,4 @@ function QuickActionNotice({
       </p>
     </div>
   )
-}
-
-function wait(milliseconds: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, milliseconds))
 }

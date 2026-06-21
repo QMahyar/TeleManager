@@ -30,17 +30,37 @@ import {
   Select,
   StepHeading,
 } from "../components/ui"
+import { QuickActionRunner } from "../components/quick-action-runner"
 import { api } from "../lib/api"
-import { defaultFieldValues } from "../lib/action-schema"
+import { defaultFieldValues, type FieldValues } from "../lib/action-schema"
 import {
   bulkActionsForSelection,
+  quickActionNeedsConfirm,
+  quickActionNeedsInput,
   quickActionsForDialog,
   selectionKindCounts,
 } from "../lib/dialog-actions"
 import { actionMeta } from "../lib/constants"
 import { dialogKind, dialogTarget, humanTime } from "../lib/helpers"
-import type { ActionType, TelegramDialog, TelegramMessage } from "../types"
+import { awaitQueueRun, startQueueRun } from "../lib/queue-run"
+import type {
+  ActionType,
+  Flash,
+  QueueRun,
+  TelegramDialog,
+  TelegramMessage,
+} from "../types"
 import type { DialogsScreenProps } from "./screen-props"
+
+// In-flight quick action awaiting input (message text, ids, schedule time, …).
+// Parameterless actions never use this — they run/confirm directly.
+type QuickRunState = {
+  actionType: ActionType
+  target: string
+  dialogTitle: string
+  accountId: string
+  initialFields?: FieldValues
+}
 
 const FILTER_LABELS: Record<string, string> = {
   all: "All",
@@ -60,14 +80,16 @@ export function DialogsScreen(props: DialogsScreenProps) {
   const fetchStatus = useCachedDialogs(props.dialogAccountId, props.setDialogs)
   const {
     allFilteredSelected,
-    applyQuickAction,
+    runRowQuickAction,
     bulkQuickAction,
     loadDialogs,
     scheduleSelected,
-    stageMessageInActions,
+    runMessageQuickAction,
     stageTargetInActions,
     toggleSelectAll,
     useSelectedTargets,
+    quickRun,
+    closeQuickRun,
   } = useDialogsController(props, fetchStatus)
 
   async function openMessagePanel(dialog: TelegramDialog) {
@@ -101,7 +123,7 @@ export function DialogsScreen(props: DialogsScreenProps) {
       />
       <DialogsTablePanel
         allFilteredSelected={allFilteredSelected}
-        applyQuickAction={applyQuickAction}
+        onQuickAction={runRowQuickAction}
         dialogFilter={props.dialogFilter}
         dialogSearch={props.dialogSearch}
         dialogs={props.dialogs}
@@ -117,11 +139,34 @@ export function DialogsScreen(props: DialogsScreenProps) {
       />
       <DialogMessagesPanel
         panel={messagePanel}
-        onStageMessage={stageMessageInActions}
+        onStageMessage={runMessageQuickAction}
         onClose={() => setMessagePanel(null)}
       />
+      {quickRun ? (
+        <QuickActionRunner
+          key={`${quickRun.actionType}:${quickRun.target}`}
+          open
+          actionType={quickRun.actionType}
+          target={quickRun.target}
+          dialogTitle={quickRun.dialogTitle}
+          accountId={quickRun.accountId}
+          accountLabel={accountLabelFor(props.accounts, quickRun.accountId)}
+          initialFields={quickRun.initialFields}
+          onClose={closeQuickRun}
+          flash={props.flash}
+          onRan={props.refresh}
+        />
+      ) : null}
     </div>
   )
+}
+
+function accountLabelFor(
+  accounts: DialogsScreenProps["accounts"],
+  accountId: string
+): string {
+  const account = accounts.find((item) => item.id === accountId)
+  return account?.label || account?.session_name || "account"
 }
 
 function useCachedDialogs(
@@ -196,6 +241,24 @@ function useDialogsController(
     props.selectedDialogTargets,
     props.setSelectedDialogTargets
   )
+  const [quickRun, setQuickRun] = React.useState<QuickRunState | null>(null)
+
+  // Run a parameterless (or bulk) quick action in-place as a one-shot queue on
+  // the dialogs' source account, then toast a summary and refresh.
+  async function executeQuick(
+    actionType: ActionType,
+    targets: string[],
+    label: string
+  ) {
+    const { run_id } = await startQueueRun({
+      steps: [
+        { action_type: actionType, targets, account_ids: [props.dialogAccountId] },
+      ],
+    })
+    const run = await awaitQueueRun(run_id)
+    reportRunSummary(run, props.flash, label)
+    await props.refresh()
+  }
 
   async function loadDialogs(mode: "cached" | "live") {
     if (!props.dialogAccountId) {
@@ -241,37 +304,49 @@ function useDialogsController(
     )
   }
 
-  // The account used to fetch these dialogs is the one that can act on them, so
-  // every handoff into Actions pre-selects it (otherwise the builder blocks on
-  // "select an account").
+  // The account used to fetch these dialogs can always act on them, so every
+  // handoff into Actions ensures it's selected. UNION it into any existing
+  // multi-account selection rather than replacing it — replacing was the
+  // "queue/schedule only ran on one account" bug.
   function seedActionAccount() {
     if (props.dialogAccountId) {
-      props.setActionAccountIds(new Set([props.dialogAccountId]))
+      props.setActionAccountIds((current) =>
+        new Set(current).add(props.dialogAccountId)
+      )
     }
   }
 
-  function applyQuickAction(
-    actionType: ActionType,
-    dialogs: TelegramDialog[],
-    sourceLabel: string
-  ) {
-    const targets = dialogs.map(dialogTarget)
-    props.setActionDraft({
-      action_type: actionType,
-      target: targets.join("\n"),
-      fields: defaultFieldValues(actionType),
+  // Run a quick action in-place on one dialog. Input-needing actions open the
+  // mini-prompt; parameterless ones run immediately (with a confirm step for
+  // destructive / leave actions).
+  function runRowQuickAction(actionType: ActionType, dialog: TelegramDialog) {
+    if (!props.dialogAccountId) {
+      props.flash("Choose an account first.")
+      return
+    }
+    const target = dialogTarget(dialog)
+    const title = dialog.title || target
+    if (quickActionNeedsInput(actionType)) {
+      setQuickRun({
+        actionType,
+        target,
+        dialogTitle: title,
+        accountId: props.dialogAccountId,
+      })
+      return
+    }
+    props.guarded(async () => {
+      if (quickActionNeedsConfirm(actionType)) {
+        const confirmed = await props.askDialog({
+          title: `${actionMeta[actionType].label}?`,
+          description: `Run "${actionMeta[actionType].label}" on ${title} as the selected account.`,
+          confirmLabel: actionMeta[actionType].label,
+          danger: Boolean(actionMeta[actionType].destructive),
+        })
+        if (!confirmed) return
+      }
+      await executeQuick(actionType, [target], actionMeta[actionType].label)
     })
-    props.setQuickActionContext({
-      source: "dialog",
-      actionType,
-      title: actionMeta[actionType].label,
-      targetSummary: sourceLabel,
-      count: targets.length,
-      dialogKinds: [...new Set(dialogs.map(dialogKind))],
-    })
-    seedActionAccount()
-    props.setView("actions")
-    props.flash(`${actionMeta[actionType].label} preset prepared in Actions.`)
   }
 
   function bulkQuickAction(actionType: ActionType) {
@@ -282,11 +357,24 @@ function useDialogsController(
       props.flash("Select one or more dialogs first.")
       return
     }
-    applyQuickAction(
-      actionType,
-      dialogs,
-      `${dialogs.length} selected dialog(s)`
-    )
+    if (!props.dialogAccountId) {
+      props.flash("Choose an account first.")
+      return
+    }
+    const targets = dialogs.map(dialogTarget)
+    const label = `${actionMeta[actionType].label} ×${targets.length}`
+    props.guarded(async () => {
+      if (quickActionNeedsConfirm(actionType)) {
+        const confirmed = await props.askDialog({
+          title: `${actionMeta[actionType].label} on ${targets.length} chat(s)?`,
+          description: `Run "${actionMeta[actionType].label}" on ${targets.length} selected chat(s) as the selected account.`,
+          confirmLabel: actionMeta[actionType].label,
+          danger: Boolean(actionMeta[actionType].destructive),
+        })
+        if (!confirmed) return
+      }
+      await executeQuick(actionType, targets, label)
+    })
   }
 
   function useSelectedTargets() {
@@ -312,27 +400,25 @@ function useDialogsController(
     props.flash("Dialog target copied into Actions.")
   }
 
-  function stageMessageInActions(
+  // Forward/pin/delete/download from the message inspector: open the in-place
+  // runner with the message id/source pre-filled.
+  function runMessageQuickAction(
     actionType: ActionType,
     dialog: TelegramDialog,
     message: TelegramMessage
   ) {
-    props.setQuickActionContext({
-      source: "dialog",
-      actionType,
-      title: actionMeta[actionType].label,
-      targetSummary: `${dialog.title} / message ${message.id}`,
-      count: 1,
-      dialogKinds: [dialogKind(dialog)],
-    })
+    if (!props.dialogAccountId) {
+      props.flash("Choose an account first.")
+      return
+    }
     const target = dialogTarget(dialog)
-    props.setActionDraft({
-      action_type: actionType,
+    setQuickRun({
+      actionType,
       target,
-      fields: fieldsForStagedMessage(actionType, target, message.id),
+      dialogTitle: dialog.title || target,
+      accountId: props.dialogAccountId,
+      initialFields: fieldsForStagedMessage(actionType, target, message.id),
     })
-    seedActionAccount()
-    props.setView("actions")
   }
 
   function scheduleSelected() {
@@ -340,25 +426,57 @@ function useDialogsController(
       props.flash("Select one or more dialogs first.")
       return
     }
+    const target = [...props.selectedDialogTargets].join("\n")
+    // Stage into the shared Actions builder, then flag the composer to open in
+    // Schedule mode (Schedules now live on the Actions page).
+    props.setQuickActionContext(null)
+    props.setActionDraft({
+      action_type: "send_message",
+      target,
+      fields: defaultFieldValues("send_message"),
+    })
+    seedActionAccount()
     props.setScheduleSeed({
       accountIds: props.dialogAccountId ? [props.dialogAccountId] : [],
       actionType: "send_message",
-      target: [...props.selectedDialogTargets].join("\n"),
+      target,
+      mode: "schedule",
     })
-    props.setView("schedules")
+    props.setView("actions")
     props.flash("Selected dialogs staged into a new schedule.")
   }
 
   return {
     allFilteredSelected: selection.allFilteredSelected,
-    applyQuickAction,
+    runRowQuickAction,
     bulkQuickAction,
     loadDialogs,
     scheduleSelected,
-    stageMessageInActions,
+    runMessageQuickAction,
     stageTargetInActions,
     toggleSelectAll: selection.toggleSelectAll,
     useSelectedTargets,
+    quickRun,
+    closeQuickRun: () => setQuickRun(null),
+  }
+}
+
+// Toast a one-line summary of an in-place quick-action run (1+ ops).
+function reportRunSummary(run: QueueRun, flash: Flash, label: string) {
+  if (run.status === "flood_wait") {
+    flash(run.error || "Telegram rate-limited this run.", "error")
+    return
+  }
+  const results = run.results || []
+  const okCount = results.filter((item) => (item as { ok?: boolean }).ok).length
+  const failCount = results.length - okCount
+  if (failCount === 0 && okCount > 0) {
+    flash(`${label}: done.`, "success")
+  } else if (okCount > 0) {
+    flash(`${label}: ${okCount} ok, ${failCount} failed.`, "error")
+  } else {
+    const detail = (results[0] as { detail?: string } | undefined)?.detail
+    flash(detail || run.error || `${label}: failed.`, "error")
   }
 }
 
@@ -583,7 +701,7 @@ function BulkActionButton({
 
 function DialogsTablePanel({
   allFilteredSelected,
-  applyQuickAction,
+  onQuickAction,
   dialogFilter,
   dialogSearch,
   dialogs,
@@ -598,11 +716,7 @@ function DialogsTablePanel({
   openMessages,
 }: {
   allFilteredSelected: boolean
-  applyQuickAction: (
-    actionType: ActionType,
-    dialogs: TelegramDialog[],
-    sourceLabel: string
-  ) => void
+  onQuickAction: (actionType: ActionType, dialog: TelegramDialog) => void
   dialogFilter: string
   dialogSearch: string
   dialogs: TelegramDialog[]
@@ -688,7 +802,7 @@ function DialogsTablePanel({
               <DialogCard
                 key={String(dialog.id)}
                 dialog={dialog}
-                applyQuickAction={applyQuickAction}
+                onQuickAction={onQuickAction}
                 selectedDialogTargets={selectedDialogTargets}
                 setSelectedDialogTargets={setSelectedDialogTargets}
                 toggleSelected={toggleSelected}
@@ -728,7 +842,7 @@ function DialogsTablePanel({
                     <DialogRow
                       key={String(dialog.id)}
                       dialog={dialog}
-                      applyQuickAction={applyQuickAction}
+                      onQuickAction={onQuickAction}
                       selectedDialogTargets={selectedDialogTargets}
                       setSelectedDialogTargets={setSelectedDialogTargets}
                       toggleSelected={toggleSelected}
@@ -780,7 +894,7 @@ function countUnreadDialogs(dialogs: TelegramDialog[]) {
 
 function DialogRow({
   dialog,
-  applyQuickAction,
+  onQuickAction,
   selectedDialogTargets,
   setSelectedDialogTargets,
   toggleSelected,
@@ -788,11 +902,7 @@ function DialogRow({
   openMessages,
 }: {
   dialog: TelegramDialog
-  applyQuickAction: (
-    actionType: ActionType,
-    dialogs: TelegramDialog[],
-    sourceLabel: string
-  ) => void
+  onQuickAction: (actionType: ActionType, dialog: TelegramDialog) => void
   selectedDialogTargets: Set<string>
   setSelectedDialogTargets: DialogsScreenProps["setSelectedDialogTargets"]
   toggleSelected: DialogsScreenProps["toggleSelected"]
@@ -866,9 +976,7 @@ function DialogRow({
                     ? "destructive"
                     : OUTLINE_VARIANT
                 }
-                onClick={() =>
-                  applyQuickAction(actionType, [dialog], dialog.title || target)
-                }
+                onClick={() => onQuickAction(actionType, dialog)}
               >
                 {actionMeta[actionType].label}
               </Button>
@@ -882,7 +990,7 @@ function DialogRow({
 
 function DialogCard({
   dialog,
-  applyQuickAction,
+  onQuickAction,
   selectedDialogTargets,
   setSelectedDialogTargets,
   toggleSelected,
@@ -890,11 +998,7 @@ function DialogCard({
   openMessages,
 }: {
   dialog: TelegramDialog
-  applyQuickAction: (
-    actionType: ActionType,
-    dialogs: TelegramDialog[],
-    sourceLabel: string
-  ) => void
+  onQuickAction: (actionType: ActionType, dialog: TelegramDialog) => void
   selectedDialogTargets: Set<string>
   setSelectedDialogTargets: DialogsScreenProps["setSelectedDialogTargets"]
   toggleSelected: DialogsScreenProps["toggleSelected"]
@@ -960,9 +1064,7 @@ function DialogCard({
                 ? "destructive"
                 : OUTLINE_VARIANT
             }
-            onClick={() =>
-              applyQuickAction(actionType, [dialog], dialog.title || target)
-            }
+            onClick={() => onQuickAction(actionType, dialog)}
           >
             {actionMeta[actionType].label}
           </Button>

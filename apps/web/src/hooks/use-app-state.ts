@@ -58,14 +58,15 @@ const KNOWN_VIEWS: ReadonlySet<View> = new Set<View>([
   "accounts",
   "dialogs",
   "actions",
-  "schedules",
   "settings",
 ])
 
 function useViewState() {
   const [view, setView] = React.useState<View>(() => {
-    const hash = window.location.hash.replace("#", "") as View
-    return KNOWN_VIEWS.has(hash) ? hash : "accounts"
+    const hash = window.location.hash.replace("#", "")
+    // Schedules merged into Actions; keep old #schedules deep-links working.
+    if (hash === "schedules") return "actions"
+    return KNOWN_VIEWS.has(hash as View) ? (hash as View) : "accounts"
   })
   // Which Accounts sub-tab is active. Lifted to app state so other surfaces (the
   // header "Add Account" button) can deep-link straight to the login form.
@@ -242,7 +243,8 @@ function useResourceState(flash: (message: string) => void, view: View) {
   }, [flash, loadSafety, view])
 
   React.useEffect(() => {
-    if (view !== "schedules") return undefined
+    // Schedules now live on the Actions page (Schedules tab + inspector).
+    if (view !== "actions") return undefined
 
     const initialTask = window.setTimeout(() => {
       loadSchedules().catch((error) => flash(error.message))

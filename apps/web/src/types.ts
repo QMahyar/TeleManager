@@ -114,12 +114,15 @@ export type ActionDraft = {
   fields: ActionFieldValues
 }
 
-// One-shot prefill handed to the Schedules builder when staging chats from
-// another screen (e.g. Dialogs). Consumed and cleared on arrival.
+// One-shot prefill handed to the merged Actions page when staging chats from
+// another screen (e.g. Dialogs). Consumed and cleared on arrival. `mode` flips
+// the Actions Col-3 composer to "schedule" when the handoff was "Schedule
+// Selected"; absent/"run" leaves it on the default run-now mode.
 export type ScheduleSeed = {
   accountIds: string[]
   actionType: ActionType
   target: string
+  mode?: "run" | "schedule"
 }
 
 export type QueueRun = {

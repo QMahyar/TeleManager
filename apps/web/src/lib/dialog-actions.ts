@@ -1,8 +1,21 @@
 import type { ActionType, TelegramDialog } from "../types"
 
+import { getActionSchema } from "./action-schema"
 import { actionMeta } from "./constants"
 import { dialogKind, dialogTarget } from "./helpers"
 import { analyzeTarget } from "./targeting"
+
+// A quick action needs an inline mini-prompt when it has a structured form
+// (message text, ids, schedule time, …); otherwise it runs with one click.
+export function quickActionNeedsInput(actionType: ActionType): boolean {
+  return Boolean(getActionSchema(actionType))
+}
+
+// One-click actions still confirm first when they are destructive, or when they
+// leave a chat (an easy-to-regret state change even though it's reversible).
+export function quickActionNeedsConfirm(actionType: ActionType): boolean {
+  return Boolean(actionMeta[actionType].destructive) || actionType === "leave_chat"
+}
 
 export type DialogKind =
   | "bot"
