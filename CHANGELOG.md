@@ -11,6 +11,30 @@ section below, with auto-generated commit/PR notes appended.
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-06-22
+
+Housekeeping release — dead code removal and a contributor-friendly repo guide.
+
+### Added
+
+- **AGENTS.md repo guide.** A concise, essential orientation for agents/contributors
+  covering TeleManager's local-only constraints, repo layout, dev/build/test commands,
+  and versioning/release conventions. **CLAUDE.md** is a one-line `@AGENTS.md` import
+  so Claude Code and AGENTS-aware tools share one source of truth.
+
+### Removed
+
+- **Dead code drop (YAGNI pass).** Removed `Metric` component, `validateTargets()`,
+  `ResolvedTarget` type, `resolve-target` route, queue/preview endpoint and helpers,
+  singular session import route, and the `FILE_BODY` helper. Net **-170 LOC**.
+  Affected tests repointed onto the still-live `expand_action_queue` and batch import
+  so coverage is preserved.
+
+### Internal
+
+- Version bumped to 1.8.1 throughout (`pyproject.toml`, `package.json`, `README.md`,
+  `__init__.py`).
+
 ## [1.8.0] - 2026-06-22
 
 Visual redesign. TeleManager moves to a single, cohesive **"Console"** theme — a
