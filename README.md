@@ -435,3 +435,7 @@ Short version:
 
 > Local-first Telegram session manager for owned accounts, with safe queueing,
 > dialog discovery, session import/export, and auditable one-off actions.
+
+## License
+
+Licensed under the [Apache License 2.0](LICENSE). © 2026 Mahyar.
