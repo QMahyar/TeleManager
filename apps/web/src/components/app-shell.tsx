@@ -18,7 +18,7 @@ import { Modal } from "../ui/modal"
 import { cn } from "../ui/utils"
 
 import { useTheme } from "../components/theme-provider"
-import { WolfMark } from "../components/wolf-mark"
+import { BrandMark } from "../components/brand-mark"
 import { navItems } from "../lib/constants"
 import type { View } from "../types"
 import { Badge, Input } from "./ui"
@@ -393,13 +393,13 @@ function Sidebar({
         onClick={() => openView("accounts")}
         className="mb-8 flex items-center gap-3 text-left"
       >
-        <span className="grid size-10 place-items-center rounded-md border border-sidebar-border bg-sidebar-accent">
-          <WolfMark size={28} animated />
-        </span>
-        <span>
-          <strong className="block text-sm">TeleManager</strong>
-          <small className="text-xs text-muted-foreground">
-            Local session ops
+        <BrandMark size={40} />
+        <span className="font-mono">
+          <strong className="block text-sm font-semibold tracking-tight lowercase">
+            telemanager
+          </strong>
+          <small className="text-[0.7rem] tracking-wide text-muted-foreground">
+            local session ops
           </small>
         </span>
       </button>
@@ -426,9 +426,10 @@ function Sidebar({
           <IconInfoCircle className="size-4" />
           <span className="flex-1">About</span>
         </button>
-        <Badge tone="border-primary/30 bg-primary/10 text-primary">
-          127.0.0.1 only
-        </Badge>
+        <div className="flex items-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent px-2.5 py-1.5 font-mono text-[0.7rem] text-muted-foreground">
+          <span className="size-1.5 shrink-0 rounded-full bg-primary" />
+          <span>local · 127.0.0.1</span>
+        </div>
         <div className="grid grid-cols-[1fr_auto] gap-2">
           <Button variant="outline" className="w-full" onClick={onRefresh}>
             <IconRefresh /> Refresh
@@ -523,22 +524,23 @@ function Header({
   openPalette: () => void
 }) {
   return (
-    <header className="mb-6 flex flex-col gap-4 rounded-lg border border-border bg-card p-4 shadow-sm sm:p-5 md:flex-row md:items-center md:justify-between">
+    <header className="mb-6 flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-start gap-3">
         <Button
           variant="outline"
           size="icon"
-          className="mt-1 lg:hidden"
+          className="mt-0.5 lg:hidden"
           onClick={openSidebar}
           aria-label="Open navigation"
         >
           <IconMenu2 />
         </Button>
         <div className="min-w-0">
-          <p className="text-[0.65rem] font-semibold tracking-[0.28em] text-primary uppercase">
+          <p className="font-mono text-[0.7rem] tracking-[0.2em] text-muted-foreground uppercase">
+            <span className="text-primary">›</span>{" "}
             {activeItem?.group || "Workspace"}
           </p>
-          <h1 className="font-heading text-2xl tracking-tight sm:text-3xl xl:text-4xl">
+          <h1 className="font-heading text-xl tracking-tight sm:text-2xl">
             {activeItem?.label}
           </h1>
         </div>
@@ -556,7 +558,8 @@ function Header({
           className="hidden sm:inline-flex"
           onClick={openPalette}
         >
-          <IconCommand /> Ctrl+K
+          <IconCommand />
+          <span className="font-mono">Ctrl K</span>
         </Button>
         <Button variant="outline" onClick={openSettings}>
           Settings

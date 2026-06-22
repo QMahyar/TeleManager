@@ -11,6 +11,44 @@ section below, with auto-generated commit/PR notes appended.
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-06-22
+
+Visual redesign. TeleManager moves to a single, cohesive **"Console"** theme — a
+dark-first, warm-charcoal operator's console with a monospace "machine voice" and a
+dim-teal signal. The wolf mascot introduced in 1.7.0 is retired in favour of a quieter
+terminal-prompt mark. This is a re-skin of the shared token and primitive layer, so
+every screen updates together; behaviour and APIs are unchanged.
+
+### Changed
+
+- **"Console" theme.** Warm-charcoal neutrals (OKLCH) replace the cool slate, with a
+  dim **teal** as the default accent. Hairline borders, flatter cards, and a slimmer
+  command-bar header replace the boxed header. Light mode is fully retuned to match,
+  and the app now defaults to dark.
+- **Monospace-led typography.** JetBrains Mono Variable now sets headings, labels, and
+  all machine data — session filenames, account IDs, phone numbers, the `127.0.0.1`
+  bind, and stat numbers; Inter remains for prose. Heading sizes are smaller and calmer.
+- **Stat tiles** read as an instrument cluster: monospace numerals and a teal left-tick
+  on the active/primary tile instead of a filled colour wash.
+- **Accents.** Teal is the new default; **Moonlight** (the former azure default),
+  **Amber**, **Arctic**, and **Emerald** remain selectable in Settings → Appearance,
+  with cleaned-up labels and a swatch preview.
+
+### Removed
+
+- **The wolf mark.** The animated wolf SVG, its sidebar lockup, the Settings preview
+  ("the wolf's eyes follow your accent"), the `wolf-eye` keyframe, and the wolf favicons
+  are gone. The brand is now a small terminal-prompt glyph. **Noto Serif** is dropped.
+
+### Internal
+
+- `globals.css` rewritten with the warm-charcoal + teal token system (light and dark),
+  a new `--font-mono`, and `--font-heading` pointed at JetBrains Mono. New
+  `components/brand-mark.tsx`; `components/wolf-mark.tsx` deleted. Default mode (dark)
+  and default accent (`teal`) set in `theme-provider.tsx` and the pre-paint script in
+  `index.html`. New dependency `@fontsource-variable/jetbrains-mono`. Typecheck, lint,
+  and the production build pass.
+
 ## [1.7.0] - 2026-06-22
 
 Production-polish release. A tighter, denser layout app-wide; path fields can now

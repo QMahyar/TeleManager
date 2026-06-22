@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "type": "module",
   "private": true,
   "scripts": {
@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",
-    "@fontsource-variable/noto-serif": "^5.2.9",
+    "@fontsource-variable/jetbrains-mono": "^5.2.8",
     "@tabler/icons-react": "^3.44.0",
     "@tailwindcss/vite": "^4",
     "@vitejs/plugin-react": "^6",

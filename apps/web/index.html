@@ -3,7 +3,6 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>TeleManager</title>
     <script>
@@ -11,7 +10,7 @@
       // the wrong palette. Mirrors the defaults in theme-provider.tsx.
       (function () {
         try {
-          var theme = localStorage.getItem("theme") || "system";
+          var theme = localStorage.getItem("theme") || "dark";
           var resolved =
             theme === "system"
               ? window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -19,12 +18,16 @@
                 : "light"
               : theme;
           document.documentElement.classList.add(resolved);
-          var accent = localStorage.getItem("accent") || "moonlight";
-          if (["moonlight", "amber", "arctic", "emerald"].indexOf(accent) === -1)
-            accent = "moonlight";
+          var accent = localStorage.getItem("accent") || "teal";
+          if (
+            ["teal", "moonlight", "amber", "arctic", "emerald"].indexOf(accent) ===
+            -1
+          )
+            accent = "teal";
           document.documentElement.setAttribute("data-accent", accent);
         } catch (e) {
-          document.documentElement.setAttribute("data-accent", "moonlight");
+          document.documentElement.classList.add("dark");
+          document.documentElement.setAttribute("data-accent", "teal");
         }
       })();
     </script>

@@ -3,7 +3,7 @@ import * as React from "react"
 
 type Theme = "dark" | "light" | "system"
 type ResolvedTheme = "dark" | "light"
-type Accent = "moonlight" | "amber" | "arctic" | "emerald"
+type Accent = "teal" | "moonlight" | "amber" | "arctic" | "emerald"
 
 type ThemeProviderProps = {
   children: React.ReactNode
@@ -23,7 +23,7 @@ type ThemeProviderState = {
 
 const COLOR_SCHEME_QUERY = "(prefers-color-scheme: dark)"
 const THEME_VALUES: Theme[] = ["dark", "light", "system"]
-const ACCENT_VALUES: Accent[] = ["moonlight", "amber", "arctic", "emerald"]
+const ACCENT_VALUES: Accent[] = ["teal", "moonlight", "amber", "arctic", "emerald"]
 export const ACCENTS: Accent[] = ACCENT_VALUES
 export type { Accent }
 
@@ -222,8 +222,8 @@ function useThemeStorageSync(
 
 export function ThemeProvider({
   children,
-  defaultTheme = "system",
-  defaultAccent = "moonlight",
+  defaultTheme = "dark",
+  defaultAccent = "teal",
   storageKey = "theme",
   accentStorageKey = "accent",
   disableTransitionOnChange = true,

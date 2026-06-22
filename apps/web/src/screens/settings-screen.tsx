@@ -18,7 +18,6 @@ import {
   useTheme,
   type Accent,
 } from "../components/theme-provider"
-import { WolfMark } from "../components/wolf-mark"
 import { Field, Input, Panel, StepHeading, Tabs } from "../components/ui"
 import { api } from "../lib/api"
 import type { ActivityEvent, Flash, SafetySettings } from "../types"
@@ -159,20 +158,25 @@ function ApiPanel({
 }
 
 const ACCENT_META: Record<Accent, { label: string; detail: string; swatch: string }> = {
+  teal: {
+    label: "Teal",
+    detail: "Dim teal signal",
+    swatch: "#3FB8A6",
+  },
   moonlight: {
     label: "Moonlight",
-    detail: "Cool slate + azure",
+    detail: "Cool azure",
     swatch: "#5B9DFF",
   },
   amber: {
-    label: "Steel + Amber",
-    detail: "Slate + wolf-eye amber",
+    label: "Amber",
+    detail: "Warm gold",
     swatch: "#F5A524",
   },
   arctic: {
     label: "Arctic",
-    detail: "Slate + teal",
-    swatch: "#2DD4BF",
+    detail: "Bright cyan",
+    swatch: "#38BDF8",
   },
   emerald: {
     label: "Emerald",
@@ -199,15 +203,17 @@ function AppearancePanel() {
       />
 
       <div className="flex items-center gap-4 rounded-lg border border-border bg-muted/20 p-4">
-        <span className="grid size-12 place-items-center rounded-md border border-border bg-card">
-          <WolfMark size={34} animated />
-        </span>
+        <span
+          className="size-12 shrink-0 rounded-md border border-border"
+          style={{ backgroundColor: ACCENT_META[accent].swatch }}
+        />
         <div className="space-y-0.5">
-          <p className="text-sm font-medium text-foreground">
+          <p className="font-mono text-sm font-medium text-foreground">
             {ACCENT_META[accent].label}
           </p>
           <p className="text-xs text-muted-foreground">
-            {ACCENT_META[accent].detail} · the wolf's eyes follow your accent.
+            {ACCENT_META[accent].detail} · accents every action, status, and focus
+            ring.
           </p>
         </div>
       </div>

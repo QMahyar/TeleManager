@@ -33,10 +33,12 @@ export function SectionTitle({
 }) {
   return (
     <div className="space-y-1">
-      <p className="text-[0.65rem] font-semibold tracking-[0.28em] text-primary uppercase">
-        {kicker}
+      <p className="font-mono text-[0.65rem] tracking-[0.22em] text-muted-foreground uppercase">
+        <span className="text-primary">›</span> {kicker}
       </p>
-      <h2 className="font-heading text-2xl text-foreground">{title}</h2>
+      <h2 className="font-heading text-xl tracking-tight text-foreground">
+        {title}
+      </h2>
       {detail ? (
         <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
           {detail}
@@ -213,14 +215,21 @@ export function Metric({
   return (
     <div
       className={cn(
-        "rounded-lg border border-border bg-card p-4",
-        primary && "border-primary/40 bg-primary/10"
+        "rounded-lg border border-l-2 border-border bg-card p-4",
+        primary ? "border-l-primary" : "border-l-border"
       )}
     >
-      <span className="text-xs tracking-[0.2em] text-muted-foreground uppercase">
+      <span className="font-mono text-[0.62rem] tracking-[0.2em] text-muted-foreground uppercase">
         {label}
       </span>
-      <strong className="mt-2 block font-heading text-3xl">{value}</strong>
+      <strong
+        className={cn(
+          "mt-2 block font-mono text-3xl",
+          primary && "text-primary"
+        )}
+      >
+        {value}
+      </strong>
     </div>
   )
 }
@@ -310,20 +319,23 @@ export function StatCard({
   onClick?: () => void
 }) {
   const className = cn(
-    "rounded-lg border p-3 text-left transition-colors",
-    primary
-      ? "border-primary/40 bg-primary/10"
-      : active
-        ? "border-primary/40 bg-primary/5"
-        : "border-border bg-card",
-    onClick && "hover:border-primary/40 hover:bg-primary/5"
+    "rounded-lg border border-l-2 border-border bg-card p-3 text-left transition-colors",
+    primary || active ? "border-l-primary" : "border-l-border",
+    onClick && "hover:border-l-primary hover:bg-muted/30"
   )
   const body = (
     <>
-      <span className="text-[0.65rem] tracking-[0.18em] text-muted-foreground uppercase">
+      <span className="font-mono text-[0.62rem] tracking-[0.18em] text-muted-foreground uppercase">
         {label}
       </span>
-      <strong className="mt-1 block font-heading text-2xl">{value}</strong>
+      <strong
+        className={cn(
+          "mt-1 block font-mono text-2xl",
+          primary && "text-primary"
+        )}
+      >
+        {value}
+      </strong>
     </>
   )
   if (onClick) {
