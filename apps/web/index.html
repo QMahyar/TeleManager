@@ -6,6 +6,28 @@
     <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>TeleManager</title>
+    <script>
+      // Apply the saved theme + accent before first paint so there is no flash of
+      // the wrong palette. Mirrors the defaults in theme-provider.tsx.
+      (function () {
+        try {
+          var theme = localStorage.getItem("theme") || "system";
+          var resolved =
+            theme === "system"
+              ? window.matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light"
+              : theme;
+          document.documentElement.classList.add(resolved);
+          var accent = localStorage.getItem("accent") || "moonlight";
+          if (["moonlight", "amber", "arctic", "emerald"].indexOf(accent) === -1)
+            accent = "moonlight";
+          document.documentElement.setAttribute("data-accent", accent);
+        } catch (e) {
+          document.documentElement.setAttribute("data-accent", "moonlight");
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

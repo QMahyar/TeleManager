@@ -1,15 +1,30 @@
-import { IconKey, IconShieldLock, IconTimeline } from "@tabler/icons-react"
+import {
+  IconKey,
+  IconMoon,
+  IconPalette,
+  IconShieldLock,
+  IconSun,
+  IconSunMoon,
+  IconTimeline,
+} from "@tabler/icons-react"
 import * as React from "react"
 
 import { Button } from "../ui/button"
+import { cn } from "../ui/utils"
 
 import { SafetyEditor } from "../components/safety-editor"
+import {
+  ACCENTS,
+  useTheme,
+  type Accent,
+} from "../components/theme-provider"
+import { WolfMark } from "../components/wolf-mark"
 import { Field, Input, Panel, StepHeading, Tabs } from "../components/ui"
 import { api } from "../lib/api"
 import type { ActivityEvent, Flash, SafetySettings } from "../types"
 import { ActivityScreen } from "./activity-screen"
 
-type SettingsTab = "api" | "safety" | "activity"
+type SettingsTab = "api" | "appearance" | "safety" | "activity"
 
 type SettingsScreenProps = {
   safety: SafetySettings
@@ -34,6 +49,7 @@ export function SettingsScreen(props: SettingsScreenProps) {
         onChange={setTab}
         items={[
           { id: "api", label: "API", icon: IconKey },
+          { id: "appearance", label: "Appearance", icon: IconPalette },
           { id: "safety", label: "Safety", icon: IconShieldLock },
           {
             id: "activity",
@@ -44,6 +60,7 @@ export function SettingsScreen(props: SettingsScreenProps) {
         ]}
       />
       {tab === "api" ? <ApiPanel {...props} /> : null}
+      {tab === "appearance" ? <AppearancePanel /> : null}
       {tab === "safety" ? <SafetyPanel {...props} /> : null}
       {tab === "activity" ? <ActivityScreen activity={props.activity} /> : null}
     </div>
@@ -137,6 +154,136 @@ function ApiPanel({
           keeps the existing saved hash.
         </p>
       ) : null}
+    </Panel>
+  )
+}
+
+const ACCENT_META: Record<Accent, { label: string; detail: string; swatch: string }> = {
+  moonlight: {
+    label: "Moonlight",
+    detail: "Cool slate + azure",
+    swatch: "#5B9DFF",
+  },
+  amber: {
+    label: "Steel + Amber",
+    detail: "Slate + wolf-eye amber",
+    swatch: "#F5A524",
+  },
+  arctic: {
+    label: "Arctic",
+    detail: "Slate + teal",
+    swatch: "#2DD4BF",
+  },
+  emerald: {
+    label: "Emerald",
+    detail: "Refined green",
+    swatch: "#34D399",
+  },
+}
+
+const THEME_MODES: Array<{ id: "system" | "light" | "dark"; label: string; icon: React.ElementType }> = [
+  { id: "system", label: "System", icon: IconSunMoon },
+  { id: "light", label: "Light", icon: IconSun },
+  { id: "dark", label: "Dark", icon: IconMoon },
+]
+
+function AppearancePanel() {
+  const { theme, setTheme, accent, setAccent } = useTheme()
+
+  return (
+    <Panel className="max-w-2xl space-y-5">
+      <StepHeading
+        step={<IconPalette />}
+        title="Appearance"
+        detail="Pick a light/dark mode and an accent palette. Your choice is saved in this browser and applies instantly."
+      />
+
+      <div className="flex items-center gap-4 rounded-lg border border-border bg-muted/20 p-4">
+        <span className="grid size-12 place-items-center rounded-md border border-border bg-card">
+          <WolfMark size={34} animated />
+        </span>
+        <div className="space-y-0.5">
+          <p className="text-sm font-medium text-foreground">
+            {ACCENT_META[accent].label}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {ACCENT_META[accent].detail} · the wolf's eyes follow your accent.
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
+          Mode
+        </p>
+        <div className="flex gap-1 rounded-md border border-border p-1">
+          {THEME_MODES.map((mode) => {
+            const Icon = mode.icon
+            const active = theme === mode.id
+            return (
+              <button
+                key={mode.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setTheme(mode.id)}
+                className={cn(
+                  "flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors [&_svg]:size-4",
+                  active
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                )}
+              >
+                <Icon />
+                {mode.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
+          Accent
+        </p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {ACCENTS.map((option) => {
+            const meta = ACCENT_META[option]
+            const active = accent === option
+            return (
+              <button
+                key={option}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setAccent(option)}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg border p-3 text-left transition-colors",
+                  active
+                    ? "border-primary/50 bg-primary/5"
+                    : "border-border hover:bg-muted/30"
+                )}
+              >
+                <span
+                  className="size-6 shrink-0 rounded-full border border-black/10"
+                  style={{ backgroundColor: meta.swatch }}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium text-foreground">
+                    {meta.label}
+                  </span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {meta.detail}
+                  </span>
+                </span>
+                {active ? (
+                  <span className="text-[0.65rem] font-semibold tracking-[0.16em] text-primary uppercase">
+                    Active
+                  </span>
+                ) : null}
+              </button>
+            )
+          })}
+        </div>
+      </div>
     </Panel>
   )
 }

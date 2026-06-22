@@ -36,3 +36,8 @@ release/*.tar.gz
 # PyInstaller build output
 /build/
 /dist/
+
+# Local agent/tooling scratch + Windows "> nul" redirect artifact
+.pi-tasks/
+.playwright-mcp/
+nul

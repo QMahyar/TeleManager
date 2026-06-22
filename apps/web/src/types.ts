@@ -227,6 +227,25 @@ export type ScheduledInspect = {
   count: number
 }
 
+export type ScheduledChat = {
+  target: string
+  count: number
+  owned_count: number
+  messages: ScheduledMessage[]
+}
+
+export type ScheduledAccountOverview = {
+  account_id: string
+  label: string
+  chats: ScheduledChat[]
+  error?: string
+}
+
+export type ScheduledOverview = {
+  generated_at: string
+  accounts: ScheduledAccountOverview[]
+}
+
 export type AppDialogState = {
   kicker?: string
   title: string

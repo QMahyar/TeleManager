@@ -133,6 +133,32 @@ def list_schedules(schedules: dict[str, dict[str, Any]]) -> list[dict[str, Any]]
     return sorted(schedules.values(), key=lambda item: item.get("created_at", ""), reverse=True)
 
 
+def scheduled_targets_by_account() -> dict[str, set[str]]:
+    """Map every account to the set of chats it has scheduled work for.
+
+    Unions two sources from schedules.json: each queue step's account_ids x targets
+    (covers in-app `schedule_message` runs and any runner schedule), and the
+    native_chats buffer keys (covers Telegram-delivered text schedules). Only active
+    or paused schedules are considered — completed/canceled ones no longer hold
+    anything on Telegram's side. Returns only accounts that have at least one chat.
+    """
+    mapping: dict[str, set[str]] = {}
+    for schedule in load_schedules().values():
+        if schedule.get("status") in TERMINAL_SCHEDULE_STATUSES:
+            continue
+        for step in schedule.get("queue", {}).get("steps", []) or []:
+            targets = [t for t in (step.get("targets") or []) if t]
+            for account_id in step.get("account_ids") or []:
+                if targets:
+                    mapping.setdefault(account_id, set()).update(targets)
+        for key, entry in (schedule.get("native_chats") or {}).items():
+            account_id = key.split("|", 1)[0]
+            target = entry.get("target")
+            if account_id and target:
+                mapping.setdefault(account_id, set()).add(target)
+    return mapping
+
+
 def _matching_native_entries(account_id: str, target: str) -> list[tuple[dict[str, Any], dict[str, Any]]]:
     """Yield (schedule, chat-entry) pairs whose native buffer targets this account+chat."""
     matches: list[tuple[dict[str, Any], dict[str, Any]]] = []
@@ -476,6 +502,51 @@ class SchedulerService:
         for row in rows:
             row["owned"] = row["id"] in owned
         return {"account_id": account_id, "target": clean_target, "messages": rows, "count": len(rows)}
+
+    async def scheduled_overview(self) -> dict[str, Any]:
+        """Auto-discover what every account has scheduled, no manual entry required.
+
+        Telegram has no "list all scheduled messages" API — they live per chat. But
+        every chat TeleManager ever scheduled to is recorded in schedules.json, so we
+        derive an account -> chats map from there and fetch the live per-chat state for
+        each. A per-account connection failure is captured on that account and the scan
+        continues, so one offline session never blanks the whole view.
+        """
+        targets_by_account = scheduled_targets_by_account()
+        accounts: list[dict[str, Any]] = []
+        for account_id, targets in targets_by_account.items():
+            record = self.manager.accounts.get(account_id)
+            label = record.label if record else account_id
+            entry: dict[str, Any] = {"account_id": account_id, "label": label, "chats": []}
+            try:
+                entry["chats"] = await self._overview_for_account(account_id, sorted(targets))
+            except Exception as exc:  # noqa: BLE001 - report and keep scanning others
+                entry["error"] = str(exc)
+            accounts.append(entry)
+        accounts.sort(key=lambda item: str(item.get("label", "")).lower())
+        return {"generated_at": iso(utcnow()), "accounts": accounts}
+
+    async def _overview_for_account(self, account_id: str, targets: list[str]) -> list[dict[str, Any]]:
+        """Fetch the live scheduled messages for one account across its known chats."""
+        chats: list[dict[str, Any]] = []
+        async with self.manager.temp_client(account_id) as client:
+            for target in targets:
+                rows = await fetch_scheduled_messages(client, target)
+                if not rows:
+                    continue
+                owned = owned_native_ids(account_id, target)
+                for row in rows:
+                    row["owned"] = row["id"] in owned
+                chats.append(
+                    {
+                        "target": target,
+                        "count": len(rows),
+                        "owned_count": sum(1 for row in rows if row["owned"]),
+                        "messages": rows,
+                    }
+                )
+        chats.sort(key=lambda item: item["target"].lower())
+        return chats
 
     async def clear_scheduled(self, account_id: str, target: str, ids: list[int] | None) -> dict[str, Any]:
         """Delete scheduled messages from a chat (all of them when ids is None)."""

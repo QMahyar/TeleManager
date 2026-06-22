@@ -112,6 +112,7 @@ export function QuickActionRunner({
           values={fields}
           setValues={setFields}
           showErrors={submitAttempted}
+          flash={flash}
         />
         <div className="flex justify-end gap-2 border-t border-border pt-3">
           <Button variant="outline" onClick={onClose} disabled={running}>

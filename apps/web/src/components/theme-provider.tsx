@@ -3,21 +3,29 @@ import * as React from "react"
 
 type Theme = "dark" | "light" | "system"
 type ResolvedTheme = "dark" | "light"
+type Accent = "moonlight" | "amber" | "arctic" | "emerald"
 
 type ThemeProviderProps = {
   children: React.ReactNode
   defaultTheme?: Theme
+  defaultAccent?: Accent
   storageKey?: string
+  accentStorageKey?: string
   disableTransitionOnChange?: boolean
 }
 
 type ThemeProviderState = {
   theme: Theme
   setTheme: (theme: Theme) => void
+  accent: Accent
+  setAccent: (accent: Accent) => void
 }
 
 const COLOR_SCHEME_QUERY = "(prefers-color-scheme: dark)"
 const THEME_VALUES: Theme[] = ["dark", "light", "system"]
+const ACCENT_VALUES: Accent[] = ["moonlight", "amber", "arctic", "emerald"]
+export const ACCENTS: Accent[] = ACCENT_VALUES
+export type { Accent }
 
 const ThemeProviderContext = React.createContext<
   ThemeProviderState | undefined
@@ -29,6 +37,14 @@ function isTheme(value: string | null): value is Theme {
   }
 
   return THEME_VALUES.includes(value as Theme)
+}
+
+function isAccent(value: string | null): value is Accent {
+  if (value === null) {
+    return false
+  }
+
+  return ACCENT_VALUES.includes(value as Accent)
 }
 
 function getSystemTheme(): ResolvedTheme {
@@ -81,6 +97,10 @@ function applyDocumentTheme(
   restoreTransitions?.()
 }
 
+function applyDocumentAccent(accent: Accent) {
+  document.documentElement.setAttribute("data-accent", accent)
+}
+
 function rotateTheme(currentTheme: Theme): Theme {
   if (currentTheme === "dark") {
     return "light"
@@ -106,6 +126,29 @@ function useStoredTheme(defaultTheme: Theme, storageKey: string) {
   )
 
   return { setTheme, setThemeState, theme }
+}
+
+function useStoredAccent(defaultAccent: Accent, storageKey: string) {
+  const [accent, setAccentState] = React.useState<Accent>(() => {
+    const storedAccent = localStorage.getItem(storageKey)
+    return isAccent(storedAccent) ? storedAccent : defaultAccent
+  })
+
+  const setAccent = React.useCallback(
+    (nextAccent: Accent) => {
+      localStorage.setItem(storageKey, nextAccent)
+      setAccentState(nextAccent)
+    },
+    [storageKey]
+  )
+
+  return { accent, setAccent }
+}
+
+function useAppliedAccent(accent: Accent) {
+  React.useEffect(() => {
+    applyDocumentAccent(accent)
+  }, [accent])
 }
 
 function useAppliedTheme(
@@ -180,7 +223,9 @@ function useThemeStorageSync(
 export function ThemeProvider({
   children,
   defaultTheme = "system",
+  defaultAccent = "moonlight",
   storageKey = "theme",
+  accentStorageKey = "accent",
   disableTransitionOnChange = true,
   ...props
 }: ThemeProviderProps) {
@@ -188,10 +233,12 @@ export function ThemeProvider({
     defaultTheme,
     storageKey
   )
+  const { accent, setAccent } = useStoredAccent(defaultAccent, accentStorageKey)
 
   useAppliedTheme(theme, {
     disableTransitions: disableTransitionOnChange,
   })
+  useAppliedAccent(accent)
   useThemeHotkey(setThemeState, storageKey)
   useThemeStorageSync(defaultTheme, setThemeState, storageKey)
 
@@ -199,8 +246,10 @@ export function ThemeProvider({
     () => ({
       theme,
       setTheme,
+      accent,
+      setAccent,
     }),
-    [theme, setTheme]
+    [theme, setTheme, accent, setAccent]
   )
 
   return (

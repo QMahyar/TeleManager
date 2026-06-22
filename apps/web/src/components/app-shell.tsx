@@ -18,6 +18,7 @@ import { Modal } from "../ui/modal"
 import { cn } from "../ui/utils"
 
 import { useTheme } from "../components/theme-provider"
+import { WolfMark } from "../components/wolf-mark"
 import { navItems } from "../lib/constants"
 import type { View } from "../types"
 import { Badge, Input } from "./ui"
@@ -392,8 +393,8 @@ function Sidebar({
         onClick={() => openView("accounts")}
         className="mb-8 flex items-center gap-3 text-left"
       >
-        <span className="grid size-10 place-items-center rounded-md border border-sidebar-border bg-sidebar-accent font-heading text-lg text-sidebar-accent-foreground">
-          TM
+        <span className="grid size-10 place-items-center rounded-md border border-sidebar-border bg-sidebar-accent">
+          <WolfMark size={28} animated />
         </span>
         <span>
           <strong className="block text-sm">TeleManager</strong>

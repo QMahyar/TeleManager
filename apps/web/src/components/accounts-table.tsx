@@ -160,14 +160,14 @@ function AccountCard({
 
   return (
     <div
-      className={`space-y-3 rounded-lg border p-3 ${
+      className={`space-y-2 rounded-lg border p-2.5 ${
         isSelected ? "border-primary/40 bg-primary/5" : "border-border"
       }`}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-2.5">
         <input
           type="checkbox"
-          className="mt-1"
+          className="mt-0.5"
           aria-label={`Select ${account.label || account.session_name}`}
           checked={isSelected}
           onChange={() => toggleAccountSelection(account.id, setSelectedIds)}
@@ -221,7 +221,7 @@ function AccountRow({
   ...actions
 }: AccountRowProps) {
   return (
-    <TableRow className="align-top">
+    <TableRow>
       <TableCell>
         <input
           type="checkbox"
@@ -258,12 +258,19 @@ function AccountIdentity({ account }: { account: Account }) {
     .join(" \u00b7 ")
 
   return (
-    <>
-      <strong>{label || account.session_name}</strong>
+    <div className="min-w-0">
+      <strong className="block truncate leading-tight">
+        {label || account.session_name}
+      </strong>
       {account.last_error ? (
-        <p className="mt-1 text-xs text-destructive">{account.last_error}</p>
+        <p
+          className="truncate text-xs text-destructive"
+          title={account.last_error}
+        >
+          {account.last_error}
+        </p>
       ) : null}
-    </>
+    </div>
   )
 }
 

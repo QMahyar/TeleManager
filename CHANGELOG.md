@@ -11,6 +11,62 @@ section below, with auto-generated commit/PR notes appended.
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-06-22
+
+Production-polish release. A tighter, denser layout app-wide; path fields can now
+open a **native OS file/folder picker**; the Scheduled inspector **discovers** what
+each account has scheduled instead of making you type it; and the app gains a real
+visual identity — an animated wolf mark and four selectable accent palettes in both
+light and dark.
+
+### Added
+
+- **Native "Browse" picker on path fields.** Path inputs (e.g. `send_media`'s file)
+  keep free-text entry but gain a **Browse ▾** control that opens a real operating-system
+  dialog and fills the absolute path — something a browser `<input type=file>` cannot do.
+  The split menu offers **Pick file** *and* **Pick folder** on every path field. A new
+  `POST /api/system/pick-path` drives the dialog: PowerShell WinForms on Windows (works
+  in the frozen build, which excludes tkinter), `osascript` on macOS, and zenity/kdialog/
+  tkinter on Linux. Hosts without a native picker get a friendly toast and keep typing.
+- **Automatic Scheduled inspector.** Opening the inspector now **scans every account**
+  and lists the chats that actually have scheduled messages — no more typing an account
+  and chat by hand. Results group by **account → chat** with per-chat counts and an
+  owned-vs-manual split (TeleManager-created vs. messages you scheduled in Telegram),
+  a filter (all / owned / manual), per-chat **Clear**, per-account **Clear all**, and
+  **delete-selected**. The account→chat map is derived from the app's own
+  `schedules.json` (Telegram exposes no global "everything scheduled" API). A collapsible
+  **Check another chat** block keeps the old manual lookup for chats not in any schedule.
+  New `GET /api/scheduled/overview`.
+- **Appearance settings + four accent palettes.** Settings → **Appearance** adds a
+  theme-mode control (System / Light / Dark) and four selectable accents —
+  **Moonlight** (azure, default), **Amber**, **Arctic**, and **Emerald** — each tuned for
+  contrast in both modes, with a live preview. The choice persists to `localStorage` and
+  is applied **before first paint** (inline boot script) so there's no theme flash on load.
+- **Animated wolf mark.** A new geometric 2D wolf-head SVG replaces the old "TM" box in
+  the sidebar and ships as the browser-tab favicon. Its eyes follow the active accent and
+  pulse gently (disabled under `prefers-reduced-motion`).
+
+### Changed
+
+- **Density pass across the whole app.** Tightened the shared primitives — table cell
+  padding, form field/Input/Select heights, badges, panels, and metric tiles — plus the
+  Accounts table (single-line identity rows, condensed mobile cards). The result is a
+  noticeably denser, calmer layout. Touch targets are unaffected: the existing
+  `@media (pointer:coarse)` rules still bump controls to comfortable sizes on touch.
+- **Cool-slate neutral base.** The warm-grey palette is replaced by a clean cool-slate
+  neutral in both light and dark, giving the accents a cleaner ground to sit on.
+
+### Internal
+
+- New backend module `file_picker.py` (OS-aware `pick_path`, module-level lock so two
+  dialogs can't open at once, ~5-minute timeout). New `components/wolf-mark.tsx` and a
+  reusable `PathInput` primitive. The accent system lives in `theme-provider.tsx`
+  (`data-accent` attribute + `useAppliedAccent`), with palette overrides and a
+  `wolf-eye` keyframe in `globals.css`. `Menu` gained `triggerProps` so a dropdown can
+  use a labelled (non-icon) trigger. New tests: `test_file_picker.py` (pick-path endpoint
+  incl. the 501/409 paths) and `test_scheduled_overview.py` (overview grouping + an
+  unreachable account).
+
 ## [1.6.0] - 2026-06-21
 
 Workflow consolidation release. One-off runs and recurring schedules now share a

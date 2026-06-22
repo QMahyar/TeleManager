@@ -20,12 +20,19 @@ export function Menu({
   trigger,
   align = "end",
   panelClassName,
+  triggerProps,
   children,
 }: {
   label: string
   trigger?: React.ReactNode
   align?: "start" | "end"
   panelClassName?: string
+  // Customise the trigger button (size/variant/disabled/className). Defaults to a
+  // square icon-sm outline button so existing call sites are unchanged.
+  triggerProps?: Pick<
+    React.ComponentProps<typeof Button>,
+    "variant" | "size" | "className" | "disabled"
+  >
   children: React.ReactNode
 }) {
   const [open, setOpen] = React.useState(false)
@@ -35,14 +42,19 @@ export function Menu({
   const triggerRef = React.useRef<HTMLDivElement>(null)
   const panelRef = React.useRef<HTMLDivElement>(null)
 
+  // Close and drop the measured position together, so the next open re-measures
+  // from the hidden fallback coords (no flash) without resetting state inside the
+  // layout effect.
+  const close = React.useCallback(() => {
+    setOpen(false)
+    setStyle(null)
+  }, [])
+
   // Position the panel from the trigger's viewport rect. Runs in a layout
   // effect so the panel is measured (for the upward flip and edge clamping)
   // before the browser paints — no first-frame jump.
   React.useLayoutEffect(() => {
-    if (!open) {
-      setStyle(null)
-      return
-    }
+    if (!open) return
     const triggerEl = triggerRef.current
     const panel = panelRef.current
     if (!triggerEl || !panel) return
@@ -68,14 +80,14 @@ export function Menu({
       const target = event.target as Node
       const insideTrigger = triggerRef.current?.contains(target)
       const insidePanel = panelRef.current?.contains(target)
-      if (!insideTrigger && !insidePanel) setOpen(false)
+      if (!insideTrigger && !insidePanel) close()
     }
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false)
+      if (event.key === "Escape") close()
     }
     // A fixed panel detaches from the trigger on scroll, so dismiss instead of
     // chasing the trigger. `true` catches scrolls on nested containers too.
-    const onScroll = () => setOpen(false)
+    const onScroll = () => close()
     document.addEventListener("mousedown", onPointerDown)
     document.addEventListener("keydown", onKeyDown)
     window.addEventListener("scroll", onScroll, true)
@@ -86,7 +98,7 @@ export function Menu({
       window.removeEventListener("scroll", onScroll, true)
       window.removeEventListener("resize", onScroll)
     }
-  }, [open])
+  }, [open, close])
 
   return (
     <div ref={triggerRef} className="relative inline-flex">
@@ -94,6 +106,7 @@ export function Menu({
         type="button"
         variant="outline"
         size="icon-sm"
+        {...triggerProps}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={label}
@@ -118,7 +131,7 @@ export function Menu({
                 "z-50 grid min-w-44 gap-1 rounded-lg border border-border bg-card p-2 shadow-lg",
                 panelClassName
               )}
-              onClick={() => setOpen(false)}
+              onClick={close}
             >
               {children}
             </div>,

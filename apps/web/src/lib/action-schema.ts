@@ -26,6 +26,9 @@ export type ActionField = {
   options?: ActionFieldOption[]
   default?: string | boolean
   validate?: (value: string, all: FieldValues) => string | null
+  // When set on a "text" field, renders a native OS "Browse…" button beside the
+  // input that fills in an absolute file/folder path on this machine.
+  browse?: "file" | "directory"
 }
 
 export type ActionFormSchema = {
@@ -200,6 +203,7 @@ const SCHEMAS: Partial<Record<ActionType, ActionFormSchema>> = {
         required: true,
         placeholder: "E:/path/photo.jpg",
         help: "Absolute path to a local file on this machine.",
+        browse: "file",
       },
       {
         name: "parse_mode",

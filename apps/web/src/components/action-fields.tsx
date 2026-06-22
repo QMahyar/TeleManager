@@ -6,8 +6,8 @@ import {
   type ActionField,
   type FieldValues,
 } from "../lib/action-schema"
-import type { ActionType } from "../types"
-import { Field, Input, Select, Textarea } from "./ui"
+import type { ActionType, Flash } from "../types"
+import { Field, Input, PathInput, Select, Textarea } from "./ui"
 
 const SCHEDULE_PRESETS = [
   { label: "+15m", value: "+15m" },
@@ -21,11 +21,13 @@ export function ActionFields({
   values,
   setValues,
   showErrors,
+  flash,
 }: {
   actionType: ActionType
   values: FieldValues
   setValues: (next: FieldValues) => void
   showErrors: boolean
+  flash?: Flash
 }) {
   const schema = getActionSchema(actionType)
   if (!schema) return null
@@ -57,6 +59,7 @@ export function ActionFields({
           value={values[field.name]}
           error={errorFor(field.name)}
           onChange={(value) => update(field.name, value)}
+          flash={flash}
         />
       ))}
     </div>
@@ -68,11 +71,13 @@ function ActionFieldRow({
   value,
   error,
   onChange,
+  flash,
 }: {
   field: ActionField
   value: string | boolean | undefined
   error?: string
   onChange: (value: string | boolean) => void
+  flash?: Flash
 }) {
   if (field.kind === "checkbox") {
     return (
@@ -121,6 +126,17 @@ function ActionFieldRow({
           placeholder={field.placeholder}
           error={Boolean(error)}
           onChange={onChange}
+        />
+      ) : field.browse ? (
+        <PathInput
+          value={stringValue}
+          browse={field.browse}
+          flash={flash}
+          maxLength={500}
+          autoComplete="off"
+          aria-invalid={Boolean(error)}
+          onChange={onChange}
+          placeholder={field.placeholder}
         />
       ) : (
         <Input

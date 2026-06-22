@@ -642,6 +642,7 @@ function BuilderColumn({ props }: { props: ActionsScreenProps }) {
               props.setActionDraft({ ...props.actionDraft, fields })
             }
             showErrors={submitAttempted}
+            flash={props.flash}
           />
         </div>
       ) : null}

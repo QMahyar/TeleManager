@@ -1,7 +1,17 @@
 import * as React from "react"
 
+import {
+  IconChevronDown,
+  IconFile,
+  IconFolder,
+  IconFolderOpen,
+  IconLoader2,
+} from "@tabler/icons-react"
+
 import { Badge as UiBadge } from "../ui/badge"
+import { Button } from "../ui/button"
 import { Card } from "../ui/card"
+import { Menu } from "../ui/menu"
 import {
   Field as UiField,
   Input as UiInput,
@@ -9,6 +19,8 @@ import {
   Textarea as UiTextarea,
 } from "../ui/form"
 import { cn } from "../ui/utils"
+import { api } from "../lib/api"
+import type { Flash } from "../types"
 
 export function SectionTitle({
   kicker,
@@ -38,7 +50,7 @@ export function Panel({
   children,
   className,
 }: React.PropsWithChildren<{ className?: string }>) {
-  return <Card className={cn("p-5", className)}>{children}</Card>
+  return <Card className={cn("p-4", className)}>{children}</Card>
 }
 
 export function StepHeading({
@@ -92,6 +104,92 @@ export function Select(props: React.ComponentProps<typeof UiSelect>) {
   return <UiSelect {...props} />
 }
 
+// Free-text path field with a native "Browse ▾" control offering both a file and a
+// folder picker. The backend opens a real OS dialog (the browser can't reveal
+// absolute paths itself) and the chosen path is filled in. Typing stays fully
+// available, and an unsupported host (no native picker) surfaces a toast and keeps
+// the text box. `browse` only decides which option is listed first.
+export function PathInput({
+  value,
+  onChange,
+  flash,
+  browse = "file",
+  ...inputProps
+}: {
+  value: string
+  onChange: (value: string) => void
+  flash?: Flash
+  browse?: "file" | "directory"
+} & Omit<React.ComponentProps<typeof UiInput>, "value" | "onChange">) {
+  const [picking, setPicking] = React.useState(false)
+
+  async function openPicker(kind: "file" | "directory") {
+    setPicking(true)
+    try {
+      const result = await api<{ path: string | null }>("/api/system/pick-path", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind,
+          title: kind === "directory" ? "Select a folder" : "Select a file",
+        }),
+      })
+      if (result.path) onChange(result.path)
+    } catch (error) {
+      flash?.(
+        error instanceof Error
+          ? error.message
+          : "Could not open the picker. Type the path manually."
+      )
+    } finally {
+      setPicking(false)
+    }
+  }
+
+  // List the field's natural target first, but always offer both.
+  const order: Array<"file" | "directory"> =
+    browse === "directory" ? ["directory", "file"] : ["file", "directory"]
+
+  return (
+    <div className="flex gap-2">
+      <UiInput
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        {...inputProps}
+        className={cn("min-w-0 flex-1", inputProps.className)}
+      />
+      <Menu
+        label="Browse for a file or folder"
+        triggerProps={{ variant: "outline", size: "default", disabled: picking }}
+        trigger={
+          <>
+            {picking ? (
+              <IconLoader2 className="animate-spin" />
+            ) : (
+              <IconFolderOpen />
+            )}
+            Browse
+            <IconChevronDown />
+          </>
+        }
+      >
+        {order.map((kind) => (
+          <Button
+            key={kind}
+            size="sm"
+            variant="ghost"
+            className="justify-start"
+            onClick={() => openPicker(kind)}
+          >
+            {kind === "directory" ? <IconFolder /> : <IconFile />}
+            {kind === "directory" ? "Pick folder" : "Pick file"}
+          </Button>
+        ))}
+      </Menu>
+    </div>
+  )
+}
+
 export function Textarea(props: React.ComponentProps<typeof UiTextarea>) {
   return <UiTextarea {...props} />
 }
@@ -115,14 +213,14 @@ export function Metric({
   return (
     <div
       className={cn(
-        "rounded-lg border border-border bg-card p-5",
+        "rounded-lg border border-border bg-card p-4",
         primary && "border-primary/40 bg-primary/10"
       )}
     >
       <span className="text-xs tracking-[0.2em] text-muted-foreground uppercase">
         {label}
       </span>
-      <strong className="mt-3 block font-heading text-4xl">{value}</strong>
+      <strong className="mt-2 block font-heading text-3xl">{value}</strong>
     </div>
   )
 }

@@ -1,5 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" fill="#0b0f14"/>
-  <rect x="8" y="8" width="48" height="48" fill="none" stroke="#7dd3fc" stroke-width="2"/>
-  <path d="M18 22h28M32 22v24M20 46h24" fill="none" stroke="#f8fafc" stroke-width="4" stroke-linecap="square"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#171C25"/>
+      <stop offset="1" stop-color="#0E1117"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+  <!-- Ears -->
+  <path d="M14 12 L26 22 L19 32 L12 20 Z" fill="#E7ECF5"/>
+  <path d="M50 12 L38 22 L45 32 L52 20 Z" fill="#E7ECF5"/>
+  <!-- Head -->
+  <path d="M18 22 L32 19 L46 22 L47 35 L41 43 L32 48 L23 43 L17 35 Z" fill="#E7ECF5"/>
+  <!-- Muzzle facet shading -->
+  <path d="M32 19 L46 22 L47 35 L39 36 L32 28 Z" fill="#AEB8C9"/>
+  <!-- Snout -->
+  <path d="M27 36 L32 34 L37 36 L35 43 L32 46 L29 43 Z" fill="#0E1117"/>
+  <!-- Eyes (azure glow) -->
+  <path d="M23 30 L28 28 L27 33 L23 33 Z" fill="#5B9DFF"/>
+  <path d="M41 30 L36 28 L37 33 L41 33 Z" fill="#5B9DFF"/>
 </svg>

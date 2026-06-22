@@ -9,6 +9,7 @@ import urllib.error
 import urllib.request
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
@@ -34,6 +35,7 @@ from .action_runs_service import list_action_runs, load_action_runs, save_action
 from .audit_service import export_events_path, list_events, log_event
 from .config import CONFIG_FILE, read_json, write_json
 from .dialogs_service import fetch_dialogs, fetch_messages, list_cached_dialogs, resolve_target
+from .file_picker import PickerBusy, PickerUnavailable, pick_path
 from .presets_service import delete_action_preset, list_action_presets, save_action_preset
 from .schedules_service import (
     ScheduleRequest,
@@ -95,6 +97,11 @@ class ActionPresetSaveRequest(BaseModel):
 class ScheduledClearRequest(BaseModel):
     target: str = Field(min_length=1, max_length=500)
     ids: list[int] | None = None
+
+
+class PickPathRequest(BaseModel):
+    kind: Literal["file", "directory"] = "file"
+    title: str | None = Field(default=None, max_length=200)
 
 
 @asynccontextmanager
@@ -536,6 +543,11 @@ async def run_schedule_now(schedule_id: str) -> dict:
     return {"schedule": schedule}
 
 
+@app.get("/api/scheduled/overview")
+async def scheduled_overview() -> dict:
+    return await scheduler.scheduled_overview()
+
+
 @app.get("/api/accounts/{account_id}/scheduled")
 async def list_account_scheduled(account_id: str, target: str) -> dict:
     try:
@@ -602,6 +614,23 @@ def check_for_updates() -> dict:
         "published_at": payload.get("published_at"),
         "releases_url": GITHUB_RELEASES_URL,
     }
+
+
+@app.post("/api/system/pick-path")
+async def pick_system_path(request: PickPathRequest) -> dict:
+    """Open a native OS file/folder dialog on this machine and return the chosen path.
+
+    Safe because the server is bound to 127.0.0.1 for a single local operator and the
+    dialog requires a human at the keyboard to make a selection — it cannot be driven
+    by a remote caller. ``path`` is null when the user cancels the dialog.
+    """
+    try:
+        path = await pick_path(request.kind, request.title)
+    except PickerBusy as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except PickerUnavailable as exc:
+        raise HTTPException(status_code=501, detail=str(exc)) from exc
+    return {"path": path, "supported": True}
 
 
 @app.post("/api/app/shutdown")
