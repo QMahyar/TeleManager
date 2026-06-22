@@ -6,9 +6,6 @@ venv/
 .env.*
 !.env.example
 
-# Local agent/operator notes
-AGENTS.md
-
 # Local secrets and Telegram auth material
 data/
 sessions/
