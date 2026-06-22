@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import UTC, datetime
 from typing import Any
 
-from .config import ACTION_PRESETS_FILE, read_json, write_json
+from .config import ACTION_PRESETS_FILE, now_iso, read_json, write_json
 
 NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 _.-]{1,78}[A-Za-z0-9]$")
 
@@ -23,7 +22,7 @@ def save_action_preset(name: str, payload: dict[str, Any]) -> dict[str, Any]:
         )
 
     presets = list_action_presets()
-    now = datetime.now(UTC).isoformat()
+    now = now_iso()
     preset_id = slug_id(clean_name)
     preset = {
         "id": preset_id,

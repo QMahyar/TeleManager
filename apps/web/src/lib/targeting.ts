@@ -106,19 +106,6 @@ export function analyzeTarget(
   return { label, kind }
 }
 
-export function validateTargets(
-  targets: string[],
-  actionType: ActionType
-): string | null {
-  for (const target of targets) {
-    const result = analyzeTarget(target, actionType)
-    if (result.error) {
-      return result.error
-    }
-  }
-  return null
-}
-
 // Split a target list into those compatible with the action and those that are
 // not, so the UI can grey incompatible targets and quietly skip them at queue
 // time instead of blocking the whole step.

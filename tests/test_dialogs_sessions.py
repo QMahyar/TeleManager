@@ -72,14 +72,17 @@ def test_cached_dialogs_unknown_account_fails(app_context: dict):
 
 
 def test_import_session_rejects_non_session_file(client):
+    # The UI imports via the batch endpoint, which records per-file failures
+    # rather than aborting the whole request.
     response = client.post(
-        "/api/sessions/import-file",
-        data={"label": "Bad Import"},
-        files={"file": ("bad.txt", b"not a session", "text/plain")},
+        "/api/sessions/import-files",
+        files=[("files", ("bad.txt", b"not a session", "text/plain"))],
     )
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Only .session files can be imported."
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["imported"] == []
+    assert payload["failed"][0]["error"] == "Only .session files can be imported."
 
 
 def test_export_sessions_redacts_metadata(app_context: dict):

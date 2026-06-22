@@ -28,13 +28,10 @@ from .action_queue_service import (
     save_safety_settings,
     start_action_queue,
 )
-from .action_queue_service import (
-    preview_action_queue as build_queue_preview,
-)
 from .action_runs_service import list_action_runs, load_action_runs, save_action_runs
 from .audit_service import export_events_path, list_events, log_event
 from .config import CONFIG_FILE, read_json, write_json
-from .dialogs_service import fetch_dialogs, fetch_messages, list_cached_dialogs, resolve_target
+from .dialogs_service import fetch_dialogs, fetch_messages, list_cached_dialogs
 from .file_picker import PickerBusy, PickerUnavailable, pick_path
 from .presets_service import delete_action_preset, list_action_presets, save_action_preset
 from .schedules_service import (
@@ -46,7 +43,6 @@ from .schedules_service import (
 from .sessions_service import (
     delete_local_session,
     export_sessions,
-    import_session_file,
     import_session_files,
     rename_account,
     rename_session_file,
@@ -65,7 +61,6 @@ def _default_frontend_dist() -> Path:
 FRONTEND_ROOT_DIR = Path(__file__).resolve().parents[2] / "apps" / "web"
 FRONTEND_DIST_DIR = Path(os.getenv("TELEMANAGER_FRONTEND_DIST_DIR", _default_frontend_dist()))
 FRONTEND_PUBLIC_DIR = Path(os.getenv("TELEMANAGER_FRONTEND_PUBLIC_DIR", FRONTEND_ROOT_DIR / "public"))
-FILE_BODY = File(...)
 FILES_BODY = File(...)
 NO_STORE_HEADERS = {"Cache-Control": "no-store"}
 GITHUB_REPO = "QMahyar/TeleManager"
@@ -273,16 +268,6 @@ def delete_account(account_id: str) -> dict:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@app.post("/api/sessions/import-file")
-async def import_session(label: str = Form(...), file: UploadFile = FILE_BODY) -> dict:
-    try:
-        account = await import_session_file(manager, file, label)
-        log_event("session_imported", "Session imported", account.label, {"account_id": account.id})
-        return {"account": account.__dict__}
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
 @app.post("/api/sessions/import-files")
 async def import_sessions_batch(files: list[UploadFile] = FILES_BODY) -> dict:
     if not files:
@@ -357,14 +342,6 @@ async def get_account_messages(account_id: str, target: str, limit: int = 50) ->
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@app.get("/api/accounts/{account_id}/resolve-target")
-async def resolve_account_target(account_id: str, target: str) -> dict:
-    try:
-        return await resolve_target(manager, account_id, target)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
 @app.get("/api/actions/presets")
 def get_action_presets() -> dict:
     return {"presets": list_action_presets()}
@@ -393,14 +370,6 @@ def delete_queue_preset(preset_id: str) -> dict:
         return {"ok": True}
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-
-@app.post("/api/actions/queue/preview")
-def preview_action_queue(request: ActionQueueRequest) -> dict:
-    try:
-        return build_queue_preview(manager, request)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/api/actions/queue/run")

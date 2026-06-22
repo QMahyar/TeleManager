@@ -95,24 +95,6 @@ def save_safety_settings(request: SafetySettingsRequest) -> dict:
     return settings
 
 
-def preview_action_queue(manager: AccountManager, request: ActionQueueRequest) -> dict:
-    expanded = expand_action_queue(manager, request)
-    authorized_count = sum(1 for op in expanded if op["status"] == "ready")
-    unauthorized_count = len(expanded) - authorized_count
-    return {
-        "step_count": len(request.steps),
-        "operation_count": len(expanded),
-        "authorized_count": authorized_count,
-        "unauthorized_count": unauthorized_count,
-        "estimated_seconds": estimate_queue_seconds(request, expanded),
-        "delay_between_accounts": request.delay_between_accounts,
-        "delay_between_actions": request.delay_between_actions,
-        "max_operations": request.max_operations,
-        "operations": expanded[:100],
-        "warnings": queue_warnings(request, len(expanded), unauthorized_count),
-    }
-
-
 def start_action_queue(
     manager: AccountManager,
     queue_runs: dict[str, dict],
@@ -327,32 +309,3 @@ def resolved_queue_delays(request: ActionQueueRequest) -> tuple[float, float]:
         defaults = safety_defaults()
         return defaults["delay_between_accounts"], defaults["delay_between_actions"]
     return request.delay_between_accounts, request.delay_between_actions
-
-
-def estimate_queue_seconds(request: ActionQueueRequest, expanded: list[dict]) -> float:
-    runnable = [op for op in expanded if op.get("status") != "needs_login"]
-    if len(runnable) <= 1:
-        return 0.0
-    delay_between_accounts, delay_between_actions = resolved_queue_delays(request)
-    total = 0.0
-    for previous, current in zip(runnable, runnable[1:], strict=False):
-        total += delay_between_accounts if previous["account_id"] != current["account_id"] else delay_between_actions
-    return round(total, 1)
-
-
-def queue_warnings(request: ActionQueueRequest, operation_count: int, unauthorized_count: int = 0) -> list[str]:
-    warnings = [
-        "Default delays are intentionally conservative. Increase them for older or high-risk sessions.",
-    ]
-    if unauthorized_count > 0:
-        warnings.append(
-            f"{unauthorized_count} operation(s) target accounts that are not logged in "
-            "and will be skipped. Log those accounts in first."
-        )
-    if operation_count > 30:
-        warnings.append("This is a large queue. Consider splitting it into smaller runs.")
-    if any(step.action_type in {"send_message", "send_media", "schedule_message"} for step in request.steps):
-        warnings.append("Only message people or chats where you have clear permission or expectation.")
-    if any(len(step.targets) > 5 for step in request.steps):
-        warnings.append("Many targets in one step can trigger Telegram flood controls. Review carefully.")
-    return warnings

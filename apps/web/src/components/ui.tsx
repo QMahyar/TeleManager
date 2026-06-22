@@ -203,37 +203,6 @@ export function Badge({
   return <UiBadge className={tone}>{children}</UiBadge>
 }
 
-export function Metric({
-  label,
-  value,
-  primary,
-}: {
-  label: string
-  value: number
-  primary?: boolean
-}) {
-  return (
-    <div
-      className={cn(
-        "rounded-lg border border-l-2 border-border bg-card p-4",
-        primary ? "border-l-primary" : "border-l-border"
-      )}
-    >
-      <span className="font-mono text-[0.62rem] tracking-[0.2em] text-muted-foreground uppercase">
-        {label}
-      </span>
-      <strong
-        className={cn(
-          "mt-2 block font-mono text-3xl",
-          primary && "text-primary"
-        )}
-      >
-        {value}
-      </strong>
-    </div>
-  )
-}
-
 export type TabItem<T extends string> = {
   id: T
   label: string

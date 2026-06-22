@@ -73,15 +73,6 @@ export type TelegramMessage = {
   has_media?: boolean
 }
 
-export type ResolvedTarget = {
-  account_id: string
-  target: string
-  id?: string | number | null
-  title?: string | null
-  username?: string | null
-  type: string
-}
-
 export type ActivityEvent = {
   id?: string
   title: string

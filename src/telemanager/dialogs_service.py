@@ -7,7 +7,7 @@ from telethon.tl.types import Channel, Chat, Message, User
 
 from .accounts import AccountManager
 from .config import DIALOGS_DIR, ensure_dirs, now_iso, read_json, write_json
-from .telegram_actions import resolve_full_entity, resolve_input_peer
+from .telegram_actions import resolve_input_peer
 
 
 @dataclass
@@ -94,23 +94,6 @@ async def fetch_messages(manager: AccountManager, account_id: str, target: str, 
             "account_label": account.label,
             "target": target,
             "messages": [message_to_dict(message) for message in messages if message],
-        }
-
-
-async def resolve_target(manager: AccountManager, account_id: str, target: str) -> dict:
-    account = manager._get_account(account_id)
-    async with manager.temp_client(account.id) as client:
-        entity = await resolve_full_entity(client, target)
-        title = getattr(entity, "title", None) or " ".join(
-            part for part in [getattr(entity, "first_name", None), getattr(entity, "last_name", None)] if part
-        )
-        return {
-            "account_id": account.id,
-            "target": target,
-            "id": getattr(entity, "id", None),
-            "title": title or getattr(entity, "username", None),
-            "username": getattr(entity, "username", None),
-            "type": entity.__class__.__name__,
         }
 
 

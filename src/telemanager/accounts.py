@@ -7,7 +7,6 @@ import uuid
 from collections.abc import AsyncIterator, Awaitable
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -20,7 +19,7 @@ from telethon.errors import (
     SessionPasswordNeededError,
 )
 
-from .config import ACCOUNTS_FILE, CONFIG_FILE, SESSIONS_DIR, read_json, write_json
+from .config import ACCOUNTS_FILE, CONFIG_FILE, SESSIONS_DIR, now_iso, read_json, write_json
 from .telegram_actions import TelegramAction, TelegramActionResult, run_telegram_action
 
 CONNECT_TIMEOUT_SECONDS = 25
@@ -185,7 +184,7 @@ class AccountManager:
                 account.authorized = True
                 account.status = "stopped"
                 account.last_error = None
-                account.last_validated_at = self._now_iso()
+                account.last_validated_at = now_iso()
                 self._save_accounts()
                 return account
             finally:
@@ -357,9 +356,6 @@ class AccountManager:
             raise TimeoutError(
                 "Telegram authorization check timed out. Check Windows date/time sync, timezone, and network."
             ) from exc
-
-    def _now_iso(self) -> str:
-        return datetime.now(UTC).isoformat()
 
     def _login_error_message(self, exc: Exception) -> str:
         if isinstance(exc, FloodWaitError):
