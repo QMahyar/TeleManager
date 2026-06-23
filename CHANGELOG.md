@@ -11,6 +11,63 @@ section below, with auto-generated commit/PR notes appended.
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-06-23
+
+Operator-console refinement. The "Console" theme stays, but the shell now reads
+like a real desktop application — a persistent footer status bar, a clearer
+button and type hierarchy, and a cross-screen view of what the queue is doing —
+alongside a normal-user clarity pass over every screen. Also fixes a real
+multi-account bug in guarded actions.
+
+### Added
+
+- **Footer status bar.** A persistent bottom status line shows the local
+  connection (`127.0.0.1`), the app version, and a live `running N/M` pulse while
+  a queue executes — visible from every screen. Refresh and the theme toggle move
+  here from the sidebar foot. Run-polling was lifted to app state so the pulse
+  (and the rail's live progress) work no matter which screen is open.
+
+### Changed
+
+- **The shell reads like an application.** The layout is now a flex column with
+  internally-scrolling panes so the footer stays pinned; each screen sits on a
+  recessed "well" with one raised focal panel to land the eye.
+- **Button & type hierarchy.** A comfortable 36px tier marks the single primary
+  action per view (Run, Send code, Fetch live, Use in Actions, Import/Export,
+  Save…); everything else stays dense, and inputs grow to match. Section eyebrows
+  and per-panel icon chips are restrained — kept only where a real 1→2 sequence
+  exists (Login, Dialogs).
+- **Normal-user clarity pass.** Plain language over operator jargon and a
+  consistent label/button hierarchy across screens. The right rail slims to
+  **Activity** (Queue + Last run); duplicated fleet-health and schedule counts
+  were removed. Renames: Live→Activity, Fleet→Accounts, Watch→Attention,
+  Ops→Operations. The `Field` label's uppercase styling is scoped so it no longer
+  leaks into target hints and helper text.
+- **Activity rail.** "Last run" shows the outcome and a relative time
+  (e.g. `2/2 · 4m ago`) plus a live progress bar, instead of a raw run UUID.
+- **Dialogs & Accounts tables.** One **Use** button plus a single overflow menu
+  per dialog row; numeric-id targets are tagged; variable bulk verbs fold behind
+  one **Bulk actions** menu. Accounts collapse per-row controls into a **Manage**
+  menu so the fleet table fits without horizontal scroll.
+- **Actions builder.** Three columns become two — the accounts column is now a
+  collapsible **Run as** selector in the builder, and presets move into the queue
+  panel — with a single filled primary action.
+
+### Fixed
+
+- **Multi-account actions on username-less chats.** A chat picked from one
+  account's list is stored as a numeric id, which only resolves on accounts that
+  already have that peer cached — so a queue across many accounts ran on just the
+  source account. Each account now primes its own dialog cache once on a numeric
+  cache-miss and retries, so every account that is a member of the chat resolves
+  it; non-members get a clearer error, and a flood-wait while priming still backs
+  the queue off. Adds regression tests.
+
+### Internal
+
+- Version bumped to 1.9.0 throughout (`pyproject.toml`, `package.json`,
+  `README.md`, `__init__.py`).
+
 ## [1.8.1] - 2026-06-22
 
 Housekeeping release — dead code removal and a contributor-friendly repo guide.
