@@ -245,7 +245,7 @@ export function DialogPicker({
         ))}
       </div>
 
-      <div className="max-h-56 space-y-1 overflow-auto">
+      <div className="max-h-48 space-y-1 overflow-auto rounded-md border border-border bg-muted/10 p-1">
         {rows.length === 0 ? (
           <EmptyState
             title={dialogs.length ? "No chats match" : "No chats loaded"}
@@ -262,8 +262,8 @@ export function DialogPicker({
               <label
                 key={target}
                 title={added ? "Already in the target list" : reason}
-                className={`flex items-center gap-2 rounded-md border border-border px-2 py-1.5 text-xs ${
-                  disabled ? "opacity-50" : "hover:bg-muted/30"
+                className={`flex items-center gap-2 rounded-md border border-transparent px-2 py-1.5 text-xs ${
+                  disabled ? "opacity-50" : "hover:border-border hover:bg-muted/30"
                 }`}
               >
                 <input

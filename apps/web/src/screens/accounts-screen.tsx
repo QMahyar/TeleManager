@@ -21,8 +21,11 @@ import {
   EmptyState,
   Field,
   Input,
+  PageGrid,
   Panel,
+  PrimaryPane,
   Select,
+  SidePane,
   StatCard,
   StepHeading,
   Tabs,
@@ -107,36 +110,37 @@ function FleetTab({ props }: { props: AccountsScreenProps }) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard
-          label="Total"
-          value={props.accounts.length}
-          active={statusFilter === "all"}
-          onClick={() => setStatusFilter("all")}
-        />
-        <StatCard
-          label="Ready"
-          value={props.metrics.ready}
-          active={statusFilter === "ready"}
-          onClick={() => filterBy("ready")}
-        />
-        <StatCard
-          label="Needs attention"
-          value={props.metrics.attention}
-          active={statusFilter === "attention"}
-          onClick={() => filterBy("attention")}
-        />
-        <StatCard label="Known dialogs" value={props.metrics.knownDialogs} />
-      </div>
-      <Panel className="space-y-3">
+    <PageGrid>
+      <PrimaryPane>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <StatCard
+            label="Total"
+            value={props.accounts.length}
+            active={statusFilter === "all"}
+            onClick={() => setStatusFilter("all")}
+          />
+          <StatCard
+            label="Ready"
+            value={props.metrics.ready}
+            active={statusFilter === "ready"}
+            onClick={() => filterBy("ready")}
+          />
+          <StatCard
+            label="Needs attention"
+            value={props.metrics.attention}
+            active={statusFilter === "attention"}
+            onClick={() => filterBy("attention")}
+          />
+          <StatCard label="Known dialogs" value={props.metrics.knownDialogs} />
+        </div>
+        <Panel className="space-y-3 overflow-hidden">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <StepHeading
             step={<IconUsers />}
             title="Session fleet"
             detail={`${filteredAccounts.length} of ${props.accounts.length} shown. Select sessions, then run actions or fetch dialogs.`}
           />
-          <div className="flex gap-2">
+          <div className="flex gap-2 lg:hidden">
             <Button variant="outline" size="sm" onClick={fetchDialogsForSelection}>
               Fetch Dialogs
             </Button>
@@ -175,7 +179,30 @@ function FleetTab({ props }: { props: AccountsScreenProps }) {
           askDialog={props.askDialog}
         />
       </Panel>
-    </div>
+      </PrimaryPane>
+      <SidePane>
+        <Panel className="space-y-3">
+          <StepHeading
+            step={<IconArrowRight />}
+            title="Next move"
+            detail="Choose a session, then jump into dialogs or guarded actions without losing context."
+          />
+          <div className="grid gap-2">
+            <Button variant="outline" onClick={fetchDialogsForSelection}>
+              Fetch Dialogs
+            </Button>
+            <Button onClick={runActionWithSelection}>
+              Run Action <IconArrowRight />
+            </Button>
+          </div>
+          <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs leading-5 text-muted-foreground">
+            {readySelectedIds.length
+              ? `${readySelectedIds.length} selected ready session(s) will be carried forward.`
+              : "No ready sessions selected. Actions will ask you to choose accounts."}
+          </div>
+        </Panel>
+      </SidePane>
+    </PageGrid>
   )
 }
 
@@ -368,7 +395,7 @@ function RequestLoginPanel({
             title="Use international format with country code, e.g. +15551234567"
             placeholder="+15551234567"
           />
-          <span className="text-xs text-muted-foreground normal-case">
+          <span className="text-xs text-muted-foreground">
             International format with country code, e.g. +15551234567.
           </span>
         </Field>

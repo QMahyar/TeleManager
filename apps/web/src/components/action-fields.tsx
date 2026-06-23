@@ -7,7 +7,7 @@ import {
   type FieldValues,
 } from "../lib/action-schema"
 import type { ActionType, Flash } from "../types"
-import { Field, Input, PathInput, Select, Textarea } from "./ui"
+import { Badge, Field, Input, PathInput, Select, Textarea } from "./ui"
 
 const SCHEDULE_PRESETS = [
   { label: "+15m", value: "+15m" },
@@ -51,17 +51,30 @@ export function ActionFields({
   }
 
   return (
-    <div className="grid gap-3">
-      {schema.fields.map((field) => (
-        <ActionFieldRow
-          key={field.name}
-          field={field}
-          value={values[field.name]}
-          error={errorFor(field.name)}
-          onChange={(value) => update(field.name, value)}
-          flash={flash}
-        />
-      ))}
+    <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <p className="font-heading text-sm text-foreground">Required details</p>
+          <p className="text-xs text-muted-foreground">
+            Only fields needed by this action are shown.
+          </p>
+        </div>
+        <Badge tone="border-border bg-background text-muted-foreground">
+          {schema.fields.length}
+        </Badge>
+      </div>
+      <div className="grid gap-3">
+        {schema.fields.map((field) => (
+          <ActionFieldRow
+            key={field.name}
+            field={field}
+            value={values[field.name]}
+            error={errorFor(field.name)}
+            onChange={(value) => update(field.name, value)}
+            flash={flash}
+          />
+        ))}
+      </div>
     </div>
   )
 }
@@ -81,16 +94,19 @@ function ActionFieldRow({
 }) {
   if (field.kind === "checkbox") {
     return (
-      <label className="flex items-center gap-3 rounded-md border border-border bg-muted/20 p-3 text-sm">
+      <label className="flex items-start gap-3 rounded-md border border-border bg-background/70 p-3 text-sm">
         <input
           type="checkbox"
+          className="mt-0.5"
           checked={value === true}
           onChange={(event) => onChange(event.target.checked)}
         />
-        <span className="font-medium text-foreground">{field.label}</span>
-        {field.help ? (
-          <span className="text-xs text-muted-foreground">{field.help}</span>
-        ) : null}
+        <span className="min-w-0 space-y-1">
+          <span className="block font-medium text-foreground">{field.label}</span>
+          {field.help ? (
+            <span className="block text-xs text-muted-foreground">{field.help}</span>
+          ) : null}
+        </span>
       </label>
     )
   }
@@ -106,6 +122,7 @@ function ActionFieldRow({
           maxLength={4000}
           autoComplete="off"
           aria-invalid={Boolean(error)}
+          className="min-h-28 resize-y"
           onChange={(event) => onChange(event.target.value)}
           placeholder={field.placeholder}
         />
@@ -208,7 +225,7 @@ function DateTimeField({
 function FieldFooter({ help, error }: { help?: string; error?: string }) {
   if (error) {
     return (
-      <span className="flex items-center gap-1.5 text-xs text-destructive normal-case">
+      <span className="flex items-center gap-1.5 text-xs text-destructive">
         <IconAlertCircle className="size-3.5 shrink-0" />
         {error}
       </span>
@@ -216,7 +233,7 @@ function FieldFooter({ help, error }: { help?: string; error?: string }) {
   }
   if (help) {
     return (
-      <span className="text-xs text-muted-foreground normal-case">{help}</span>
+      <span className="text-xs text-muted-foreground">{help}</span>
     )
   }
   return null

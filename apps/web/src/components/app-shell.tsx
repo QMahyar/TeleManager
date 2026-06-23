@@ -1,252 +1,31 @@
 import * as React from "react"
 
 import {
-  IconCommand,
-  IconInfoCircle,
-  IconMenu2,
   IconMoon,
-  IconPower,
   IconRefresh,
-  IconSearch,
   IconSun,
   IconUserPlus,
-  IconX,
 } from "@tabler/icons-react"
 
 import { Button } from "../ui/button"
-import { Modal } from "../ui/modal"
-import { cn } from "../ui/utils"
-
-import { useTheme } from "../components/theme-provider"
-import { BrandMark } from "../components/brand-mark"
+import { useTheme } from "./theme-provider"
 import { navItems } from "../lib/constants"
 import type { View } from "../types"
-import { Badge, Input } from "./ui"
-
-type AppShellProps = React.PropsWithChildren<{
-  view: View
-  selectedCount: number
-  setView: (view: View) => void
-  onRefresh: () => void
-  onExit: () => void
-  onAddAccount: () => void
-}>
-
-type NavItem = (typeof navItems)[number]
-
-// A palette entry: either screen navigation or an app action. `shortcut` is the
-// Alt+N hint shown for navigable screens (actions have none).
-type PaletteCommand = {
-  id: string
-  label: string
-  group: string
-  icon: React.ElementType
-  shortcut?: number
-  run: () => void
-}
-
-type CommandPaletteState = {
-  clampedIndex: number
-  filteredItems: PaletteCommand[]
-  paletteOpen: boolean
-  paletteQuery: string
-  closePalette: () => void
-  openPalette: () => void
-  movePalette: (direction: -1 | 1) => void
-  submitPaletteSelection: () => void
-  setPaletteIndex: React.Dispatch<React.SetStateAction<number>>
-  setPaletteQuery: React.Dispatch<React.SetStateAction<string>>
-}
-
-function isEditableTarget(target: EventTarget | null) {
-  return (
-    target instanceof HTMLElement &&
-    Boolean(target.closest("input, textarea, select, [contenteditable='true']"))
-  )
-}
-
-function groupedNavItems(group: string) {
-  return navItems.filter((item) => item.group === group)
-}
-
-function shortcutNavItem(key: string) {
-  const index = Number(key)
-  return navItems[index - 1]
-}
-
-function handlePaletteToggleKey(
-  event: KeyboardEvent,
-  options: {
-    isOpen: boolean
-    closePalette: () => void
-    openPalette: () => void
-  }
-) {
-  if (!((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k")) {
-    return false
-  }
-  event.preventDefault()
-  if (options.isOpen) {
-    options.closePalette()
-  } else {
-    options.openPalette()
-  }
-  return true
-}
-
-function handlePaletteNavigationKey(
-  event: KeyboardEvent,
-  options: {
-    isOpen: boolean
-    hasItems: boolean
-    movePalette: (direction: -1 | 1) => void
-    submitPaletteSelection: () => void
-  }
-) {
-  if (!options.isOpen || !options.hasItems) {
-    return false
-  }
-
-  switch (event.key) {
-    case "ArrowDown":
-      event.preventDefault()
-      options.movePalette(1)
-      return true
-    case "ArrowUp":
-      event.preventDefault()
-      options.movePalette(-1)
-      return true
-    case "Enter":
-      event.preventDefault()
-      options.submitPaletteSelection()
-      return true
-    default:
-      return false
-  }
-}
-
-function handleAltNavigationKey(
-  event: KeyboardEvent,
-  openView: (view: View) => void
-) {
-  if (!event.altKey) {
-    return false
-  }
-
-  const item = shortcutNavItem(event.key)
-  if (!item) {
-    return false
-  }
-
-  event.preventDefault()
-  openView(item.id)
-  return true
-}
-
-function usePaletteState(commands: PaletteCommand[]): CommandPaletteState {
-  const [paletteOpen, setPaletteOpen] = React.useState(false)
-  const [paletteQuery, setPaletteQuery] = React.useState("")
-  const [paletteIndex, setPaletteIndex] = React.useState(0)
-
-  const closePalette = React.useCallback(() => {
-    setPaletteOpen(false)
-    setPaletteQuery("")
-    setPaletteIndex(0)
-  }, [])
-
-  const openPalette = React.useCallback(() => {
-    setPaletteOpen(true)
-    setPaletteIndex(0)
-  }, [])
-
-  const filteredItems = React.useMemo(() => {
-    const query = paletteQuery.trim().toLowerCase()
-    if (!query) {
-      return commands
-    }
-    return commands.filter((item) =>
-      `${item.label} ${item.group}`.toLowerCase().includes(query)
-    )
-  }, [commands, paletteQuery])
-
-  const clampedIndex = Math.min(
-    paletteIndex,
-    Math.max(filteredItems.length - 1, 0)
-  )
-
-  const movePalette = React.useCallback(
-    (direction: -1 | 1) => {
-      setPaletteIndex((current) =>
-        Math.max(0, Math.min(current + direction, filteredItems.length - 1))
-      )
-    },
-    [filteredItems.length]
-  )
-
-  const submitPaletteSelection = React.useCallback(() => {
-    const item = filteredItems[clampedIndex]
-    if (item) {
-      item.run()
-      closePalette()
-    }
-  }, [clampedIndex, closePalette, filteredItems])
-
-  return {
-    clampedIndex,
-    filteredItems,
-    paletteOpen,
-    paletteQuery,
-    closePalette,
-    openPalette,
-    movePalette,
-    submitPaletteSelection,
-    setPaletteIndex,
-    setPaletteQuery,
-  }
-}
-
-function usePaletteHotkeys(
-  palette: CommandPaletteState,
-  openView: (view: View) => void
-) {
-  React.useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.repeat || isEditableTarget(event.target)) {
-        return
-      }
-      if (event.key === "Escape") {
-        palette.closePalette()
-        return
-      }
-      if (
-        handlePaletteToggleKey(event, {
-          isOpen: palette.paletteOpen,
-          closePalette: palette.closePalette,
-          openPalette: palette.openPalette,
-        })
-      ) {
-        return
-      }
-      if (
-        handlePaletteNavigationKey(event, {
-          isOpen: palette.paletteOpen,
-          hasItems: palette.filteredItems.length > 0,
-          movePalette: palette.movePalette,
-          submitPaletteSelection: palette.submitPaletteSelection,
-        })
-      ) {
-        return
-      }
-      handleAltNavigationKey(event, openView)
-    }
-
-    window.addEventListener("keydown", onKeyDown)
-    return () => window.removeEventListener("keydown", onKeyDown)
-  }, [openView, palette])
-}
+import { CommandPalette } from "./shell/command-palette"
+import { Header } from "./shell/header"
+import { OperationsRail } from "./shell/operations-rail"
+import { Sidebar } from "./shell/sidebar"
+import { usePaletteHotkeys, usePaletteState } from "./shell/use-command-palette"
+import type { AppShellProps, PaletteCommand } from "./shell/types"
 
 export function AppShell({
   view,
+  accounts,
+  metrics,
+  queue,
+  runs,
+  schedules,
+  telemetry,
   selectedCount,
   setView,
   onRefresh,
@@ -254,6 +33,7 @@ export function AppShell({
   onAddAccount,
   children,
 }: AppShellProps) {
+  const shellData = telemetry || { accounts, metrics, queue, runs, schedules }
   const { theme, setTheme } = useTheme()
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
   const activeItem = navItems.find((item) => item.id === view)
@@ -270,7 +50,6 @@ export function AppShell({
     setTheme(theme === "dark" ? "light" : "dark")
   }, [setTheme, theme])
 
-  // Screen navigation first (with Alt+N hints), then app actions.
   const commands = React.useMemo<PaletteCommand[]>(() => {
     const navCommands: PaletteCommand[] = navItems.map((item, index) => ({
       id: item.id,
@@ -318,8 +97,10 @@ export function AppShell({
           onClick={() => setSidebarOpen(false)}
         />
       ) : null}
-      <div className="grid min-h-svh lg:grid-cols-[18rem_1fr]">
+      <div className="grid min-h-svh lg:grid-cols-[18rem_minmax(0,1fr)] 2xl:grid-cols-[18rem_minmax(0,1fr)_20rem]">
         <Sidebar
+          accounts={shellData.accounts}
+          metrics={shellData.metrics}
           onExit={onExit}
           onRefresh={onRefresh}
           onToggleTheme={toggleTheme}
@@ -330,18 +111,26 @@ export function AppShell({
           closeSidebar={() => setSidebarOpen(false)}
         />
 
-        <main className="min-w-0 p-4 sm:p-6 xl:p-8">
+        <main className="min-w-0 px-4 py-4 sm:px-6 lg:px-7 xl:px-8">
           <Header
             activeItem={activeItem}
+            queue={shellData.queue}
             selectedCount={selectedCount}
             showSelectedCount={view === "accounts"}
             onAddAccount={onAddAccount}
+            openActions={() => openView("actions")}
             openSettings={() => openView("settings")}
             openSidebar={() => setSidebarOpen(true)}
             openPalette={palette.openPalette}
           />
-          {children}
+          <div className="mx-auto max-w-[92rem]">{children}</div>
         </main>
+
+        <OperationsRail
+          queue={shellData.queue}
+          runs={shellData.runs}
+          openView={openView}
+        />
       </div>
       <CommandPalette
         clampedIndex={palette.clampedIndex}
@@ -356,319 +145,4 @@ export function AppShell({
   )
 }
 
-function Sidebar({
-  onExit,
-  onRefresh,
-  onToggleTheme,
-  openView,
-  sidebarOpen,
-  theme,
-  view,
-  closeSidebar,
-}: {
-  onExit: () => void
-  onRefresh: () => void
-  onToggleTheme: () => void
-  openView: (view: View) => void
-  sidebarOpen: boolean
-  theme: "dark" | "light" | "system"
-  view: View
-  closeSidebar: () => void
-}) {
-  return (
-    <aside
-      className={cn(
-        "fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-border bg-sidebar p-4 text-sidebar-foreground transition-transform lg:sticky lg:top-0 lg:z-auto lg:h-svh lg:w-auto lg:translate-x-0",
-        sidebarOpen ? "translate-x-0" : "-translate-x-full"
-      )}
-    >
-      <button
-        onClick={closeSidebar}
-        className="absolute top-4 right-4 grid size-8 place-items-center rounded-md border border-sidebar-border lg:hidden"
-        aria-label="Close navigation"
-      >
-        <IconX className="size-4" />
-      </button>
-      <button
-        onClick={() => openView("accounts")}
-        className="mb-8 flex items-center gap-3 text-left"
-      >
-        <BrandMark size={40} />
-        <span className="font-mono">
-          <strong className="block text-sm font-semibold tracking-tight lowercase">
-            telemanager
-          </strong>
-          <small className="text-[0.7rem] tracking-wide text-muted-foreground">
-            local session ops
-          </small>
-        </span>
-      </button>
-      <nav className="space-y-5">
-        {["Workspace", "System"].map((group) => (
-          <SidebarGroup
-            key={group}
-            group={group}
-            openView={openView}
-            view={view}
-          />
-        ))}
-      </nav>
-      <div className="mt-auto space-y-3">
-        <button
-          onClick={() => openView("about")}
-          className={cn(
-            "flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition",
-            view === "about"
-              ? "border-sidebar-primary bg-sidebar-primary text-sidebar-primary-foreground"
-              : "border-transparent hover:border-sidebar-border hover:bg-sidebar-accent"
-          )}
-        >
-          <IconInfoCircle className="size-4" />
-          <span className="flex-1">About</span>
-        </button>
-        <div className="flex items-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent px-2.5 py-1.5 font-mono text-[0.7rem] text-muted-foreground">
-          <span className="size-1.5 shrink-0 rounded-full bg-primary" />
-          <span>local · 127.0.0.1</span>
-        </div>
-        <div className="grid grid-cols-[1fr_auto] gap-2">
-          <Button variant="outline" className="w-full" onClick={onRefresh}>
-            <IconRefresh /> Refresh
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={onToggleTheme}
-            aria-label="Toggle theme"
-          >
-            {theme === "dark" ? <IconSun /> : <IconMoon />}
-          </Button>
-        </div>
-        <Button variant="destructive" className="w-full" onClick={onExit}>
-          <IconPower /> Exit TeleManager
-        </Button>
-      </div>
-    </aside>
-  )
-}
-
-function SidebarGroup({
-  group,
-  openView,
-  view,
-}: {
-  group: string
-  openView: (view: View) => void
-  view: View
-}) {
-  return (
-    <div className="space-y-1">
-      <p className="px-2 text-[0.62rem] font-semibold tracking-[0.28em] text-muted-foreground uppercase">
-        {group}
-      </p>
-      {groupedNavItems(group).map((item) => (
-        <SidebarItem
-          key={item.id}
-          item={item}
-          openView={openView}
-          view={view}
-        />
-      ))}
-    </div>
-  )
-}
-
-function SidebarItem({
-  item,
-  openView,
-  view,
-}: {
-  item: NavItem
-  openView: (view: View) => void
-  view: View
-}) {
-  const Icon = item.icon
-  const shortcut = navItems.findIndex((nav) => nav.id === item.id) + 1
-
-  return (
-    <button
-      onClick={() => openView(item.id)}
-      className={cn(
-        "flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition",
-        view === item.id
-          ? "border-sidebar-primary bg-sidebar-primary text-sidebar-primary-foreground"
-          : "border-transparent hover:border-sidebar-border hover:bg-sidebar-accent"
-      )}
-    >
-      <Icon className="size-4" />
-      <span className="flex-1">{item.label}</span>
-      <kbd className="text-[0.6rem] opacity-60">Alt+{shortcut}</kbd>
-    </button>
-  )
-}
-
-function Header({
-  activeItem,
-  selectedCount,
-  showSelectedCount,
-  onAddAccount,
-  openSettings,
-  openSidebar,
-  openPalette,
-}: {
-  activeItem?: NavItem
-  selectedCount: number
-  showSelectedCount: boolean
-  onAddAccount: () => void
-  openSettings: () => void
-  openSidebar: () => void
-  openPalette: () => void
-}) {
-  return (
-    <header className="mb-6 flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex items-start gap-3">
-        <Button
-          variant="outline"
-          size="icon"
-          className="mt-0.5 lg:hidden"
-          onClick={openSidebar}
-          aria-label="Open navigation"
-        >
-          <IconMenu2 />
-        </Button>
-        <div className="min-w-0">
-          <p className="font-mono text-[0.7rem] tracking-[0.2em] text-muted-foreground uppercase">
-            <span className="text-primary">›</span>{" "}
-            {activeItem?.group || "Workspace"}
-          </p>
-          <h1 className="font-heading text-xl tracking-tight sm:text-2xl">
-            {activeItem?.label}
-          </h1>
-        </div>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        {showSelectedCount && selectedCount > 0 ? (
-          <span className="hidden sm:block">
-            <Badge tone="border-primary/30 bg-primary/10 text-primary">
-              {selectedCount} selected
-            </Badge>
-          </span>
-        ) : null}
-        <Button
-          variant="outline"
-          className="hidden sm:inline-flex"
-          onClick={openPalette}
-        >
-          <IconCommand />
-          <span className="font-mono">Ctrl K</span>
-        </Button>
-        <Button variant="outline" onClick={openSettings}>
-          Settings
-        </Button>
-        <Button onClick={onAddAccount}>Add Account</Button>
-      </div>
-    </header>
-  )
-}
-
-function CommandPalette({
-  clampedIndex,
-  filteredItems,
-  open,
-  paletteQuery,
-  closePalette,
-  setPaletteIndex,
-  setPaletteQuery,
-}: {
-  clampedIndex: number
-  filteredItems: PaletteCommand[]
-  open: boolean
-  paletteQuery: string
-  closePalette: () => void
-  setPaletteIndex: React.Dispatch<React.SetStateAction<number>>
-  setPaletteQuery: React.Dispatch<React.SetStateAction<string>>
-}) {
-  const runCommand = (command: PaletteCommand) => {
-    command.run()
-    closePalette()
-  }
-  return (
-    <Modal
-      open={open}
-      onClose={closePalette}
-      align="start"
-      className="mx-auto max-w-xl p-3"
-      labelledBy="command-palette-title"
-    >
-      <div>
-        <div className="mb-2 flex items-center justify-between border-b border-border pb-2">
-          <strong id="command-palette-title" className="text-sm">
-            Command palette
-          </strong>
-          <Button variant="ghost" size="icon-sm" onClick={closePalette}>
-            <IconX />
-          </Button>
-        </div>
-        <div className="relative mb-3">
-          <IconSearch className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            autoFocus
-            className="pl-9"
-            value={paletteQuery}
-            onChange={(event) => {
-              setPaletteQuery(event.target.value)
-              setPaletteIndex(0)
-            }}
-            placeholder="Search screens and actions"
-            aria-label="Search command palette"
-          />
-        </div>
-        <div className="space-y-1">
-          {filteredItems.length ? (
-            filteredItems.map((item, filteredIndex) => (
-              <PaletteItem
-                key={item.id}
-                item={item}
-                active={filteredIndex === clampedIndex}
-                onRun={runCommand}
-              />
-            ))
-          ) : (
-            <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
-              No commands match that search.
-            </div>
-          )}
-        </div>
-      </div>
-    </Modal>
-  )
-}
-
-function PaletteItem({
-  item,
-  active,
-  onRun,
-}: {
-  item: PaletteCommand
-  active: boolean
-  onRun: (command: PaletteCommand) => void
-}) {
-  const Icon = item.icon
-
-  return (
-    <button
-      onClick={() => onRun(item)}
-      className={cn(
-        "flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left text-sm",
-        active
-          ? "border-border bg-muted/40"
-          : "border-transparent hover:border-border hover:bg-muted/40"
-      )}
-    >
-      <Icon className="size-4" />
-      <span className="flex-1">{item.label}</span>
-      {item.shortcut ? (
-        <kbd className="text-xs text-muted-foreground">Alt+{item.shortcut}</kbd>
-      ) : null}
-    </button>
-  )
-}
+export { Button }

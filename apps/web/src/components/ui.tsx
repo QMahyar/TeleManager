@@ -13,7 +13,6 @@ import { Button } from "../ui/button"
 import { Card } from "../ui/card"
 import { Menu } from "../ui/menu"
 import {
-  Field as UiField,
   Input as UiInput,
   Select as UiSelect,
   Textarea as UiTextarea,
@@ -55,6 +54,45 @@ export function Panel({
   return <Card className={cn("p-4", className)}>{children}</Card>
 }
 
+export function PageGrid({
+  children,
+  className,
+}: React.PropsWithChildren<{ className?: string }>) {
+  return (
+    <div
+      className={cn(
+        "grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem] 2xl:grid-cols-[minmax(0,1fr)_22rem]",
+        className
+      )}
+    >
+      {children}
+    </div>
+  )
+}
+
+export function PrimaryPane({
+  children,
+  className,
+}: React.PropsWithChildren<{ className?: string }>) {
+  return <div className={cn("min-w-0 space-y-4", className)}>{children}</div>
+}
+
+export function SidePane({
+  children,
+  className,
+}: React.PropsWithChildren<{ className?: string }>) {
+  return (
+    <div
+      className={cn(
+        "min-w-0 space-y-4 xl:sticky xl:top-4 xl:max-h-[calc(100svh-2rem)] xl:overflow-auto",
+        className
+      )}
+    >
+      {children}
+    </div>
+  )
+}
+
 export function StepHeading({
   step,
   title,
@@ -86,15 +124,28 @@ export function StepHeading({
   )
 }
 
+// A labelled field. The label's uppercase/tracked styling is scoped to its own
+// <span> so it never leaks into the children — earlier the whole wrapper was a
+// `text-... uppercase` <label>, which shouted any rich content (e.g. the target
+// composer's hint) and wrapped inputs/buttons inside a <label>. Children render
+// as siblings; `htmlFor`/`id` still associate a single control when given.
 export function Field({
   label,
+  htmlFor,
+  className,
   children,
-}: React.PropsWithChildren<{ label: string }>) {
+}: React.PropsWithChildren<{
+  label: string
+  htmlFor?: string
+  className?: string
+}>) {
   return (
-    <UiField>
-      {label}
+    <div data-slot="field" className={cn("grid gap-1.5", className)}>
+      <span className="text-xs font-medium tracking-[0.16em] text-muted-foreground uppercase">
+        {htmlFor ? <label htmlFor={htmlFor}>{label}</label> : label}
+      </span>
       {children}
-    </UiField>
+    </div>
   )
 }
 
@@ -277,12 +328,14 @@ export function Skeleton({ className }: { className?: string }) {
 export function StatCard({
   label,
   value,
+  detail,
   primary,
   active,
   onClick,
 }: {
   label: string
   value: React.ReactNode
+  detail?: string
   primary?: boolean
   active?: boolean
   onClick?: () => void
@@ -300,11 +353,16 @@ export function StatCard({
       <strong
         className={cn(
           "mt-1 block font-mono text-2xl",
-          primary && "text-primary"
+          (primary || active) && "text-primary"
         )}
       >
         {value}
       </strong>
+      {detail ? (
+        <span className="mt-1 block text-xs text-muted-foreground">
+          {detail}
+        </span>
+      ) : null}
     </>
   )
   if (onClick) {

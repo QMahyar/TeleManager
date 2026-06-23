@@ -12,6 +12,7 @@ import {
 } from "@tabler/icons-react"
 
 import { Button } from "../ui/button"
+import { cn } from "../ui/utils"
 
 import { ActionFields } from "../components/action-fields"
 import { QueueTable } from "../components/queue-table"
@@ -112,8 +113,7 @@ export function ActionsScreen(props: ActionsScreenProps) {
         cancelActiveRun={queueRunner.cancelActiveRun}
         guarded={props.guarded}
       />
-      <div className="grid gap-4 xl:grid-cols-[15rem_minmax(0,1fr)_22rem]">
-        <AccountsColumn props={props} />
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem] 2xl:grid-cols-[minmax(0,1fr)_24rem]">
         <BuilderColumn props={props} />
         <QueueColumn
           props={props}
@@ -124,7 +124,7 @@ export function ActionsScreen(props: ActionsScreenProps) {
           setBottomTab={setBottomTab}
         />
       </div>
-      <Panel className="space-y-3">
+      <Panel className="space-y-3 overflow-hidden">
         <Tabs<BottomTab>
           value={bottomTab}
           onChange={setBottomTab}
@@ -198,19 +198,19 @@ function useScheduleComposer(props: ActionsScreenProps) {
 
 function SchedulesList({ props }: { props: ActionsScreenProps }) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 border-t border-border pt-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <SectionTitle
           kicker="Automation"
           title="Active schedules"
-          detail="Text-only schedules are delivered by Telegram and survive closing the app; others run only while TeleManager is open."
+          detail="Scheduled queues are compact here so history does not dominate the page."
         />
         <Button variant="outline" onClick={() => props.guarded(props.loadSchedules)}>
           Refresh
         </Button>
       </div>
       {props.schedules.length ? (
-        <div className="space-y-3">
+        <div className="max-h-[34rem] space-y-2 overflow-auto pr-1">
           {props.schedules.map((schedule) => (
             <ScheduleCard
               key={schedule.id}
@@ -332,93 +332,117 @@ function useQueueRunPolling(
 // Column 1 — accounts + presets
 // ---------------------------------------------------------------------------
 
-function AccountsColumn({ props }: { props: ActionsScreenProps }) {
-  const {
-    accounts,
-    actionAccountIds,
-    setActionAccountIds,
-    toggleSelected,
-  } = props
+// The "run as" account picker. Folded into the builder as a disclosure rather
+// than its own column: it's expanded until a session is chosen, then collapses
+// to a one-line summary so the builder isn't dominated by the account list on
+// every visit. Same selection state as before (props.actionAccountIds).
+function RunAsSelector({ props }: { props: ActionsScreenProps }) {
+  const { accounts, actionAccountIds, setActionAccountIds, toggleSelected } =
+    props
 
   const readyCount = accounts.filter(
     (account) => account.authorized && !account.last_error
   ).length
+  const [expanded, setExpanded] = React.useState(actionAccountIds.size === 0)
+
+  const summary =
+    actionAccountIds.size === 0
+      ? "No accounts selected"
+      : `${actionAccountIds.size} account${actionAccountIds.size === 1 ? "" : "s"} selected`
 
   return (
-    <Panel className="space-y-3 xl:sticky xl:top-6 xl:self-start">
-      <SectionLabel
-        title="Accounts"
-        trailing={
-          <Badge tone="border-border bg-muted/40 text-muted-foreground">
-            {actionAccountIds.size}
-          </Badge>
-        }
-      />
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex-1"
-          disabled={!readyCount}
-          onClick={() =>
-            setActionAccountIds(
-              new Set(
-                accounts
-                  .filter((account) => account.authorized && !account.last_error)
-                  .map((account) => account.id)
-              )
-            )
-          }
-        >
-          Ready ({readyCount})
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!actionAccountIds.size}
-          onClick={() => setActionAccountIds(new Set())}
-        >
-          Clear
-        </Button>
-      </div>
-      <div className="max-h-64 space-y-1.5 overflow-auto">
-        {accounts.length === 0 ? (
-          <EmptyState
-            title="No accounts"
-            detail="Add or import accounts first, then choose which sessions run the queue."
-            className="px-4 py-6"
-          />
-        ) : null}
-        {accounts.map((account) => {
-          const status = accountStatus(account)
-          const selectable = account.authorized && !account.last_error
-          const isSelected = actionAccountIds.has(account.id)
-          return (
-            <label
-              key={account.id}
-              className={`flex items-center gap-2 rounded-md border p-2 text-xs transition-colors ${
-                isSelected
-                  ? "border-primary/40 bg-primary/5"
-                  : "border-border hover:bg-muted/20"
-              } ${selectable ? "" : "opacity-60"}`}
+    <div className="rounded-lg border border-border bg-background/40">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between px-3 py-2 text-left text-xs transition hover:bg-muted/30"
+        onClick={() => setExpanded((current) => !current)}
+      >
+        <span>
+          <span className="font-medium text-foreground">Run as</span>{" "}
+          <span
+            className={
+              actionAccountIds.size ? "text-primary" : "text-muted-foreground"
+            }
+          >
+            {summary}
+          </span>
+        </span>
+        <span className="text-muted-foreground">
+          {expanded ? "Hide" : "Change"}
+        </span>
+      </button>
+      {expanded ? (
+        <div className="space-y-3 border-t border-border p-3">
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              disabled={!readyCount}
+              onClick={() =>
+                setActionAccountIds(
+                  new Set(
+                    accounts
+                      .filter(
+                        (account) => account.authorized && !account.last_error
+                      )
+                      .map((account) => account.id)
+                  )
+                )
+              }
             >
-              <input
-                type="checkbox"
-                aria-label={`Use ${account.label || account.session_name} for queued actions`}
-                checked={isSelected}
-                disabled={!selectable && !isSelected}
-                onChange={() => toggleSelected(account.id, setActionAccountIds)}
+              Select ready ({readyCount})
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!actionAccountIds.size}
+              onClick={() => setActionAccountIds(new Set())}
+            >
+              Clear
+            </Button>
+          </div>
+          <div className="max-h-56 space-y-1.5 overflow-auto">
+            {accounts.length === 0 ? (
+              <EmptyState
+                title="No accounts"
+                detail="Add or import accounts first, then choose which sessions run the queue."
+                className="px-4 py-6"
               />
-              <span className="min-w-0 flex-1 truncate">
-                {account.label || account.session_name}
-              </span>
-              <Badge tone={statusTone(status)}>{status}</Badge>
-            </label>
-          )
-        })}
-      </div>
-      <PresetSection props={props} />
-    </Panel>
+            ) : null}
+            {accounts.map((account) => {
+              const status = accountStatus(account)
+              const selectable = account.authorized && !account.last_error
+              const isSelected = actionAccountIds.has(account.id)
+              return (
+                <label
+                  key={account.id}
+                  className={`flex items-center gap-2 rounded-md border p-2 text-xs transition-colors ${
+                    isSelected
+                      ? "border-primary/40 bg-primary/5"
+                      : "border-border hover:bg-muted/20"
+                  } ${selectable ? "" : "opacity-60"}`}
+                >
+                  <input
+                    type="checkbox"
+                    aria-label={`Use ${account.label || account.session_name} for queued actions`}
+                    checked={isSelected}
+                    disabled={!selectable && !isSelected}
+                    onChange={() =>
+                      toggleSelected(account.id, setActionAccountIds)
+                    }
+                  />
+                  <span className="min-w-0 flex-1 truncate">
+                    {account.label || account.session_name}
+                  </span>
+                  <Badge tone={statusTone(status)}>{status}</Badge>
+                </label>
+              )
+            })}
+          </div>
+        </div>
+      ) : null}
+    </div>
   )
 }
 
@@ -436,10 +460,7 @@ function PresetSection({ props }: { props: ActionsScreenProps }) {
   } = props
 
   return (
-    <div className="space-y-2 border-t border-border pt-3">
-      <p className="text-[0.65rem] font-semibold tracking-[0.2em] text-muted-foreground uppercase">
-        Reusable queues
-      </p>
+    <div className="space-y-2">
       <Button
         variant="outline"
         size="sm"
@@ -561,6 +582,7 @@ function PresetRow({
 
 function BuilderColumn({ props }: { props: ActionsScreenProps }) {
   const [submitAttempted, setSubmitAttempted] = React.useState(false)
+  const [showAdvanced, setShowAdvanced] = React.useState(false)
 
   const currentMeta = actionMeta[props.actionDraft.action_type]
   const schema = getActionSchema(props.actionDraft.action_type)
@@ -571,7 +593,10 @@ function BuilderColumn({ props }: { props: ActionsScreenProps }) {
 
   function handleAdd() {
     setSubmitAttempted(true)
-    if (blocker) return props.flash(blocker)
+    if (blocker) {
+      if (schema) setShowAdvanced(true)
+      return props.flash(blocker)
+    }
     props.addQueueStep()
     setSubmitAttempted(false)
   }
@@ -582,72 +607,101 @@ function BuilderColumn({ props }: { props: ActionsScreenProps }) {
       : null
 
   return (
-    <Panel className="space-y-3">
-      <SectionLabel title="Build action" />
-      <QuickActionNotice quickActionContext={props.quickActionContext} />
+    <Panel className="overflow-hidden p-0 xl:min-h-[calc(100svh-12rem)]">
+      <div className="border-b border-border px-4 py-3">
+        <SectionLabel title="Build action" />
+      </div>
 
-      <Field label="Action">
-        <Select
-          value={props.actionDraft.action_type}
-          onChange={(event) => {
-            const next = event.target.value as ActionType
-            props.setQuickActionContext(null)
-            setSubmitAttempted(false)
-            props.setActionDraft({
-              ...props.actionDraft,
-              action_type: next,
-              fields: carryFieldValues(next, props.actionDraft.fields),
-            })
-          }}
-        >
-          {groupedActions.map((group) => (
-            <optgroup key={group.category} label={group.label}>
-              {group.actions.map(([value, meta]) => (
-                <option key={value} value={value}>
-                  {meta.label}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </Select>
-      </Field>
+      <div className="space-y-4 p-4">
+        <RunAsSelector props={props} />
+        <QuickActionNotice quickActionContext={props.quickActionContext} />
 
-      <Field label="Targets">
-        <TargetComposer
-          value={props.actionDraft.target}
-          onChange={(next) =>
-            props.setActionDraft((current) => ({ ...current, target: next }))
-          }
-          actionType={props.actionDraft.action_type}
-          accounts={props.accounts}
-          defaultAccountId={firstAccountId}
-          flash={props.flash}
-        />
-      </Field>
+        <div className="grid gap-4 xl:grid-cols-[16rem_minmax(0,1fr)]">
+          <div className="space-y-3">
+            <Field label="Action">
+              <Select
+                value={props.actionDraft.action_type}
+                onChange={(event) => {
+                  const next = event.target.value as ActionType
+                  props.setQuickActionContext(null)
+                  setSubmitAttempted(false)
+                  setShowAdvanced(false)
+                  props.setActionDraft({
+                    ...props.actionDraft,
+                    action_type: next,
+                    fields: carryFieldValues(next, props.actionDraft.fields),
+                  })
+                }}
+              >
+                {groupedActions.map((group) => (
+                  <optgroup key={group.category} label={group.label}>
+                    {group.actions.map(([value, meta]) => (
+                      <option key={value} value={value}>
+                        {meta.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </Select>
+            </Field>
+            <div className="rounded-lg border border-border bg-muted/10 p-3 text-xs leading-5 text-muted-foreground">
+              <span className="font-medium text-foreground">{currentMeta.label}</span>
+              <span className="mt-1 block">{currentMeta.description}</span>
+            </div>
+          </div>
 
-      <p className="text-xs text-muted-foreground">{currentMeta.description}</p>
-      {multiTargetWarning ? (
-        <p className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
-          <IconAlertTriangle className="size-3.5 shrink-0" />
-          {multiTargetWarning}
-        </p>
-      ) : null}
-
-      {schema ? (
-        <div className="border-t border-border pt-3">
-          <ActionFields
-            actionType={props.actionDraft.action_type}
-            values={props.actionDraft.fields}
-            setValues={(fields) =>
-              props.setActionDraft({ ...props.actionDraft, fields })
-            }
-            showErrors={submitAttempted}
-            flash={props.flash}
-          />
+          <Field label="Targets">
+            <TargetComposer
+              value={props.actionDraft.target}
+              onChange={(next) =>
+                props.setActionDraft((current) => ({ ...current, target: next }))
+              }
+              actionType={props.actionDraft.action_type}
+              accounts={props.accounts}
+              defaultAccountId={firstAccountId}
+              flash={props.flash}
+            />
+          </Field>
         </div>
-      ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
+        {multiTargetWarning ? (
+          <p className="flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-600 dark:text-amber-300">
+            <IconAlertTriangle className="size-3.5 shrink-0" />
+            {multiTargetWarning}
+          </p>
+        ) : null}
+
+        {schema ? (
+          <div className="rounded-lg border border-border bg-background/40">
+            <button
+              type="button"
+              className="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-muted-foreground transition hover:bg-muted/30"
+              onClick={() => setShowAdvanced((current) => !current)}
+            >
+              <span>
+                <span className="font-medium text-foreground">Action details</span>{" "}
+                {showAdvanced || submitAttempted ? "shown" : "collapsed"}
+              </span>
+              <span>{showAdvanced || submitAttempted ? "Hide" : "Show"}</span>
+            </button>
+            {showAdvanced || submitAttempted ? (
+              <div className="border-t border-border p-3">
+                <ActionFields
+                  actionType={props.actionDraft.action_type}
+                  values={props.actionDraft.fields}
+                  setValues={(fields) =>
+                    props.setActionDraft({ ...props.actionDraft, fields })
+                  }
+                  showErrors={submitAttempted}
+                  flash={props.flash}
+                />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-2 border-t border-border bg-card/95 px-4 py-3 backdrop-blur">
         <Button type="button" onClick={handleAdd} disabled={props.loading} title={blocker || undefined}>
           {props.loading ? <IconLoader2 className="size-3.5 animate-spin" /> : null}
           Add To Queue
@@ -772,7 +826,7 @@ function QueueColumn({
   }
 
   return (
-    <Panel className="space-y-3 xl:sticky xl:top-6 xl:self-start">
+    <Panel className="space-y-3 xl:sticky xl:top-4 xl:max-h-[calc(100svh-2rem)] xl:self-start xl:overflow-auto">
       <SectionLabel
         title="Queue & run"
         trailing={
@@ -784,6 +838,16 @@ function QueueColumn({
         }
       />
       <QueueTable queue={props.queue} setQueue={props.setQueue} onEdit={editStep} />
+
+      <details className="rounded-md border border-border bg-muted/10 p-2 text-xs">
+        <summary className="cursor-pointer font-medium text-muted-foreground">
+          Reusable queues
+          {props.presets.length ? ` · ${props.presets.length}` : ""}
+        </summary>
+        <div className="pt-2">
+          <PresetSection props={props} />
+        </div>
+      </details>
 
       <details className="rounded-md border border-border bg-muted/10 p-2 text-xs" open>
         <summary className="cursor-pointer font-medium text-muted-foreground">
@@ -801,19 +865,30 @@ function QueueColumn({
         </p>
       ) : null}
 
+      {/* A quiet segmented control — the active side is a muted fill, not the
+          brand teal, so the only filled-teal button below is the real action
+          (Run / Create schedule). Two teal buttons read as two primaries. */}
       <div className="flex gap-1 rounded-md border border-border p-1">
         <Button
-          variant={composer.mode === "run" ? "default" : "ghost"}
+          variant="ghost"
           size="sm"
-          className="flex-1"
+          aria-pressed={composer.mode === "run"}
+          className={cn(
+            "flex-1",
+            composer.mode === "run" && "bg-muted text-foreground"
+          )}
           onClick={() => composer.setMode("run")}
         >
           Run now
         </Button>
         <Button
-          variant={composer.mode === "schedule" ? "default" : "ghost"}
+          variant="ghost"
           size="sm"
-          className="flex-1"
+          aria-pressed={composer.mode === "schedule"}
+          className={cn(
+            "flex-1",
+            composer.mode === "schedule" && "bg-muted text-foreground"
+          )}
           onClick={() => composer.setMode("schedule")}
         >
           Schedule

@@ -251,16 +251,16 @@ export function ScheduleCard({
   }
 
   return (
-    <div className="grid gap-3 rounded-lg border border-border p-3 text-sm md:grid-cols-[1fr_auto]">
-      <div className="space-y-2">
+    <div className="grid gap-3 rounded-lg border border-border px-3 py-2 text-sm md:grid-cols-[minmax(0,1fr)_auto]">
+      <div className="min-w-0 space-y-1.5">
         <div className="flex flex-wrap items-center gap-2">
-          <strong>{schedule.name}</strong>
+          <strong className="truncate">{schedule.name}</strong>
           <Badge tone={statusTone(schedule.status)}>{schedule.status}</Badge>
           <Badge tone={engineTone(schedule.engine)}>
             {engineLabel(schedule.engine)}
           </Badge>
         </div>
-        <p className="text-xs text-muted-foreground">
+        <p className="truncate text-xs text-muted-foreground">
           {describeRecurrence(schedule.recurrence)} · {summarizeQueue(schedule)}
         </p>
         <p className="text-xs text-muted-foreground">
@@ -273,9 +273,8 @@ export function ScheduleCard({
             : ""}
         </p>
         {schedule.engine === "native" && schedule.coverage_until ? (
-          <p className="text-xs text-muted-foreground">
-            Offline coverage through {humanTime(schedule.coverage_until)} (reopen
-            TeleManager to extend).
+          <p className="truncate text-xs text-muted-foreground">
+            Offline through {humanTime(schedule.coverage_until)}. Reopen TeleManager to extend.
           </p>
         ) : null}
         {schedule.last_error ? (
@@ -283,10 +282,10 @@ export function ScheduleCard({
         ) : null}
       </div>
 
-      <div className="flex flex-wrap gap-2 md:justify-end md:self-start">
+      <div className="flex flex-wrap gap-1.5 md:justify-end md:self-start">
         {!terminal && schedule.status !== "paused" ? (
           <Button
-            size="sm"
+            size="xs"
             variant="outline"
             onClick={() => guarded(() => patchStatus("paused"))}
           >
@@ -295,7 +294,7 @@ export function ScheduleCard({
         ) : null}
         {!terminal && schedule.status === "paused" ? (
           <Button
-            size="sm"
+            size="xs"
             variant="outline"
             onClick={() => guarded(() => patchStatus("active"))}
           >
@@ -304,7 +303,7 @@ export function ScheduleCard({
         ) : null}
         {!terminal ? (
           <Button
-            size="sm"
+            size="xs"
             variant="outline"
             onClick={() =>
               guarded(async () => {
@@ -320,7 +319,7 @@ export function ScheduleCard({
           </Button>
         ) : null}
         <Button
-          size="sm"
+          size="xs"
           variant="destructive"
           onClick={() =>
             guarded(async () => {

@@ -1,10 +1,12 @@
 import * as React from "react"
 
 import {
-  IconDotsVertical,
+  IconChevronDown,
   IconFileText,
   IconLogout,
+  IconMessageCircle,
   IconPencil,
+  IconShieldCheck,
   IconTrash,
 } from "@tabler/icons-react"
 
@@ -99,7 +101,7 @@ export function AccountsTable(props: AccountsTableProps) {
       {/* Desktop: full table. */}
       <div className="hidden lg:block">
         <TableWrap>
-          <Table className="min-w-[62rem]">
+          <Table className="min-w-[40rem]">
             <TableHeader>
               <TableRow>
                 <TableHead>
@@ -118,7 +120,7 @@ export function AccountsTable(props: AccountsTableProps) {
                 <TableHead>Status</TableHead>
                 <TableHead>Dialogs</TableHead>
                 <TableHead>Session</TableHead>
-                <TableHead>Controls</TableHead>
+                <TableHead className="text-right">Manage</TableHead>
               </TableRow>
             </TableHeader>
             <AccountsTableBody {...props} />
@@ -281,49 +283,65 @@ function AccountActions({
   flash,
   askDialog,
 }: AccountActionProps) {
+  // One labelled menu instead of a row of competing buttons: the per-row table
+  // previously needed min-w-[62rem], which pushed this whole column off-screen
+  // behind a horizontal scrollbar. Validate + Dialogs (the common verbs) lead;
+  // the rest follow.
   return (
-    <div className="flex flex-wrap items-center justify-end gap-1">
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={() => guarded(() => validateAccount(account, refresh, flash))}
-      >
-        Validate
-      </Button>
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={() =>
-          guarded(() => fetchAccountDialogs(account, refresh, flash))
-        }
-      >
-        Dialogs
-      </Button>
+    <div className="flex justify-end">
       <Menu
-        label={`More actions for ${account.label || account.session_name}`}
-        trigger={<IconDotsVertical className="size-4" />}
+        label={`Manage ${account.label || account.session_name}`}
+        panelClassName="min-w-48"
+        triggerProps={{ size: "sm", className: "gap-1" }}
+        trigger={
+          <>
+            Manage
+            <IconChevronDown className="size-3.5" />
+          </>
+        }
       >
         <Button
           size="sm"
-          variant="outline"
+          variant="ghost"
+          className="justify-start"
+          onClick={() => guarded(() => validateAccount(account, refresh, flash))}
+        >
+          <IconShieldCheck className="size-3.5" />
+          Validate
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="justify-start"
+          onClick={() =>
+            guarded(() => fetchAccountDialogs(account, refresh, flash))
+          }
+        >
+          <IconMessageCircle className="size-3.5" />
+          Fetch dialogs
+        </Button>
+        <div className="my-1 border-t border-border" />
+        <Button
+          size="sm"
+          variant="ghost"
           className="justify-start"
           onClick={() =>
             guarded(() => renameAccount(account, refresh, flash, askDialog))
           }
         >
           <IconPencil className="size-3.5" />
-          Rename Label
+          Rename label
         </Button>
         <Button
           size="sm"
-          variant="outline"
+          variant="ghost"
           className="justify-start"
           onClick={() =>
             guarded(() => renameSessionFile(account, refresh, flash, askDialog))
           }
         >
           <IconFileText className="size-3.5" />
-          Rename File
+          Rename file
         </Button>
         <div className="my-1 border-t border-border" />
         <Button
@@ -346,7 +364,7 @@ function AccountActions({
           }
         >
           <IconTrash className="size-3.5" />
-          Delete Local
+          Delete local
         </Button>
       </Menu>
     </div>

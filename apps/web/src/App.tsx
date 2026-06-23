@@ -64,19 +64,33 @@ export function App() {
     loading,
   }
 
+  const shellProps = {
+    view: appState.view,
+    accounts: appState.accounts,
+    metrics: appState.metrics,
+    queue: appState.queue,
+    runs: appState.runs,
+    schedules: appState.schedules,
+    telemetry: {
+      accounts: appState.accounts,
+      metrics: appState.metrics,
+      queue: appState.queue,
+      runs: appState.runs,
+      schedules: appState.schedules,
+    },
+    selectedCount: appState.selectedIds.size,
+    setView: appState.setView,
+    onRefresh: () => guarded(appState.refresh),
+    onExit: exitApp,
+    onAddAccount: () => {
+      appState.setAccountsTab("login")
+      appState.setView("accounts")
+    },
+  }
+
   return (
     <>
-      <AppShell
-        view={appState.view}
-        selectedCount={appState.selectedIds.size}
-        setView={appState.setView}
-        onRefresh={() => guarded(appState.refresh)}
-        onExit={exitApp}
-        onAddAccount={() => {
-          appState.setAccountsTab("login")
-          appState.setView("accounts")
-        }}
-      >
+      <AppShell {...shellProps}>
         <AppScreens
           view={appState.view}
           screenProps={screenProps}

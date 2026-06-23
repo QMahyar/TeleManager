@@ -3,9 +3,11 @@ import * as React from "react"
 import {
   IconArrowRight,
   IconBolt,
+  IconChevronDown,
   IconDotsVertical,
   IconMessageCircle,
   IconSearch,
+  IconUserCircle,
 } from "@tabler/icons-react"
 
 import { Button } from "../ui/button"
@@ -105,7 +107,7 @@ export function DialogsScreen(props: DialogsScreenProps) {
   }
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[22rem_1fr]">
+    <div className="grid gap-4 xl:grid-cols-[20rem_minmax(0,1fr)] 2xl:grid-cols-[21rem_minmax(0,1fr)]">
       <DialogsSourcePanel
         accounts={props.accounts}
         dialogAccountId={props.dialogAccountId}
@@ -520,7 +522,7 @@ function DialogsSourcePanel({
   const kindCounts = selectionKindCounts(selectedDialogs)
 
   return (
-    <Panel className="space-y-4 xl:sticky xl:top-6 xl:self-start">
+    <Panel className="space-y-4 xl:sticky xl:top-4 xl:max-h-[calc(100svh-2rem)] xl:self-start xl:overflow-auto">
       <StepHeading
         step={1}
         title="Find dialogs"
@@ -592,54 +594,35 @@ function DialogsSourcePanel({
           <IconBolt className="size-4 text-primary" />
         </div>
         <SelectionBreakdown counts={kindCounts} hasSelection={hasSelection} />
+        <Button
+          className="w-full"
+          disabled={!hasSelection}
+          onClick={useSelectedTargets}
+        >
+          Use in Actions
+        </Button>
         <div className="grid grid-cols-2 gap-2">
-          <Button
-            className="w-full"
-            disabled={!hasSelection}
-            onClick={useSelectedTargets}
-          >
-            Use In Actions
-          </Button>
           <Button
             variant={OUTLINE_VARIANT}
             className="w-full"
             disabled={!hasSelection}
             onClick={scheduleSelected}
           >
-            Schedule Selected
+            Schedule selected
           </Button>
+          <BulkActionsMenu
+            hasSelection={hasSelection}
+            bulkActions={bulkActions}
+            onPick={bulkQuickAction}
+          />
         </div>
-        {hasSelection ? (
-          bulkActions.length ? (
-            <div className="grid gap-2 sm:grid-cols-2">
-              {bulkActions.map((actionType) => (
-                <BulkActionButton
-                  key={actionType}
-                  actionType={actionType}
-                  onClick={bulkQuickAction}
-                  disabled={false}
-                  danger={Boolean(actionMeta[actionType].destructive)}
-                />
-              ))}
-            </div>
-          ) : (
-            <p className="rounded-lg border border-dashed border-border bg-muted/20 p-3 text-center text-xs text-muted-foreground">
-              No bulk action applies to all selected chat types. Narrow the
-              selection to one kind for more options.
-            </p>
-          )
-        ) : (
-          <p className="rounded-lg border border-dashed border-border bg-muted/20 p-3 text-center text-xs text-muted-foreground">
-            Select one or more dialogs to see bulk actions.
-          </p>
-        )}
         <Button
-          variant={OUTLINE_VARIANT}
+          variant="ghost"
           className="w-full"
           disabled={!hasSelection}
           onClick={() => setSelectedDialogTargets(new Set())}
         >
-          Clear Selection
+          Clear selection
         </Button>
       </div>
     </Panel>
@@ -676,26 +659,57 @@ function SelectionBreakdown({
   )
 }
 
-function BulkActionButton({
-  actionType,
-  onClick,
-  disabled,
-  danger = false,
+// Bulk verbs vary with the selection (only actions valid for every selected
+// chat appear), so they live behind one menu instead of a shifting grid of
+// equal-weight buttons. Disabled with a hint when nothing applies.
+function BulkActionsMenu({
+  hasSelection,
+  bulkActions,
+  onPick,
 }: {
-  actionType: ActionType
-  onClick: (actionType: ActionType) => void
-  disabled: boolean
-  danger?: boolean
+  hasSelection: boolean
+  bulkActions: ActionType[]
+  onPick: (actionType: ActionType) => void
 }) {
   return (
-    <Button
-      variant={danger ? "destructive" : OUTLINE_VARIANT}
-      className="w-full justify-start"
-      disabled={disabled}
-      onClick={() => onClick(actionType)}
+    <Menu
+      label="Bulk actions for the selected chats"
+      align="start"
+      panelClassName="min-w-52"
+      triggerProps={{
+        variant: OUTLINE_VARIANT,
+        className: "w-full justify-between",
+        disabled: !hasSelection,
+      }}
+      trigger={
+        <>
+          Bulk actions
+          <IconChevronDown className="size-3.5" />
+        </>
+      }
     >
-      {actionMeta[actionType].label}
-    </Button>
+      {bulkActions.length ? (
+        bulkActions.map((actionType) => {
+          const meta = actionMeta[actionType]
+          return (
+            <Button
+              key={actionType}
+              size="sm"
+              variant={meta.destructive ? "destructive" : "ghost"}
+              className="justify-start"
+              onClick={() => onPick(actionType)}
+            >
+              {meta.label}
+            </Button>
+          )
+        })
+      ) : (
+        <p className="px-2 py-1.5 text-xs leading-5 text-muted-foreground">
+          No bulk action applies to all selected chat types. Narrow the
+          selection to one kind for more options.
+        </p>
+      )}
+    </Menu>
   )
 }
 
@@ -733,12 +747,12 @@ function DialogsTablePanel({
   const filterCounts = countDialogFilters(dialogs)
 
   return (
-    <Panel className="space-y-4">
+    <Panel className="space-y-4 overflow-hidden">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <StepHeading
           step={2}
           title="Review targets"
-          detail={`${filteredDialogs.length} shown · ${selectedDialogTargets.size} selected`}
+          detail={`${filteredDialogs.length} shown · ${selectedDialogTargets.size} selected · ${countUnreadDialogs(filteredDialogs)} unread`}
         />
         <div className="flex flex-wrap gap-2">
           <Button variant={OUTLINE_VARIANT} onClick={toggleSelectAll}>
@@ -752,16 +766,6 @@ function DialogsTablePanel({
             Clear selected
           </Button>
         </div>
-      </div>
-      <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-5">
-        <DialogMetric label="Loaded" value={dialogs.length} />
-        <DialogMetric label="Shown" value={filteredDialogs.length} />
-        <DialogMetric label="Selected" value={selectedDialogTargets.size} />
-        <DialogMetric
-          label="Unread"
-          value={countUnreadDialogs(filteredDialogs)}
-        />
-        <DialogMetric label="Groups" value={filterCounts.group} />
       </div>
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
         <div className="relative min-w-0 flex-1">
@@ -814,11 +818,11 @@ function DialogsTablePanel({
 
           {/* Desktop: full table. */}
           <div className="hidden lg:block">
-            <TableWrap>
+            <TableWrap className="max-h-[calc(100svh-22rem)] min-h-[28rem]">
               <Table className="min-w-[50rem]">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>
+                    <TableHead className="w-10">
                       <input
                         type="checkbox"
                         aria-label={
@@ -831,10 +835,8 @@ function DialogsTablePanel({
                       />
                     </TableHead>
                     <TableHead>Dialog</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Activity</TableHead>
                     <TableHead>Target</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -860,15 +862,6 @@ function DialogsTablePanel({
   )
 }
 
-function DialogMetric({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs">
-      <span className="text-muted-foreground">{label}</span>
-      <strong className="mt-1 block font-heading text-2xl">{value}</strong>
-    </div>
-  )
-}
-
 function countDialogFilters(dialogs: TelegramDialog[]) {
   const counts: Record<string, number> = {
     all: dialogs.length,
@@ -890,6 +883,59 @@ function countDialogFilters(dialogs: TelegramDialog[]) {
 
 function countUnreadDialogs(dialogs: TelegramDialog[]) {
   return dialogs.filter((dialog) => Number(dialog.unread_count || 0) > 0).length
+}
+
+// A username target (@name) is meaningful on its own; a bare numeric id isn't,
+// so tag it with a muted "ID" marker and a tooltip rather than showing a raw
+// 10-digit number as if the operator should recognise it.
+function DialogTargetLabel({
+  target,
+  hasUsername,
+}: {
+  target: string
+  hasUsername: boolean
+}) {
+  if (hasUsername) {
+    return (
+      <span className="block truncate font-mono text-xs text-muted-foreground">
+        {target}
+      </span>
+    )
+  }
+  return (
+    <span
+      className="flex items-center gap-1.5 text-xs text-muted-foreground"
+      title={`Numeric chat ID ${target} (no public username)`}
+    >
+      <Badge tone="border-border bg-muted/40 text-muted-foreground">ID</Badge>
+      <span className="truncate font-mono">{target}</span>
+    </span>
+  )
+}
+
+function DialogAvatar({ title, kind }: { title: string; kind: string }) {
+  const initial = title.trim().charAt(0).toUpperCase()
+  const tone =
+    kind === "bot"
+      ? "bg-primary/10 text-primary"
+      : kind === "channel"
+        ? "bg-amber-500/10 text-amber-600 dark:text-amber-300"
+        : kind === "personal"
+          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300"
+          : "bg-muted text-muted-foreground"
+
+  return (
+    <span
+      className={`grid size-9 shrink-0 place-items-center rounded-full border border-border ${tone}`}
+      aria-hidden
+    >
+      {initial ? (
+        <span className="font-mono text-sm font-semibold">{initial}</span>
+      ) : (
+        <IconUserCircle className="size-4" />
+      )}
+    </span>
+  )
 }
 
 function DialogRow({
@@ -926,61 +972,49 @@ function DialogRow({
         />
       </TableCell>
       <TableCell>
-        <div className="min-w-0">
-          <strong className="block truncate text-sm">{dialog.title}</strong>
-          <span className="block truncate text-xs text-muted-foreground">
-            {username}
-          </span>
+        <div className="flex min-w-0 items-center gap-3">
+          <DialogAvatar title={dialog.title} kind={kind} />
+          <div className="min-w-0">
+            <strong className="block truncate text-sm">{dialog.title}</strong>
+            <span className="block truncate text-xs text-muted-foreground">
+              {username} · {kind} · {unreadCount ? `${unreadCount} unread` : "read"}
+            </span>
+          </div>
         </div>
       </TableCell>
-      <TableCell>
-        <Badge tone="border-border bg-muted/40 text-muted-foreground">
-          {kind}
-        </Badge>
-      </TableCell>
-      <TableCell className="text-xs text-muted-foreground">
-        {unreadCount ? `${unreadCount} unread` : "read"}
-      </TableCell>
-      <TableCell className="max-w-56 truncate font-mono text-xs">
-        {target}
+      <TableCell className="max-w-64">
+        <DialogTargetLabel target={target} hasUsername={Boolean(dialog.username)} />
       </TableCell>
       <TableCell>
-        <div className="flex flex-wrap justify-end gap-1">
+        <div className="flex justify-end gap-1">
           <Button
-            size="sm"
-            variant={OUTLINE_VARIANT}
-            onClick={() => openMessages(dialog)}
-          >
-            Messages
-          </Button>
-          <Button
-            size="sm"
-            variant={OUTLINE_VARIANT}
+            size="xs"
             onClick={() => stageTargetInActions(target)}
           >
             <IconArrowRight className="size-3" />
             Use
           </Button>
           <Menu
-            label={`Quick actions for ${dialog.title || target}`}
+            label={`More actions for ${dialog.title || target}`}
             trigger={<IconDotsVertical className="size-4" />}
             panelClassName="min-w-48"
           >
-            {quickActionsForDialog(dialog).map((actionType) => (
-              <Button
-                key={actionType}
-                size="sm"
-                className="justify-start"
-                variant={
-                  actionMeta[actionType].destructive
-                    ? "destructive"
-                    : OUTLINE_VARIANT
-                }
-                onClick={() => onQuickAction(actionType, dialog)}
-              >
-                {actionMeta[actionType].label}
-              </Button>
-            ))}
+            <Button
+              size="sm"
+              variant="ghost"
+              className="justify-start"
+              onClick={() => openMessages(dialog)}
+            >
+              <IconMessageCircle className="size-3.5" />
+              Messages
+            </Button>
+            <div className="my-1 border-t border-border" />
+            <DialogQuickActionButtons
+              dialog={dialog}
+              onQuickAction={onQuickAction}
+              size="sm"
+              className="justify-start"
+            />
           </Menu>
         </div>
       </TableCell>
@@ -1025,53 +1059,79 @@ function DialogCard({
           checked={isSelected}
           onChange={() => toggleSelected(target, setSelectedDialogTargets)}
         />
+        <DialogAvatar title={dialog.title} kind={kind} />
         <div className="min-w-0 flex-1">
           <strong className="block truncate text-sm">{dialog.title}</strong>
           <span className="block truncate text-xs text-muted-foreground">
-            {username}
+            {username} · {kind}
           </span>
         </div>
-        <Badge tone="border-border bg-muted/40 text-muted-foreground">
-          {kind}
-        </Badge>
       </div>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
         <span>{unreadCount ? `${unreadCount} unread` : "read"}</span>
-        <span className="font-mono break-all">{target}</span>
+        <DialogTargetLabel target={target} hasUsername={Boolean(dialog.username)} />
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex items-center gap-2">
         <Button
           size="sm"
-          variant={OUTLINE_VARIANT}
-          onClick={() => openMessages(dialog)}
-        >
-          Messages
-        </Button>
-        <Button
-          size="sm"
-          variant={OUTLINE_VARIANT}
+          className="flex-1"
           onClick={() => stageTargetInActions(target)}
         >
           <IconArrowRight className="size-3" />
           Use
         </Button>
-        {quickActionsForDialog(dialog).map((actionType) => (
+        <Menu
+          label={`More actions for ${dialog.title || target}`}
+          trigger={<IconDotsVertical className="size-4" />}
+          panelClassName="min-w-48"
+        >
           <Button
-            key={actionType}
             size="sm"
-            variant={
-              actionMeta[actionType].destructive
-                ? "destructive"
-                : OUTLINE_VARIANT
-            }
-            onClick={() => onQuickAction(actionType, dialog)}
+            variant="ghost"
+            className="justify-start"
+            onClick={() => openMessages(dialog)}
           >
-            {actionMeta[actionType].label}
+            <IconMessageCircle className="size-3.5" />
+            Messages
           </Button>
-        ))}
+          <div className="my-1 border-t border-border" />
+          <DialogQuickActionButtons
+            dialog={dialog}
+            onQuickAction={onQuickAction}
+            size="sm"
+            className="justify-start"
+          />
+        </Menu>
       </div>
     </div>
   )
+}
+
+function DialogQuickActionButtons({
+  dialog,
+  onQuickAction,
+  size,
+  className,
+}: {
+  dialog: TelegramDialog
+  onQuickAction: (actionType: ActionType, dialog: TelegramDialog) => void
+  size: "xs" | "sm"
+  className?: string
+}) {
+  return quickActionsForDialog(dialog).map((actionType) => {
+    const meta = actionMeta[actionType]
+    return (
+      <Button
+        key={actionType}
+        size={size}
+        className={className}
+        variant={meta.destructive ? "destructive" : "ghost"}
+        onClick={() => onQuickAction(actionType, dialog)}
+      >
+        {meta.label}
+      </Button>
+    )
+  })
 }
 
 // Prefills the structured action form when staging a specific message from the

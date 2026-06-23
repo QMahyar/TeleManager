@@ -32,7 +32,7 @@ export function SafetyEditor({
             })
           }
         />
-        <span className="text-xs text-muted-foreground normal-case">
+        <span className="text-xs text-muted-foreground">
           Wait between switching accounts (1–60).
         </span>
       </Field>
@@ -50,7 +50,7 @@ export function SafetyEditor({
             })
           }
         />
-        <span className="text-xs text-muted-foreground normal-case">
+        <span className="text-xs text-muted-foreground">
           Wait between actions on one account (1–120).
         </span>
       </Field>
@@ -65,7 +65,7 @@ export function SafetyEditor({
             setSafety({ ...safety, max_operations: Number(e.target.value) })
           }
         />
-        <span className="text-xs text-muted-foreground normal-case">
+        <span className="text-xs text-muted-foreground">
           Hard cap on total queued operations (1–250).
         </span>
       </Field>

@@ -2,19 +2,6 @@ import * as React from "react"
 
 import { cn } from "./utils"
 
-function Field({ className, ...props }: React.ComponentProps<"label">) {
-  return (
-    <label
-      data-slot="field"
-      className={cn(
-        "grid gap-1.5 text-xs font-medium tracking-[0.16em] text-muted-foreground uppercase",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
 function Input({ className, ...props }: React.ComponentProps<"input">) {
   return (
     <input
@@ -54,4 +41,4 @@ function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
   )
 }
 
-export { Field, Input, Select, Textarea }
+export { Input, Select, Textarea }

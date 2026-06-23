@@ -1,6 +1,12 @@
 import * as React from "react"
 
-import { IconAlertTriangle, IconPlus, IconX } from "@tabler/icons-react"
+import {
+  IconAlertTriangle,
+  IconChevronDown,
+  IconChevronUp,
+  IconPlus,
+  IconX,
+} from "@tabler/icons-react"
 
 import { Button } from "../ui/button"
 import { cn } from "../ui/utils"
@@ -31,6 +37,7 @@ export function TargetComposer({
   flash: Flash
 }) {
   const [draft, setDraft] = React.useState("")
+  const [expanded, setExpanded] = React.useState(false)
   const targets = splitTargets(value)
   const meta = actionMeta[actionType]
 
@@ -59,6 +66,8 @@ export function TargetComposer({
     result: analyzeTarget(target, actionType),
   }))
   const invalidCount = analyzed.filter(({ result }) => result.error).length
+  const visibleTargets = expanded ? analyzed : analyzed.slice(0, 8)
+  const hiddenCount = Math.max(analyzed.length - visibleTargets.length, 0)
 
   return (
     <div className="space-y-2">
@@ -96,41 +105,61 @@ export function TargetComposer({
       />
 
       {targets.length ? (
-        <>
-          <div className="flex flex-wrap gap-1.5">
-            {analyzed.map(({ target, result }) => (
-              <TargetChip
-                key={target}
-                target={target}
-                invalid={Boolean(result.error)}
-                warning={Boolean(result.warning)}
-                reason={result.error || result.warning}
-                onRemove={() => removeTarget(target)}
-              />
-            ))}
+        <div className="rounded-lg border border-border bg-muted/10 p-2">
+          <div className="max-h-40 overflow-auto pr-1">
+            <div className="flex flex-wrap gap-1.5">
+              {visibleTargets.map(({ target, result }) => (
+                <TargetChip
+                  key={target}
+                  target={target}
+                  invalid={Boolean(result.error)}
+                  warning={Boolean(result.warning)}
+                  reason={result.error || result.warning}
+                  onRemove={() => removeTarget(target)}
+                />
+              ))}
+            </div>
           </div>
-          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+          <div className="mt-2 flex items-center justify-between gap-2 border-t border-border pt-2 text-xs text-muted-foreground">
             <span>
               {targets.length} target(s)
               {invalidCount ? (
                 <span className="ml-1 text-amber-600 dark:text-amber-400">
-                  · {invalidCount} greyed, will be skipped
+                  · {invalidCount} greyed, skipped
                 </span>
               ) : null}
             </span>
-            <button
-              type="button"
-              className="underline-offset-2 hover:underline"
-              onClick={() => onChange("")}
-            >
-              Clear all
-            </button>
+            <div className="flex items-center gap-3">
+              {hiddenCount || expanded ? (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 underline-offset-2 hover:underline"
+                  onClick={() => setExpanded((current) => !current)}
+                >
+                  {expanded ? (
+                    <>
+                      Less <IconChevronUp className="size-3" />
+                    </>
+                  ) : (
+                    <>
+                      +{hiddenCount} more <IconChevronDown className="size-3" />
+                    </>
+                  )}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="underline-offset-2 hover:underline"
+                onClick={() => onChange("")}
+              >
+                Clear all
+              </button>
+            </div>
           </div>
-        </>
+        </div>
       ) : (
-        <p className="text-xs text-muted-foreground">
-          Type a target and press Enter, or pick from chats. Separate several with
-          commas or new lines.
+        <p className="rounded-md border border-dashed border-border bg-muted/10 p-3 text-xs text-muted-foreground">
+          Type a target and press Enter, or pick from chats. Separate several with commas or new lines.
         </p>
       )}
     </div>
