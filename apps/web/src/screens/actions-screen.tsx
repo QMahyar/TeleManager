@@ -44,7 +44,7 @@ import {
 } from "../lib/action-schema"
 import { actionMeta, categoryLabels, categoryOrder } from "../lib/constants"
 import { accountStatus, splitTargets, statusTone } from "../lib/helpers"
-import { awaitQueueRun, startQueueRun } from "../lib/queue-run"
+import { startQueueRun } from "../lib/queue-run"
 import {
   buildRecurrence,
   defaultRecurrenceForm,
@@ -85,11 +85,14 @@ const groupedActions = categoryOrder.map((category) => ({
 
 export function ActionsScreen(props: ActionsScreenProps) {
   const actionBusy = useActionBusy(props.flash)
-  const queueRunner = useQueueRunPolling(
-    props.loadRuns,
-    props.refresh,
-    props.flash
-  )
+  // Run-polling state is owned by app state now (so the footer/rail can show it
+  // too); the screen just reads it off props.
+  const queueRunner = {
+    activeRunId: props.activeRunId,
+    activeRun: props.activeRun,
+    pollQueueRun: props.pollQueueRun,
+    cancelActiveRun: props.cancelActiveRun,
+  }
   const composer = useScheduleComposer(props)
   const { scheduleSeed, setScheduleSeed } = props
   const [bottomTab, setBottomTab] = React.useState<BottomTab>(() =>
@@ -281,51 +284,6 @@ function useActionBusy(flash: ActionsScreenProps["flash"]) {
   )
 
   return { busy: pendingAction !== null, isPending, runAction }
-}
-
-function useQueueRunPolling(
-  loadRuns: ActionsScreenProps["loadRuns"],
-  refresh: ActionsScreenProps["refresh"],
-  flash: ActionsScreenProps["flash"]
-) {
-  const [activeRunId, setActiveRunId] = React.useState<string | null>(null)
-  const [activeRun, setActiveRun] = React.useState<QueueRun | null>(null)
-
-  async function pollQueueRun(runId: string) {
-    setActiveRunId(runId)
-    try {
-      const run = await awaitQueueRun(runId, async (current) => {
-        setActiveRun(current)
-        await loadRuns()
-      })
-      await refresh()
-      flash(
-        `Queue ${run.status.replace("_", " ")}: ${run.completed_count || 0}/${run.operation_count || 0} succeeded.`
-      )
-    } catch (error) {
-      flash(error instanceof Error ? error.message : "Queue polling failed.")
-    } finally {
-      setActiveRunId(null)
-      setActiveRun(null)
-    }
-  }
-
-  async function cancelActiveRun() {
-    if (!activeRunId) {
-      return
-    }
-    try {
-      await api(`/api/actions/queue/runs/${activeRunId}/cancel`, {
-        method: "POST",
-      })
-      flash("Cancel requested. The queue stops before the next operation.")
-      await loadRuns()
-    } catch (error) {
-      flash(error instanceof Error ? error.message : "Cancel failed.")
-    }
-  }
-
-  return { activeRunId, activeRun, pollQueueRun, cancelActiveRun }
 }
 
 // ---------------------------------------------------------------------------
@@ -702,7 +660,13 @@ function BuilderColumn({ props }: { props: ActionsScreenProps }) {
       </div>
 
       <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-2 border-t border-border bg-card/95 px-4 py-3 backdrop-blur">
-        <Button type="button" onClick={handleAdd} disabled={props.loading} title={blocker || undefined}>
+        <Button
+          type="button"
+          size="comfortable"
+          onClick={handleAdd}
+          disabled={props.loading}
+          title={blocker || undefined}
+        >
           {props.loading ? <IconLoader2 className="size-3.5 animate-spin" /> : null}
           Add To Queue
         </Button>
@@ -826,7 +790,7 @@ function QueueColumn({
   }
 
   return (
-    <Panel className="space-y-3 xl:sticky xl:top-4 xl:max-h-[calc(100svh-2rem)] xl:self-start xl:overflow-auto">
+    <Panel tone="raised" className="space-y-3 xl:sticky xl:top-4 xl:max-h-[calc(100svh-4.5rem)] xl:self-start xl:overflow-auto">
       <SectionLabel
         title="Queue & run"
         trailing={
@@ -898,6 +862,7 @@ function QueueColumn({
       {composer.mode === "run" ? (
         <>
           <Button
+            size="comfortable"
             className="w-full"
             loading={actionBusy.isPending("run")}
             disabled={runDisabled}
@@ -961,7 +926,11 @@ function QueueColumn({
             <Button variant="outline" onClick={() => props.guarded(previewSchedule)}>
               Preview
             </Button>
-            <Button className="flex-1" onClick={() => props.guarded(createSchedule)}>
+            <Button
+              size="comfortable"
+              className="flex-1"
+              onClick={() => props.guarded(createSchedule)}
+            >
               <IconClockPlus /> Create Schedule
             </Button>
           </div>

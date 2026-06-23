@@ -79,6 +79,8 @@ export function App() {
       schedules: appState.schedules,
     },
     selectedCount: appState.selectedIds.size,
+    version: appState.version,
+    activeRun: appState.activeRun,
     setView: appState.setView,
     onRefresh: () => guarded(appState.refresh),
     onExit: exitApp,

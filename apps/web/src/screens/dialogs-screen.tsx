@@ -522,7 +522,7 @@ function DialogsSourcePanel({
   const kindCounts = selectionKindCounts(selectedDialogs)
 
   return (
-    <Panel className="space-y-4 xl:sticky xl:top-4 xl:max-h-[calc(100svh-2rem)] xl:self-start xl:overflow-auto">
+    <Panel className="space-y-4 xl:sticky xl:top-4 xl:max-h-[calc(100svh-4.5rem)] xl:self-start xl:overflow-auto">
       <StepHeading
         step={1}
         title="Find dialogs"
@@ -559,6 +559,7 @@ function DialogsSourcePanel({
       </Field>
       <div className="grid grid-cols-2 gap-2">
         <Button
+          size="comfortable"
           className="w-full"
           disabled={loading || !dialogAccountId}
           loading={loading}
@@ -595,6 +596,7 @@ function DialogsSourcePanel({
         </div>
         <SelectionBreakdown counts={kindCounts} hasSelection={hasSelection} />
         <Button
+          size="comfortable"
           className="w-full"
           disabled={!hasSelection}
           onClick={useSelectedTargets}
@@ -747,7 +749,7 @@ function DialogsTablePanel({
   const filterCounts = countDialogFilters(dialogs)
 
   return (
-    <Panel className="space-y-4 overflow-hidden">
+    <Panel tone="raised" className="space-y-4 overflow-hidden">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <StepHeading
           step={2}
@@ -818,7 +820,7 @@ function DialogsTablePanel({
 
           {/* Desktop: full table. */}
           <div className="hidden lg:block">
-            <TableWrap className="max-h-[calc(100svh-22rem)] min-h-[28rem]">
+            <TableWrap className="max-h-[calc(100svh-24rem)] min-h-[28rem]">
               <Table className="min-w-[50rem]">
                 <TableHeader>
                   <TableRow>

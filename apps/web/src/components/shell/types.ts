@@ -22,6 +22,8 @@ export type AppShellProps = React.PropsWithChildren<
     view: View
     telemetry?: ShellTelemetry
     selectedCount: number
+    version?: string
+    activeRun: QueueRun | null
     setView: (view: View) => void
     onRefresh: () => void
     onExit: () => void

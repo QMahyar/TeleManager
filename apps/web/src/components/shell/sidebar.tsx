@@ -1,11 +1,4 @@
-import {
-  IconInfoCircle,
-  IconMoon,
-  IconPower,
-  IconRefresh,
-  IconSun,
-  IconX,
-} from "@tabler/icons-react"
+import { IconInfoCircle, IconPower, IconX } from "@tabler/icons-react"
 
 import { Button } from "../../ui/button"
 import { cn } from "../../ui/utils"
@@ -23,29 +16,25 @@ export function Sidebar({
   accounts,
   metrics,
   onExit,
-  onRefresh,
-  onToggleTheme,
   openView,
   sidebarOpen,
-  theme,
   view,
   closeSidebar,
 }: {
   accounts: unknown[]
   metrics: ShellMetrics
   onExit: () => void
-  onRefresh: () => void
-  onToggleTheme: () => void
   openView: (view: View) => void
   sidebarOpen: boolean
-  theme: "dark" | "light" | "system"
   view: View
   closeSidebar: () => void
 }) {
   return (
     <aside
       className={cn(
-        "fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-border bg-sidebar p-4 text-sidebar-foreground transition-transform lg:sticky lg:top-0 lg:z-auto lg:h-svh lg:w-auto lg:translate-x-0 lg:overflow-auto",
+        // h-full (not h-svh) so the column respects the footer instead of
+        // overlapping it; the shell's flex parent gives it the height.
+        "fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-border bg-sidebar p-4 text-sidebar-foreground transition-transform lg:sticky lg:top-0 lg:z-auto lg:h-full lg:w-auto lg:translate-x-0 lg:overflow-auto",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}
     >
@@ -94,23 +83,6 @@ export function Sidebar({
           <IconInfoCircle className="size-4" />
           <span className="flex-1">About</span>
         </button>
-        <div className="flex items-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent px-2.5 py-1.5 font-mono text-[0.7rem] text-muted-foreground">
-          <span className="size-1.5 shrink-0 rounded-full bg-primary" />
-          <span>local · 127.0.0.1</span>
-        </div>
-        <div className="grid grid-cols-[1fr_auto] gap-2">
-          <Button variant="outline" className="w-full" onClick={onRefresh}>
-            <IconRefresh /> Refresh
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={onToggleTheme}
-            aria-label="Toggle theme"
-          >
-            {theme === "dark" ? <IconSun /> : <IconMoon />}
-          </Button>
-        </div>
         <Button variant="destructive" className="w-full" onClick={onExit}>
           <IconPower /> Exit TeleManager
         </Button>

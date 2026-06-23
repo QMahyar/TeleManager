@@ -23,6 +23,9 @@
 :root {
     --background: oklch(0.985 0.003 85);
     --foreground: oklch(0.24 0.008 75);
+    /* Recessed "well" behind panels. Cards are pure white here, so the well sits
+       a touch below --background to give panels a surface to lift off of. */
+    --surface-well: oklch(0.958 0.004 85);
     --card: oklch(1 0 0);
     --card-foreground: oklch(0.24 0.008 75);
     --popover: oklch(1 0 0);
@@ -56,6 +59,10 @@
 .dark {
     --background: oklch(0.178 0.005 75);
     --foreground: oklch(0.93 0.004 85);
+    /* The well drops below --background so the lighter --card panels read as
+       raised. Keeps the three-tier depth (well < background < card) consistent
+       with light mode. */
+    --surface-well: oklch(0.158 0.005 75);
     --card: oklch(0.214 0.006 75);
     --card-foreground: oklch(0.93 0.004 85);
     --popover: oklch(0.236 0.007 75);
@@ -180,6 +187,7 @@
 @theme inline {
     --color-background: var(--background);
     --color-foreground: var(--foreground);
+    --color-surface-well: var(--surface-well);
     --color-card: var(--card);
     --color-card-foreground: var(--card-foreground);
     --color-popover: var(--popover);

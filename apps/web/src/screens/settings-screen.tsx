@@ -102,7 +102,6 @@ function ApiPanel({
   return (
     <Panel className="max-w-2xl space-y-4">
       <StepHeading
-        step={<IconKey />}
         title="Telegram API"
         detail="Use your own API ID and API hash from my.telegram.org. The hash stays local and is not rendered back into the UI."
       />
@@ -142,7 +141,7 @@ function ApiPanel({
             </Button>
           </div>
         </Field>
-        <Button type="submit" loading={loading}>
+        <Button type="submit" size="comfortable" loading={loading}>
           Save API Settings
         </Button>
       </form>
@@ -197,7 +196,6 @@ function AppearancePanel() {
   return (
     <Panel className="max-w-2xl space-y-5">
       <StepHeading
-        step={<IconPalette />}
         title="Appearance"
         detail="Pick a light/dark mode and an accent palette. Your choice is saved in this browser and applies instantly."
       />
@@ -304,12 +302,12 @@ function SafetyPanel({
   return (
     <Panel className="max-w-2xl space-y-4">
       <StepHeading
-        step={<IconShieldLock />}
         title="Safety defaults"
         detail="These values prefill new queues and are enforced by the backend when a request omits values."
       />
       <SafetyEditor safety={safety} setSafety={setSafety} />
       <Button
+        size="comfortable"
         loading={loading}
         onClick={() =>
           guarded(async () => {

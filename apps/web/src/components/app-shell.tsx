@@ -15,6 +15,7 @@ import { CommandPalette } from "./shell/command-palette"
 import { Header } from "./shell/header"
 import { OperationsRail } from "./shell/operations-rail"
 import { Sidebar } from "./shell/sidebar"
+import { StatusBar } from "./shell/status-bar"
 import { usePaletteHotkeys, usePaletteState } from "./shell/use-command-palette"
 import type { AppShellProps, PaletteCommand } from "./shell/types"
 
@@ -27,6 +28,8 @@ export function AppShell({
   schedules,
   telemetry,
   selectedCount,
+  version,
+  activeRun,
   setView,
   onRefresh,
   onExit,
@@ -89,7 +92,7 @@ export function AppShell({
   usePaletteHotkeys(palette, openView)
 
   return (
-    <div className="min-h-svh bg-background text-foreground">
+    <div className="flex h-svh flex-col bg-background text-foreground">
       {sidebarOpen ? (
         <button
           className="fixed inset-0 z-30 bg-background/70 backdrop-blur-sm lg:hidden"
@@ -97,21 +100,23 @@ export function AppShell({
           onClick={() => setSidebarOpen(false)}
         />
       ) : null}
-      <div className="grid min-h-svh lg:grid-cols-[18rem_minmax(0,1fr)] 2xl:grid-cols-[18rem_minmax(0,1fr)_20rem]">
+      {/* Grid region fills the space above the footer. min-h-0 is essential:
+          without it the grid refuses to shrink and pushes the footer off-screen. */}
+      <div className="grid min-h-0 flex-1 lg:grid-cols-[18rem_minmax(0,1fr)] 2xl:grid-cols-[18rem_minmax(0,1fr)_20rem]">
         <Sidebar
           accounts={shellData.accounts}
           metrics={shellData.metrics}
           onExit={onExit}
-          onRefresh={onRefresh}
-          onToggleTheme={toggleTheme}
           openView={openView}
           sidebarOpen={sidebarOpen}
-          theme={theme}
           view={view}
           closeSidebar={() => setSidebarOpen(false)}
         />
 
-        <main className="min-w-0 px-4 py-4 sm:px-6 lg:px-7 xl:px-8">
+        {/* <main> is now the scroll container (the page no longer scrolls as a
+            whole). w-full keeps the centered content from collapsing as a flex
+            child. */}
+        <main className="flex min-h-0 min-w-0 flex-col overflow-y-auto bg-surface-well px-4 py-4 sm:px-6 lg:px-7 xl:px-8">
           <Header
             activeItem={activeItem}
             queue={shellData.queue}
@@ -123,15 +128,24 @@ export function AppShell({
             openSidebar={() => setSidebarOpen(true)}
             openPalette={palette.openPalette}
           />
-          <div className="mx-auto max-w-[92rem]">{children}</div>
+          <div className="mx-auto w-full max-w-[92rem]">{children}</div>
         </main>
 
         <OperationsRail
           queue={shellData.queue}
           runs={shellData.runs}
+          activeRun={activeRun}
           openView={openView}
         />
       </div>
+
+      <StatusBar
+        version={version}
+        activeRun={activeRun}
+        theme={theme}
+        onRefresh={onRefresh}
+        onToggleTheme={toggleTheme}
+      />
       <CommandPalette
         clampedIndex={palette.clampedIndex}
         filteredItems={palette.filteredItems}

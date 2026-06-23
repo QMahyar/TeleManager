@@ -21,21 +21,26 @@ import { cn } from "../ui/utils"
 import { api } from "../lib/api"
 import type { Flash } from "../types"
 
+// `kicker` is optional: the `› EYEBROW` motif was on every section and became
+// noise. Pass it only where the category isn't already obvious from context.
+// Title is mono (brand rule) at the unified panel-heading size (text-lg).
 export function SectionTitle({
   kicker,
   title,
   detail,
 }: {
-  kicker: string
+  kicker?: string
   title: string
   detail?: string
 }) {
   return (
     <div className="space-y-1">
-      <p className="font-mono text-[0.65rem] tracking-[0.22em] text-muted-foreground uppercase">
-        <span className="text-primary">›</span> {kicker}
-      </p>
-      <h2 className="font-heading text-xl tracking-tight text-foreground">
+      {kicker ? (
+        <p className="font-mono text-[0.65rem] tracking-[0.22em] text-muted-foreground uppercase">
+          <span className="text-primary">›</span> {kicker}
+        </p>
+      ) : null}
+      <h2 className="font-heading text-lg tracking-tight text-foreground">
         {title}
       </h2>
       {detail ? (
@@ -47,11 +52,25 @@ export function SectionTitle({
   )
 }
 
+// A panel is the base surface (Card + padding). `tone="raised"` lifts the one
+// focal zone per screen with a stronger shadow + a hairline primary edge, so a
+// screen has somewhere for the eye to land first. Everything else stays base.
 export function Panel({
   children,
   className,
-}: React.PropsWithChildren<{ className?: string }>) {
-  return <Card className={cn("p-4", className)}>{children}</Card>
+  tone = "base",
+}: React.PropsWithChildren<{ className?: string; tone?: "base" | "raised" }>) {
+  return (
+    <Card
+      className={cn(
+        "p-4",
+        tone === "raised" && "border-primary/20 shadow-md",
+        className
+      )}
+    >
+      {children}
+    </Card>
+  )
 }
 
 export function PageGrid({
@@ -84,7 +103,9 @@ export function SidePane({
   return (
     <div
       className={cn(
-        "min-w-0 space-y-4 xl:sticky xl:top-4 xl:max-h-[calc(100svh-2rem)] xl:overflow-auto",
+        // svh minus the sticky top offset, footer height, and a bottom gap, so
+        // the pinned pane never runs under the footer status bar (~2.25rem).
+        "min-w-0 space-y-4 xl:sticky xl:top-4 xl:max-h-[calc(100svh-4.5rem)] xl:overflow-auto",
         className
       )}
     >
@@ -93,13 +114,16 @@ export function SidePane({
   )
 }
 
+// `step` (the primary-tinted chip) is now optional. Keep it where the number/
+// icon carries real sequence meaning (Login step 1→2, Dialogs 1→2); omit it on
+// standalone panels so the chip stops being decoration on every heading.
 export function StepHeading({
   step,
   title,
   detail,
   trailing,
 }: {
-  step: React.ReactNode
+  step?: React.ReactNode
   title: string
   detail?: string
   trailing?: React.ReactNode
@@ -107,9 +131,11 @@ export function StepHeading({
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="flex items-start gap-3">
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 font-heading text-sm text-primary [&_svg]:size-4">
-          {step}
-        </span>
+        {step != null ? (
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 font-heading text-sm text-primary [&_svg]:size-4">
+            {step}
+          </span>
+        ) : null}
         <div className="space-y-0.5">
           <h2 className="font-heading text-lg text-foreground">{title}</h2>
           {detail ? (
@@ -141,7 +167,7 @@ export function Field({
 }>) {
   return (
     <div data-slot="field" className={cn("grid gap-1.5", className)}>
-      <span className="text-xs font-medium tracking-[0.16em] text-muted-foreground uppercase">
+      <span className="text-xs font-medium tracking-[0.1em] text-muted-foreground uppercase">
         {htmlFor ? <label htmlFor={htmlFor}>{label}</label> : label}
       </span>
       {children}
@@ -347,7 +373,7 @@ export function StatCard({
   )
   const body = (
     <>
-      <span className="font-mono text-[0.62rem] tracking-[0.18em] text-muted-foreground uppercase">
+      <span className="font-mono text-[0.62rem] tracking-[0.12em] text-muted-foreground uppercase">
         {label}
       </span>
       <strong

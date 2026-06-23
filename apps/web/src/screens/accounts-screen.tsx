@@ -133,10 +133,9 @@ function FleetTab({ props }: { props: AccountsScreenProps }) {
           />
           <StatCard label="Known dialogs" value={props.metrics.knownDialogs} />
         </div>
-        <Panel className="space-y-3 overflow-hidden">
+        <Panel tone="raised" className="space-y-3 overflow-hidden">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <StepHeading
-            step={<IconUsers />}
             title="Session fleet"
             detail={`${filteredAccounts.length} of ${props.accounts.length} shown. Select sessions, then run actions or fetch dialogs.`}
           />
@@ -183,7 +182,6 @@ function FleetTab({ props }: { props: AccountsScreenProps }) {
       <SidePane>
         <Panel className="space-y-3">
           <StepHeading
-            step={<IconArrowRight />}
             title="Next move"
             detail="Choose a session, then jump into dialogs or guarded actions without losing context."
           />
@@ -191,7 +189,7 @@ function FleetTab({ props }: { props: AccountsScreenProps }) {
             <Button variant="outline" onClick={fetchDialogsForSelection}>
               Fetch Dialogs
             </Button>
-            <Button onClick={runActionWithSelection}>
+            <Button size="comfortable" onClick={runActionWithSelection}>
               Run Action <IconArrowRight />
             </Button>
           </div>
@@ -401,6 +399,7 @@ function RequestLoginPanel({
         </Field>
         <Button
           type="submit"
+          size="comfortable"
           className="w-full"
           disabled={!apiConfigured}
           loading={loading}
@@ -779,7 +778,6 @@ function ImportPanel({ guarded, refresh, flash, loading }: TransferPanelProps) {
   return (
     <Panel className="space-y-4">
       <StepHeading
-        step={<IconFileImport />}
         title="Import .session files"
         detail="Drop or pick one or more Telethon .session files. Each is validated and auto-named to its Telegram account — no labels to type."
       />
@@ -858,7 +856,11 @@ function ImportPanel({ guarded, refresh, flash, loading }: TransferPanelProps) {
           </div>
         </div>
       ) : null}
-      <Button disabled={loading || !files.length} onClick={importAll}>
+      <Button
+        size="comfortable"
+        disabled={loading || !files.length}
+        onClick={importAll}
+      >
         {loading ? <IconLoader2 className="size-3.5 animate-spin" /> : <IconUpload />}
         Import {files.length || ""} Session{files.length === 1 ? "" : "s"}
       </Button>
@@ -901,7 +903,6 @@ function ExportPanel({
   return (
     <Panel className="space-y-4">
       <StepHeading
-        step={<IconDownload />}
         title="Export selected sessions"
         detail="Pick the sessions to export as a private ZIP. Session files can access Telegram accounts — keep the export private."
         trailing={
@@ -948,6 +949,7 @@ function ExportPanel({
       )}
 
       <Button
+        size="comfortable"
         disabled={loading || !selectedCount}
         onClick={() => guarded(() => exportSessions(selectedIds, askDialog, flash))}
       >

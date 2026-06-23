@@ -1,6 +1,7 @@
 import { IconAlertTriangle, IconInfoCircle, IconPlayerPlay } from "@tabler/icons-react"
 
 import { cn } from "../../ui/utils"
+import { queueRunProgress, relTime, statusTone } from "../../lib/helpers"
 import { Badge } from "../ui"
 import type { QueueRun, QueueStep, View } from "../../types"
 import {
@@ -16,10 +17,12 @@ import {
 export function OperationsRail({
   queue,
   runs,
+  activeRun,
   openView,
 }: {
   queue: QueueStep[]
   runs: QueueRun[]
+  activeRun: QueueRun | null
   openView: (view: View) => void
 }) {
   const operationCount = countQueueOperations(queue)
@@ -27,7 +30,7 @@ export function OperationsRail({
   const lastRun = runs[0]
 
   return (
-    <aside className="hidden border-l border-border bg-card/30 px-4 py-4 2xl:sticky 2xl:top-0 2xl:block 2xl:h-svh 2xl:overflow-auto">
+    <aside className="hidden border-l border-border bg-card/30 px-4 py-4 2xl:sticky 2xl:top-0 2xl:block 2xl:h-full 2xl:overflow-auto">
       <div className="space-y-4">
         <div>
           <p className="font-mono text-[0.62rem] font-semibold tracking-[0.24em] text-muted-foreground uppercase">
@@ -46,7 +49,9 @@ export function OperationsRail({
             <RailMetric label="Steps" value={queue.length} />
             <RailMetric label="Operations" value={operationCount} tone="primary" />
           </div>
-          {destructiveCount ? (
+          {activeRun ? (
+            <ActiveRunProgress activeRun={activeRun} />
+          ) : destructiveCount ? (
             <div className="mt-2 flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
               <IconAlertTriangle className="size-3.5 shrink-0" />
               {destructiveCount} destructive queued
@@ -60,15 +65,7 @@ export function OperationsRail({
 
         <RailCard title="Last run" icon={IconInfoCircle}>
           {lastRun ? (
-            <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-muted-foreground">Status</span>
-                <Badge tone="border-border bg-muted/40 text-muted-foreground">
-                  {lastRun.status}
-                </Badge>
-              </div>
-              <p className="font-mono text-muted-foreground break-all">{lastRun.id}</p>
-            </div>
+            <LastRunSummary lastRun={lastRun} />
           ) : (
             <p className="text-xs text-muted-foreground">
               Run history appears after the first queued execution.
@@ -77,6 +74,60 @@ export function OperationsRail({
         </RailCard>
       </div>
     </aside>
+  )
+}
+
+// The live run, shown in the Queue card while something is executing. Mirrors
+// the footer pulse but with a progress bar (the rail has room; the footer
+// doesn't), so the two read as one system rather than duplicates.
+function ActiveRunProgress({ activeRun }: { activeRun: QueueRun }) {
+  const { completedCount, operationCount, failedCount, progress } =
+    queueRunProgress(activeRun)
+  const status = activeRun.status || "running"
+
+  return (
+    <div className="mt-2 space-y-1.5 rounded-md border border-sky-500/30 bg-sky-500/10 p-2 text-xs text-sky-600 dark:text-sky-400">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-medium">
+          {status === "canceling" ? "Canceling" : "Running"}
+        </span>
+        <span className="font-mono">
+          {completedCount}/{operationCount}
+          {failedCount ? ` · ${failedCount} failed` : ""}
+        </span>
+      </div>
+      <div className="h-1 overflow-hidden rounded-full bg-sky-500/20">
+        <div
+          className="h-full rounded-full bg-current transition-all"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
+// A human last-run line: outcome + relative time, instead of the raw UUID the
+// rail used to print (which told an operator nothing).
+function LastRunSummary({ lastRun }: { lastRun: QueueRun }) {
+  const { completedCount, operationCount, failedCount } =
+    queueRunProgress(lastRun)
+  const when = relTime(lastRun.created_at)
+
+  return (
+    <div className="space-y-2 text-xs">
+      <div className="flex items-center justify-between gap-2">
+        <Badge tone={statusTone(lastRun.status)}>
+          {lastRun.status.replace("_", " ")}
+        </Badge>
+        {when ? <span className="text-muted-foreground">{when}</span> : null}
+      </div>
+      <p className="font-mono text-muted-foreground">
+        {failedCount ? (
+          <span className="text-destructive">✗ {failedCount} failed · </span>
+        ) : null}
+        {completedCount}/{operationCount} operations
+      </p>
+    </div>
   )
 }
 

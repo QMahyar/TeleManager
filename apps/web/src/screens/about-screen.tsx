@@ -8,10 +8,7 @@ import {
   IconCheck,
   IconCopy,
   IconExternalLink,
-  IconHeartHandshake,
-  IconInfoCircle,
   IconRefresh,
-  IconUserCircle,
 } from "@tabler/icons-react"
 
 import { Button } from "../ui/button"
@@ -140,9 +137,8 @@ export function AboutScreen({ flash }: { flash: Flash }) {
 
   return (
     <div className="grid gap-4 xl:grid-cols-2">
-      <Panel className="space-y-4 xl:col-span-2">
+      <Panel tone="raised" className="space-y-4 xl:col-span-2">
         <StepHeading
-          step={<IconInfoCircle />}
           title="TeleManager"
           detail="Local Telegram session manager for managing Telethon .session files. Everything runs on 127.0.0.1 — nothing leaves your machine."
           trailing={
@@ -153,6 +149,7 @@ export function AboutScreen({ flash }: { flash: Flash }) {
         />
         <div className="flex flex-wrap items-center gap-2">
           <Button
+            size="comfortable"
             onClick={checkForUpdates}
             loading={update.status === "checking"}
           >
@@ -167,7 +164,6 @@ export function AboutScreen({ flash }: { flash: Flash }) {
 
       <Panel className="space-y-4">
         <StepHeading
-          step={<IconUserCircle />}
           title="Author"
           detail="Built and maintained by Mahyar. Reach out or follow for updates."
         />
@@ -180,7 +176,6 @@ export function AboutScreen({ flash }: { flash: Flash }) {
 
       <Panel className="space-y-4">
         <StepHeading
-          step={<IconHeartHandshake />}
           title="Support development"
           detail="If this tool saved you time, a small crypto tip helps keep it maintained. USDT on TRON (TRC-20) has the lowest fees and is the easiest to send."
         />
