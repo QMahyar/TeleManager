@@ -10,6 +10,7 @@ from urllib.parse import parse_qs, urlparse
 
 from telethon import TelegramClient
 from telethon import utils as telethon_utils
+from telethon.errors import FloodWaitError
 from telethon.tl.functions.account import ReportPeerRequest, UpdateNotifySettingsRequest
 from telethon.tl.functions.channels import JoinChannelRequest, LeaveChannelRequest
 from telethon.tl.functions.contacts import BlockRequest, UnblockRequest
@@ -519,6 +520,57 @@ def _numeric_target_candidates(value: int) -> list[int]:
     return candidates
 
 
+async def _prime_dialog_cache(client: TelegramClient) -> bool:
+    """Populate this client's session entity cache from its own dialog list, once.
+
+    A bare numeric id can only be resolved from peers the account has already
+    encountered, because Telegram requires that account's own access_hash for the
+    peer. When a queued action runs on several accounts but the chat was browsed
+    (and therefore cached) on only one of them, the others fail to resolve the id.
+    Fetching dialogs caches every chat the account belongs to — so a retry then
+    succeeds for any account that is actually a member. Idempotent per client, and
+    only triggered on a numeric cache miss, so accounts that already have the chat
+    cached pay nothing.
+
+    Returns True if a prime was attempted (i.e. a retry is worth making).
+    """
+    if getattr(client, "_tm_dialogs_primed", False):
+        return False
+    client._tm_dialogs_primed = True  # noqa: SLF001 — mark this run's client primed once
+    try:
+        await client.get_dialogs(limit=500)
+    except FloodWaitError:
+        # Let the queue back off rather than masking a rate limit as "not found".
+        raise
+    except Exception:
+        # Priming is best-effort; the caller still raises a helpful error if the
+        # retry can't resolve the target.
+        pass
+    return True
+
+
+async def _resolve_numeric_target(client: TelegramClient, normalized: str, resolver: Any) -> Any:
+    """Try the numeric id forms against `resolver`, priming the dialog cache once
+    on a miss before giving up. Shared by the input-peer and full-entity paths."""
+    value = int(normalized)
+    last_error: Exception | None = None
+    for attempt in range(2):
+        for candidate in _numeric_target_candidates(value):
+            try:
+                return await resolver(candidate)
+            except (ValueError, TypeError, struct.error) as exc:
+                last_error = exc
+        # First miss: the account may simply not have this chat cached yet. Prime
+        # its dialogs once and retry; if priming isn't possible, stop.
+        if attempt == 0 and not await _prime_dialog_cache(client):
+            break
+    raise ValueError(
+        f"Could not resolve the chat for ID {normalized}. This account may not be a "
+        f"member of that chat — use its @username or t.me link to target it across "
+        f"accounts."
+    ) from last_error
+
+
 async def resolve_input_peer(client: TelegramClient, target: str) -> Any:
     """Resolve a target string to a Telethon input peer.
 
@@ -530,16 +582,7 @@ async def resolve_input_peer(client: TelegramClient, target: str) -> Any:
     normalized = normalize_entity_target(target)
     if not _NUMERIC_TARGET_RE.match(normalized):
         return await client.get_input_entity(normalized)
-    last_error: Exception | None = None
-    for candidate in _numeric_target_candidates(int(normalized)):
-        try:
-            return await client.get_input_entity(candidate)
-        except (ValueError, TypeError, struct.error) as exc:
-            last_error = exc
-    raise ValueError(
-        f"Could not resolve the chat for ID {normalized}. Fetch this account's dialogs "
-        f"first so the chat is cached, or use its @username or t.me link instead."
-    ) from last_error
+    return await _resolve_numeric_target(client, normalized, client.get_input_entity)
 
 
 async def resolve_full_entity(client: TelegramClient, target: str) -> Any:
@@ -547,16 +590,7 @@ async def resolve_full_entity(client: TelegramClient, target: str) -> Any:
     normalized = normalize_entity_target(target)
     if not _NUMERIC_TARGET_RE.match(normalized):
         return await client.get_entity(normalized)
-    last_error: Exception | None = None
-    for candidate in _numeric_target_candidates(int(normalized)):
-        try:
-            return await client.get_entity(candidate)
-        except (ValueError, TypeError, struct.error) as exc:
-            last_error = exc
-    raise ValueError(
-        f"Could not resolve the chat for ID {normalized}. Fetch this account's dialogs "
-        f"first so the chat is cached, or use its @username or t.me link instead."
-    ) from last_error
+    return await _resolve_numeric_target(client, normalized, client.get_entity)
 
 
 def extract_invite_hash(target: str) -> str | None:
