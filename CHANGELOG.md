@@ -86,7 +86,7 @@ light and dark.
 - **Native "Browse" picker on path fields.** Path inputs (e.g. `send_media`'s file)
   keep free-text entry but gain a **Browse ▾** control that opens a real operating-system
   dialog and fills the absolute path — something a browser `<input type=file>` cannot do.
-  The split menu offers **Pick file** *and* **Pick folder** on every path field. A new
+  The split menu offers **Pick file** _and_ **Pick folder** on every path field. A new
   `POST /api/system/pick-path` drives the dialog: PowerShell WinForms on Windows (works
   in the frozen build, which excludes tkinter), `osascript` on macOS, and zenity/kdialog/
   tkinter on Linux. Hosts without a native picker get a friendly toast and keep typing.
@@ -140,14 +140,14 @@ sessions is a near-zero-friction batch operation.
 - **Multi-account queues/schedules now run on every selected account.** Handing
   chats off from Dialogs into Actions or Schedules replaced the account selection
   with the single dialog "source" account, so queues built that way silently
-  collapsed to one account. The handoff now *unions* the source account into the
+  collapsed to one account. The handoff now _unions_ the source account into the
   existing selection instead of overwriting it. Verified end-to-end: a two-account
   send now delivers from both accounts.
 
 ### Added
 
 - **In-place quick actions on Dialogs.** The row 3-dot menu (and the bulk action
-  buttons) now *run* the chosen action on the fetched account instead of only
+  buttons) now _run_ the chosen action on the fetched account instead of only
   staging it into the builder. Parameterless actions (mute, archive, read, leave…)
   run in one tap; destructive ones confirm first; actions that need input (send
   message, forward, schedule, ids…) open an inline mini-prompt that reuses the
