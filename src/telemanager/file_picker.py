@@ -23,6 +23,7 @@ import base64
 import logging
 import platform
 import shutil
+import subprocess
 import sys
 from typing import Literal
 
@@ -69,7 +70,20 @@ async def pick_path(kind: PathKind = "file", title: str | None = None) -> str | 
 async def _run(argv: list[str], *, no_window: bool = False) -> tuple[int, str, str]:
     """Spawn ``argv``, returning ``(returncode, stdout, stderr)`` stripped of trailing
     whitespace. Raises ``FileNotFoundError`` if the executable is missing and returns
-    ``(-1, "", "")`` on timeout (after terminating the process)."""
+    ``(-1, "", "")`` on timeout (after terminating the process).
+
+    Prefers the non-blocking asyncio subprocess. Windows' ``SelectorEventLoop`` — which
+    uvicorn selects whenever it forks (``--reload`` or ``workers > 1``) — cannot spawn
+    subprocesses and raises ``NotImplementedError``; in that case the child runs on a
+    worker thread instead, so the picker works under any event loop without blocking it.
+    """
+    try:
+        return await _run_async(argv, no_window=no_window)
+    except NotImplementedError:
+        return await asyncio.to_thread(_run_blocking, argv, no_window)
+
+
+async def _run_async(argv: list[str], *, no_window: bool) -> tuple[int, str, str]:
     kwargs: dict[str, object] = {
         "stdout": asyncio.subprocess.PIPE,
         "stderr": asyncio.subprocess.PIPE,
@@ -90,6 +104,29 @@ async def _run(argv: list[str], *, no_window: bool = False) -> tuple[int, str, s
         process.returncode or 0,
         stdout.decode("utf-8", "replace").strip(),
         stderr.decode("utf-8", "replace").strip(),
+    )
+
+
+def _run_blocking(argv: list[str], no_window: bool) -> tuple[int, str, str]:
+    """Blocking fallback for event loops without subprocess support (Windows
+    ``SelectorEventLoop``). Invoked via :func:`asyncio.to_thread`, so the dialog wait
+    happens on a worker thread and never blocks the server's event loop."""
+    creationflags = _CREATE_NO_WINDOW if no_window and sys.platform == "win32" else 0
+    try:
+        completed = subprocess.run(
+            argv,
+            capture_output=True,
+            timeout=DIALOG_TIMEOUT_SECONDS,
+            creationflags=creationflags,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        logger.warning("File dialog timed out; cancelling.")
+        return -1, "", ""
+    return (
+        completed.returncode or 0,
+        completed.stdout.decode("utf-8", "replace").strip(),
+        completed.stderr.decode("utf-8", "replace").strip(),
     )
 
 

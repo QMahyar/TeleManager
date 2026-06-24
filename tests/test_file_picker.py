@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import asyncio
+import sys
+
+from telemanager import file_picker
+
 
 def test_pick_path_returns_selected_path(app_context: dict, client, monkeypatch) -> None:
     async def fake_pick(kind, title):
@@ -43,3 +48,36 @@ def test_pick_path_busy_returns_409(app_context: dict, client, monkeypatch) -> N
     monkeypatch.setattr(main, "pick_path", fake_pick)
     response = client.post("/api/system/pick-path", json={"kind": "file"})
     assert response.status_code == 409
+
+
+def test_run_falls_back_to_thread_when_loop_lacks_subprocess(monkeypatch) -> None:
+    # Windows SelectorEventLoop (uvicorn --reload / workers>1) raises
+    # NotImplementedError from create_subprocess_exec; _run must transparently
+    # fall back to the blocking runner with the same arguments.
+    seen: dict[str, object] = {}
+
+    async def boom(argv, *, no_window):
+        raise NotImplementedError
+
+    def fake_blocking(argv, no_window):
+        seen["argv"] = argv
+        seen["no_window"] = no_window
+        return (0, "C:/picked.jpg", "")
+
+    monkeypatch.setattr(file_picker, "_run_async", boom)
+    monkeypatch.setattr(file_picker, "_run_blocking", fake_blocking)
+
+    result = asyncio.run(file_picker._run(["dialog.exe"], no_window=True))
+
+    assert result == (0, "C:/picked.jpg", "")
+    assert seen == {"argv": ["dialog.exe"], "no_window": True}
+
+
+def test_run_blocking_captures_stdout() -> None:
+    # The thread fallback returns the child's (returncode, stdout, stderr) just
+    # like the async path. Use the test interpreter for a portable, dialog-free child.
+    code, out, err = file_picker._run_blocking(
+        [sys.executable, "-c", "import sys; sys.stdout.write('picked')"], False
+    )
+    assert code == 0
+    assert out == "picked"
