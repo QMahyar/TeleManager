@@ -11,6 +11,43 @@ section below, with auto-generated commit/PR notes appended.
 
 ## [Unreleased]
 
+## [1.9.3] - 2026-06-24
+
+Safer concurrent sessions, and scheduling that reflects what Telegram can actually
+do. Queues and schedules that touch the same account no longer collide, and the
+Schedule modal now tells you up front whether a queue is delivered by Telegram
+(offline) or only runs while the app is open.
+
+### Added
+
+- **Native media scheduling.** Scheduling a "Send media/file" step is now pre-delivered
+  by Telegram server-side just like text, so scheduled photos/files arrive even while
+  TeleManager is closed — previously media forced the app to stay open.
+- **Action-aware Schedule modal.** Before you create a schedule, a banner states whether
+  the queue is pre-delivered by Telegram (runs offline) or only runs while the app is
+  open, naming the exact actions Telegram cannot pre-schedule.
+
+### Changed
+
+- **Per-account session safety.** A queue or schedule now holds a per-account lock for
+  its whole run, so two runs touching the same account serialize instead of opening the
+  same `.session` file twice. When a scheduled fire's account is busy with another run,
+  the fire is skipped and recorded rather than colliding. This eliminates the
+  `database is locked` errors that could appear when a schedule auto-fired during a
+  manual run.
+- **Per-chat scheduled-message guardrail.** When a chat reaches Telegram's limit of 100
+  scheduled messages, the schedule now surfaces a clear warning instead of silently
+  dropping later fires.
+- **Less confusing scheduling.** The one-off "Schedule message" action is relabeled and
+  points to the recurring Schedule… modal, so the two no longer feel duplicated.
+
+### Fixed
+
+- **"Browse" file picker under the dev server.** Selecting a file/folder no longer
+  returns a 500 when running `uvicorn --reload` (Windows' `SelectorEventLoop` cannot
+  spawn subprocesses); the native dialog now runs on a worker thread under any event
+  loop. Packaged builds were unaffected.
+
 ## [1.9.2] - 2026-06-24
 
 A focused cleanup of the Actions screen — the scheduler moves out of the cramped
