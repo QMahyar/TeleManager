@@ -160,71 +160,75 @@ async def process_action_queue(
             last_save = now
 
     delay_between_accounts, delay_between_actions = resolved_queue_delays(request)
-    run_account_ids = [operation["account_id"] for operation in expanded]
-    try:
-        for index, operation in enumerate(expanded):
-            if run.get("cancel_requested"):
-                mark_remaining_operations(expanded[index:])
-                run["status"] = "canceled"
-                run["error"] = "Queue canceled before the next operation started."
-                break
-            operation["status"] = "running"
-            operation["started_at"] = now_iso()
-            run["current"] = operation
-            run["updated_at"] = now_iso()
-            throttled_save()
-            if index > 0:
-                previous = expanded[index - 1]
-                delay = (
-                    delay_between_accounts
-                    if previous["account_id"] != operation["account_id"]
-                    else delay_between_actions
+    run_account_ids = sorted({operation["account_id"] for operation in expanded})
+    # Hold the per-account session locks for the whole run so a `.session` file is
+    # never opened by two runs at once (manual + scheduled, or two schedules). Runs
+    # over disjoint accounts don't contend; same-account runs serialize here.
+    async with manager.session_guard(run_account_ids):
+        try:
+            for index, operation in enumerate(expanded):
+                if run.get("cancel_requested"):
+                    mark_remaining_operations(expanded[index:])
+                    run["status"] = "canceled"
+                    run["error"] = "Queue canceled before the next operation started."
+                    break
+                operation["status"] = "running"
+                operation["started_at"] = now_iso()
+                run["current"] = operation
+                run["updated_at"] = now_iso()
+                throttled_save()
+                if index > 0:
+                    previous = expanded[index - 1]
+                    delay = (
+                        delay_between_accounts
+                        if previous["account_id"] != operation["account_id"]
+                        else delay_between_actions
+                    )
+                    await safe_delay(delay)
+                action = TelegramAction(
+                    action_type=operation["action_type"],
+                    target=operation["target"],
+                    account_ids=[operation["account_id"]],
+                    message=operation.get("message"),
+                    confirm=True,
+                    delay_seconds=delay_between_accounts,
                 )
-                await safe_delay(delay)
-            action = TelegramAction(
-                action_type=operation["action_type"],
-                target=operation["target"],
-                account_ids=[operation["account_id"]],
-                message=operation.get("message"),
-                confirm=True,
-                delay_seconds=delay_between_accounts,
+                try:
+                    result = await manager.run_warm_action(action)
+                    result_payload = result.to_dict()
+                except FloodWaitError as flood:
+                    handle_queue_flood_wait(run, operation, expanded[index:], flood)
+                    break
+                result_payload["target"] = operation["target"]
+                result_payload["step_index"] = operation["step_index"]
+                operation["status"] = "ok" if result_payload["ok"] else "failed"
+                operation["completed_at"] = now_iso()
+                operation["result"] = result_payload
+                run["results"].append(result_payload)
+                run["completed_count"] = len(run["results"])
+                run["ok_count"] = sum(1 for item in run["results"] if item["ok"])
+                run["failed_count"] = run["completed_count"] - run["ok_count"]
+                run["updated_at"] = now_iso()
+                throttled_save()
+            if run.get("status") not in {"canceled", "flood_wait"}:
+                run["status"] = "completed"
+            save_action_runs(queue_runs)
+        except Exception as exc:
+            run["status"] = "failed"
+            run["error"] = str(exc)
+        finally:
+            await manager.release_run_clients(run_account_ids)
+            run["current"] = None
+            run["completed_at"] = now_iso()
+            run["updated_at"] = run["completed_at"]
+            event = log_event(
+                "telegram_action_queue",
+                "Telegram action queue completed",
+                f"{run['ok_count']}/{len(run['results'])} operations succeeded",
+                {"request": request.model_dump(), "results": run["results"], "error": run["error"]},
             )
-            try:
-                result = await manager.run_warm_action(action)
-                result_payload = result.to_dict()
-            except FloodWaitError as flood:
-                handle_queue_flood_wait(run, operation, expanded[index:], flood)
-                break
-            result_payload["target"] = operation["target"]
-            result_payload["step_index"] = operation["step_index"]
-            operation["status"] = "ok" if result_payload["ok"] else "failed"
-            operation["completed_at"] = now_iso()
-            operation["result"] = result_payload
-            run["results"].append(result_payload)
-            run["completed_count"] = len(run["results"])
-            run["ok_count"] = sum(1 for item in run["results"] if item["ok"])
-            run["failed_count"] = run["completed_count"] - run["ok_count"]
-            run["updated_at"] = now_iso()
-            throttled_save()
-        if run.get("status") not in {"canceled", "flood_wait"}:
-            run["status"] = "completed"
-        save_action_runs(queue_runs)
-    except Exception as exc:
-        run["status"] = "failed"
-        run["error"] = str(exc)
-    finally:
-        await manager.release_run_clients(run_account_ids)
-        run["current"] = None
-        run["completed_at"] = now_iso()
-        run["updated_at"] = run["completed_at"]
-        event = log_event(
-            "telegram_action_queue",
-            "Telegram action queue completed",
-            f"{run['ok_count']}/{len(run['results'])} operations succeeded",
-            {"request": request.model_dump(), "results": run["results"], "error": run["error"]},
-        )
-        run["audit_event_id"] = event["id"]
-        save_action_runs(queue_runs)
+            run["audit_event_id"] = event["id"]
+            save_action_runs(queue_runs)
 
 
 def handle_queue_flood_wait(run: dict, operation: dict, remaining: list[dict], flood: FloodWaitError) -> None:

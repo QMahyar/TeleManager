@@ -273,3 +273,42 @@ def test_inspect_and_clear_scheduled_messages(app_context: dict, monkeypatch) ->
     cleared = asyncio.run(service.clear_scheduled("acc-1", "@chat", None))
     assert cleared["cleared"] == 2
     assert deleted["ids"] == [1, 2]
+
+
+def test_fire_runner_skips_and_records_when_account_busy(app_context: dict, monkeypatch) -> None:
+    # When an account a fire needs is already in use by another run, the fire is
+    # skipped (start_action_queue is never called) and the reason is recorded; the
+    # tick still advances next_fire_at to the next slot so nothing stacks up.
+    ss = _ss()
+    manager = app_context["main"].manager
+    add_account(app_context, "acc-busy", "Busy One")
+    service = ss.SchedulerService(manager, {})
+
+    started: list[Any] = []
+    monkeypatch.setattr(ss, "start_action_queue", lambda *a, **k: started.append(a))
+
+    now = ss.utcnow()
+    recurrence = _recurrence(interval_value=5)
+    schedule = ss.build_schedule(
+        ss.ScheduleRequest(
+            name="Busy schedule",
+            queue={
+                "steps": [
+                    {"action_type": "send_message", "account_ids": ["acc-busy"], "targets": ["@chat"], "message": "hi"}
+                ],
+                "max_operations": 10,
+            },
+            recurrence=recurrence,
+        )
+    )
+    schedule["next_fire_at"] = ss.iso(now - timedelta(seconds=1))  # due now
+    before_next = schedule["next_fire_at"]
+
+    # Mark the account busy exactly as a live run would, then tick the runner.
+    manager._busy_accounts.add("acc-busy")
+    new_next = asyncio.run(service._tick_runner(schedule, now))
+
+    assert started == []  # the fire was skipped, no run spawned
+    assert "busy" in (schedule.get("last_error") or "").lower()
+    assert "Busy One" in schedule["last_error"]  # account label surfaced
+    assert new_next is not None and schedule["next_fire_at"] != before_next  # advanced

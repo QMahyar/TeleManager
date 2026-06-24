@@ -70,6 +70,12 @@ class AccountManager:
         self.clients: dict[str, TelegramClient] = {}
         self.pending_logins: dict[str, LoginState] = {}
         self.lock = asyncio.Lock()
+        # Per-account session locks serialize use of a single `.session` file. The
+        # SQLite-backed Telethon session cannot be opened twice concurrently, so a
+        # run holds its accounts' locks for its whole lifetime (see session_guard).
+        # `_busy_accounts` mirrors the held locks for a non-blocking busy check.
+        self._session_locks: dict[str, asyncio.Lock] = {}
+        self._busy_accounts: set[str] = set()
         self._load_accounts()
 
     def _load_accounts(self) -> None:
@@ -265,6 +271,38 @@ class AccountManager:
             client = self.clients.pop(account_id, None)
             if client is not None:
                 await _disconnect(client)
+
+    def _session_lock(self, account_id: str) -> asyncio.Lock:
+        return self._session_locks.setdefault(account_id, asyncio.Lock())
+
+    def is_account_busy(self, account_id: str) -> bool:
+        """Non-blocking check of whether a run currently holds this account's session.
+
+        The scheduler uses this to skip a fire whose accounts are in use instead of
+        awaiting the lock (which would stall the serialized scheduler tick)."""
+        return account_id in self._busy_accounts
+
+    @asynccontextmanager
+    async def session_guard(self, account_ids: list[str]) -> AsyncIterator[None]:
+        """Hold the per-account session locks for the duration of a run so a `.session`
+        file is used by at most one run at a time.
+
+        Locks are acquired in sorted order so two runs sharing overlapping accounts
+        (e.g. {A,B} and {B,A}) can never deadlock. Runs over disjoint accounts do not
+        contend and still proceed in parallel.
+        """
+        ordered = sorted(set(account_ids))
+        acquired: list[str] = []
+        try:
+            for account_id in ordered:
+                await self._session_lock(account_id).acquire()
+                acquired.append(account_id)
+                self._busy_accounts.add(account_id)
+            yield
+        finally:
+            for account_id in acquired:
+                self._busy_accounts.discard(account_id)
+                self._session_lock(account_id).release()
 
     @asynccontextmanager
     async def temp_client(self, account_id: str) -> AsyncIterator[TelegramClient]:

@@ -676,6 +676,18 @@ class SchedulerService:
 
     def _fire_runner(self, schedule: dict[str, Any], now: datetime) -> None:
         queue = schedule["queue"]
+        # Skip-and-record when an account this fire needs is already in use by another
+        # run. _tick_runner still advances next_fire_at, so the fire is skipped (not
+        # stacked) and the next slot is tried — never locking the shared `.session`.
+        fire_account_ids = {account_id for step in queue["steps"] for account_id in step["account_ids"]}
+        busy = sorted(a for a in fire_account_ids if self.manager.is_account_busy(a))
+        if busy:
+            labels = [
+                self.manager.accounts[a].label if a in self.manager.accounts else a
+                for a in busy
+            ]
+            schedule["last_error"] = f"Fire at {iso(now)} skipped: account(s) busy: {', '.join(labels)}"
+            return
         try:
             request = ActionQueueRequest(
                 steps=queue["steps"],
@@ -729,29 +741,32 @@ class SchedulerService:
         account_ids = sorted({account_id for step in schedule["queue"]["steps"] for account_id in step["account_ids"]})
         warmed: list[str] = []
         chat_index = 0
-        try:
-            for step_index, step in enumerate(schedule["queue"]["steps"]):
-                text = native_text_for_step(step)
-                if not text:
-                    continue
-                for account_id in step["account_ids"]:
-                    client = await self._warm(account_id, warmed)
-                    if client is None:
-                        chat_index += len(step["targets"])
+        # Take the session locks so a native reconcile never opens an account's
+        # `.session` while a runner fire (or manual queue) is using it.
+        async with self.manager.session_guard(account_ids):
+            try:
+                for step_index, step in enumerate(schedule["queue"]["steps"]):
+                    text = native_text_for_step(step)
+                    if not text:
                         continue
-                    for target in step["targets"]:
-                        key = f"{account_id}|{step_index}|{target}"
-                        offset = timedelta(seconds=stagger * chat_index)
-                        chat_index += 1
-                        chat_coverage = await self._reconcile_chat(
-                            client, native_chats, key, target, text, desired, offset
-                        )
-                        if chat_coverage and (coverage is None or chat_coverage > coverage):
-                            coverage = chat_coverage
-            schedule["coverage_until"] = iso(coverage) if coverage else None
-            schedule["last_error"] = None
-        finally:
-            await self.manager.release_run_clients(account_ids)
+                    for account_id in step["account_ids"]:
+                        client = await self._warm(account_id, warmed)
+                        if client is None:
+                            chat_index += len(step["targets"])
+                            continue
+                        for target in step["targets"]:
+                            key = f"{account_id}|{step_index}|{target}"
+                            offset = timedelta(seconds=stagger * chat_index)
+                            chat_index += 1
+                            chat_coverage = await self._reconcile_chat(
+                                client, native_chats, key, target, text, desired, offset
+                            )
+                            if chat_coverage and (coverage is None or chat_coverage > coverage):
+                                coverage = chat_coverage
+                schedule["coverage_until"] = iso(coverage) if coverage else None
+                schedule["last_error"] = None
+            finally:
+                await self.manager.release_run_clients(account_ids)
 
     async def _warm(self, account_id: str, warmed: list[str]):
         try:
