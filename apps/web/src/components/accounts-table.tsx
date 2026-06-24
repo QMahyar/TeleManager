@@ -23,9 +23,9 @@ import {
 } from "../ui/table"
 
 import { api, toForm } from "../lib/api"
-import { accountStatus, statusTone } from "../lib/helpers"
+import { accountStatus } from "../lib/helpers"
 import type { Account, AskDialog, Flash } from "../types"
-import { Badge, EmptyState, Skeleton } from "./ui"
+import { EmptyState, SignalDot, Skeleton, type SignalTone } from "./ui"
 
 type AccountsTableProps = {
   accounts: Account[]
@@ -177,7 +177,7 @@ function AccountCard({
         <div className="min-w-0 flex-1">
           <AccountIdentity account={account} />
         </div>
-        <Badge tone={statusTone(status)}>{status}</Badge>
+        <StatusSignal status={status} />
       </div>
       <p className="text-xs text-muted-foreground">
         {account.dialog_count || 0} dialogs ·{" "}
@@ -236,9 +236,7 @@ function AccountRow({
         <AccountIdentity account={account} />
       </TableCell>
       <TableCell>
-        <Badge tone={statusTone(accountStatus(account))}>
-          {accountStatus(account)}
-        </Badge>
+        <StatusSignal status={accountStatus(account)} />
       </TableCell>
       <TableCell>{account.dialog_count || 0}</TableCell>
       <TableCell className="font-mono text-xs">
@@ -273,6 +271,24 @@ function AccountIdentity({ account }: { account: Account }) {
         </p>
       ) : null}
     </div>
+  )
+}
+
+// The fleet table reads as a status board: a calm signal light + the status
+// word, instead of a loud filled pill on every row. Maps the five account
+// status words to the three meaningful signal tones.
+function statusSignal(status: string): SignalTone {
+  if (status === "ready") return "ready"
+  if (status === "error") return "error"
+  return "attention" // needs login / needs 2FA / code sent
+}
+
+function StatusSignal({ status }: { status: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 font-mono text-xs whitespace-nowrap text-muted-foreground">
+      <SignalDot tone={statusSignal(status)} />
+      {status}
+    </span>
   )
 }
 

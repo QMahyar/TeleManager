@@ -61,6 +61,31 @@ def test_cached_dialogs_default_and_existing_payload(app_context: dict):
     assert cached["dialogs"] == [{"id": 1}]
 
 
+def test_list_cached_dialogs_marks_legacy_ids(app_context: dict):
+    # Caches written before id-marking stored the bare entity.id for groups and
+    # channels. Reading them now returns the canonical marked ids so a
+    # username-less chat resolves the right peer without a re-fetch.
+    account = add_account(app_context, "acc-1", "Primary")
+    dialogs_service = __import__("telemanager.dialogs_service", fromlist=["dialogs_service"])
+    config = app_context["config"]
+    config.write_json(
+        dialogs_service.dialogs_path(account.id),
+        {
+            "account_id": account.id,
+            "account_label": account.label,
+            "fetched_at": "now",
+            "dialogs": [
+                {"id": 1424486089, "dialog_type": "supergroup", "is_channel": True, "is_group": True},
+                {"id": 555, "dialog_type": "group", "is_group": True, "is_channel": False},
+                {"id": 777, "dialog_type": "personal"},
+            ],
+        },
+    )
+
+    cached = dialogs_service.list_cached_dialogs(app_context["main"].manager, account.id)
+    assert [item["id"] for item in cached["dialogs"]] == [-1001424486089, -555, 777]
+
+
 def test_cached_dialogs_unknown_account_fails(app_context: dict):
     dialogs_service = __import__("telemanager.dialogs_service", fromlist=["dialogs_service"])
     try:

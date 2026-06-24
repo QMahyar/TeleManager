@@ -22,8 +22,9 @@ from telethon.errors import FloodWaitError
 
 from telemanager import telegram_actions as actions
 
-# The session knows the supergroup only under its marked id, exactly like the real
-# bug: the dialog cache/UI exposes the raw 1424486089.
+# The session knows the supergroup only under its marked id. The cache now stores that
+# marked id, but a raw 1424486089 still arrives when pasted by hand or replayed from an
+# old queued step, so the resolver must keep coercing it to the right peer.
 KNOWN_MARKED_CHANNEL = -1001424486089
 CHANNEL_RANGE = -(10**12)
 

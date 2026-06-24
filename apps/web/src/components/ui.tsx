@@ -406,6 +406,127 @@ export function StatCard({
   return <div className={className}>{body}</div>
 }
 
+// ---------------------------------------------------------------------------
+// Console readout — the app's signature instrument motif
+//
+// A `SignalDot` is a status light; a `Readout` is a hairline-ruled strip of
+// `ReadoutItem`s. Together they state live machine state (fleet readiness,
+// queued operations, safety interlocks) as one instrument line rather than a
+// row of boxed KPI cards. The five signal tones mirror `statusTone()` so the
+// dot speaks the same color language as the rest of the app.
+// ---------------------------------------------------------------------------
+
+export type SignalTone = "ready" | "attention" | "error" | "idle" | "live"
+
+const signalToneClass: Record<SignalTone, string> = {
+  ready: "text-primary",
+  attention: "text-amber-500 dark:text-amber-400",
+  error: "text-destructive",
+  idle: "text-muted-foreground/50",
+  live: "text-sky-500 dark:text-sky-400",
+}
+
+// Color comes from one `text-*` tone class; the center, halo, and (live) pulse
+// all fill from `bg-current` so they can never disagree — the same trick the
+// footer status bar uses. `live` adds a ping suppressed under reduced motion.
+// Decorative: the adjacent word names the state, so the dot is aria-hidden.
+export function SignalDot({
+  tone = "idle",
+  className,
+}: {
+  tone?: SignalTone
+  className?: string
+}) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "relative flex size-2 shrink-0 items-center justify-center",
+        signalToneClass[tone],
+        className
+      )}
+    >
+      {tone === "live" ? (
+        <span className="absolute inline-flex size-full animate-ping rounded-full bg-current opacity-60 motion-reduce:hidden" />
+      ) : null}
+      <span className="absolute inline-flex size-full rounded-full bg-current opacity-20" />
+      <span className="relative inline-flex size-1 rounded-full bg-current" />
+    </span>
+  )
+}
+
+// The instrument strip. Ruled top and bottom only (no side borders, no fill, no
+// radius) so it reads as a console readout line, not a card. Items supply their
+// own left-hand hairline dividers.
+export function Readout({
+  children,
+  className,
+}: React.PropsWithChildren<{ className?: string }>) {
+  return (
+    <div
+      className={cn(
+        "flex w-full flex-wrap items-stretch border-y border-border",
+        className
+      )}
+    >
+      {children}
+    </div>
+  )
+}
+
+// One segment: `[dot] value LABEL`, inline (not stacked) so it stays a readout
+// rather than a KPI tile. Dividers are per-item `border-l` + `first:border-l-0`
+// (not `divide-x`, which leaves phantom borders when the strip wraps). With
+// `onClick` it becomes a real filter button; `active` highlights the current
+// filter, mirroring how `StatCard` signalled an active filter.
+export function ReadoutItem({
+  label,
+  value,
+  tone,
+  active,
+  onClick,
+  className,
+}: {
+  label: string
+  value: React.ReactNode
+  tone?: SignalTone
+  active?: boolean
+  onClick?: () => void
+  className?: string
+}) {
+  const inner = (
+    <>
+      {tone ? <SignalDot tone={tone} /> : null}
+      <span className="font-mono text-base leading-none tabular-nums text-foreground">
+        {value}
+      </span>
+      <span className="font-mono text-[0.62rem] leading-none tracking-[0.12em] whitespace-nowrap text-muted-foreground uppercase">
+        {label}
+      </span>
+    </>
+  )
+  const classes = cn(
+    "flex flex-1 items-center gap-2 border-l border-border px-3 py-2.5 first:border-l-0",
+    onClick &&
+      "text-left transition-colors hover:bg-muted/30 focus-visible:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-inset",
+    active && "bg-primary/10",
+    className
+  )
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        aria-pressed={active}
+        onClick={onClick}
+        className={classes}
+      >
+        {inner}
+      </button>
+    )
+  }
+  return <div className={classes}>{inner}</div>
+}
+
 export function EmptyState({
   icon: Icon,
   title,

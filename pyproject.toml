@@ -1,6 +1,6 @@
 [project]
 name = "telemanager"
-version = "1.9.0"
+version = "1.9.1"
 description = "Local Telegram session manager for managing Telethon .session files."
 requires-python = ">=3.11"
 dependencies = [

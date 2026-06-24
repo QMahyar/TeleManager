@@ -8,6 +8,7 @@ from telethon.tl.types import Channel, Chat, Message, User
 from .accounts import AccountManager
 from .config import DIALOGS_DIR, ensure_dirs, now_iso, read_json, write_json
 from .telegram_actions import resolve_input_peer
+from .telegram_ids import mark_chat_id, marked_dialog_record
 
 
 @dataclass
@@ -56,10 +57,19 @@ async def fetch_dialogs(manager: AccountManager, account_id: str, limit: int = 5
 
 def list_cached_dialogs(manager: AccountManager, account_id: str) -> dict:
     account = manager._get_account(account_id)
-    return read_json(
+    payload = read_json(
         dialogs_path(account.id),
         {"account_id": account.id, "account_label": account.label, "fetched_at": None, "dialogs": []},
     )
+    dialogs = payload.get("dialogs")
+    if isinstance(dialogs, list):
+        # Migrate legacy caches that stored the bare entity id to the marked form,
+        # so old fetches resolve the right peer without a re-fetch.
+        payload["dialogs"] = [
+            marked_dialog_record(item) if isinstance(item, dict) else item
+            for item in dialogs
+        ]
+    return payload
 
 
 def message_to_dict(message: Message) -> dict:
@@ -100,7 +110,6 @@ async def fetch_messages(manager: AccountManager, account_id: str, target: str, 
 def classify_dialog(dialog: Any) -> CachedDialog:
     entity = dialog.entity
     username = getattr(entity, "username", None)
-    title = dialog.name or username or str(getattr(entity, "id", "Unknown"))
     dialog_type = "unknown"
     is_user = isinstance(entity, User)
     is_bot = bool(getattr(entity, "bot", False))
@@ -124,8 +133,18 @@ def classify_dialog(dialog: Any) -> CachedDialog:
     elif is_channel:
         dialog_type = "channel"
 
+    # Store the marked id (-100… for channels/supergroups, -id for basic groups)
+    # so a username-less chat resolves against the session cache, which is keyed
+    # by the marked id. Users/bots keep their positive id.
+    marked_id = mark_chat_id(
+        int(getattr(entity, "id", 0)),
+        is_channel=is_channel,
+        is_basic_group=isinstance(entity, Chat),
+    )
+    title = dialog.name or username or str(marked_id)
+
     return CachedDialog(
-        id=int(getattr(entity, "id", 0)),
+        id=marked_id,
         title=title,
         dialog_type=dialog_type,
         username=username,

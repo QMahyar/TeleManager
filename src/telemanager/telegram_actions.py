@@ -500,9 +500,9 @@ _NUMERIC_TARGET_RE = re.compile(r"^-?\d+$")
 def _numeric_target_candidates(value: int) -> list[int]:
     """Ordered ID forms to try against Telethon's session cache for a numeric target.
 
-    The dialog cache (and therefore the UI) exposes Telethon's *raw* entity.id, so a
-    supergroup/channel shows up as e.g. 1424486089 even though the session only knows
-    it under its marked id -1001424486089.
+    The dialog cache now stores the *marked* id (-1001424486089), but a raw entity.id
+    (1424486089) still arrives when a user pastes one by hand or replays an old queued
+    step saved before marking, and the session only knows the chat under its marked id.
 
     The unmarked positive id is tried first because Telethon resolves a *positive* int
     by checking every peer marking (user/chat/channel) against the cache and validating

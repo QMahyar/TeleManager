@@ -11,6 +11,33 @@ section below, with auto-generated commit/PR notes appended.
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-06-24
+
+A correctness fix for how group and channel ids are stored, plus a visual pass
+over the Accounts and Actions screens.
+
+### Fixed
+
+- **Group/channel ids are normalized to their marked form.** The dialog cache
+  stored Telethon's bare `entity.id`, so a username-less group or channel was
+  targeted by an ambiguous positive id that the session cache (keyed by the
+  marked id) could not resolve — and the resolver could only ever try the user
+  interpretation of it. Ids are now stored marked: `-100…` for channels and
+  supergroups, `-id` for basic groups. Legacy dialog caches are migrated to the
+  marked form on read (using the chat type already stored alongside), so existing
+  dialog lists self-heal without a re-fetch. Hand-typed bare/raw ids are still
+  accepted by the action resolver.
+
+### Changed
+
+- **Accounts & Actions screens.** A shared "console readout" instrument — a
+  hairline-ruled strip with a status signal light — replaces the KPI-tile rows.
+  Accounts opens with a single fleet readout (removing the fleet counts that were
+  duplicated against the sidebar), and the Actions queue panel reads as an arming
+  console: an armed/destructive state readout plus always-visible safety
+  interlocks (account/action delays and the operation cap), with the full editor
+  one click away under "Adjust".
+
 ## [1.9.0] - 2026-06-23
 
 Operator-console refinement. The "Console" theme stays, but the shell now reads

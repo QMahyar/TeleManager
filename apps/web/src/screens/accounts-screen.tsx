@@ -24,9 +24,10 @@ import {
   PageGrid,
   Panel,
   PrimaryPane,
+  Readout,
+  ReadoutItem,
   Select,
   SidePane,
-  StatCard,
   StepHeading,
   Tabs,
 } from "../components/ui"
@@ -112,27 +113,37 @@ function FleetTab({ props }: { props: AccountsScreenProps }) {
   return (
     <PageGrid>
       <PrimaryPane>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <StatCard
+        {/* Fleet readout — the screen's hero. One instrument line instead of a
+            row of KPI tiles, and the only place these counts live now (the
+            sidebar summary is the at-a-glance copy; this is the interactive
+            one). Ready/Needs-attention double as table filters; their signal
+            lights stay dark until there's actually something in that state. */}
+        <Readout className="flex-nowrap overflow-x-auto">
+          <ReadoutItem
             label="Total"
             value={props.accounts.length}
             active={statusFilter === "all"}
             onClick={() => setStatusFilter("all")}
           />
-          <StatCard
+          <ReadoutItem
             label="Ready"
             value={props.metrics.ready}
+            tone={props.metrics.ready ? "ready" : "idle"}
             active={statusFilter === "ready"}
             onClick={() => filterBy("ready")}
           />
-          <StatCard
+          <ReadoutItem
             label="Needs attention"
             value={props.metrics.attention}
+            tone={props.metrics.attention ? "attention" : "idle"}
             active={statusFilter === "attention"}
             onClick={() => filterBy("attention")}
           />
-          <StatCard label="Known dialogs" value={props.metrics.knownDialogs} />
-        </div>
+          <ReadoutItem
+            label="Known dialogs"
+            value={props.metrics.knownDialogs}
+          />
+        </Readout>
         <Panel tone="raised" className="space-y-3 overflow-hidden">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <StepHeading

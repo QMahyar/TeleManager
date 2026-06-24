@@ -31,6 +31,8 @@ import {
   Field,
   Input,
   Panel,
+  Readout,
+  ReadoutItem,
   SectionTitle,
   Select,
   Tabs,
@@ -801,6 +803,28 @@ function QueueColumn({
           ) : null
         }
       />
+      {/* Armed readout — the queue's live state. The light is dark until the
+          queue is actually runnable (steps queued AND accounts selected), then
+          goes teal; a red segment surfaces destructive ops at a glance. */}
+      <Readout>
+        <ReadoutItem
+          tone={
+            props.queue.length && props.actionAccountIds.size ? "ready" : "idle"
+          }
+          value={operationCount}
+          label={`operations · ${props.queue.length} ${
+            props.queue.length === 1 ? "step" : "steps"
+          }`}
+        />
+        {destructiveCount ? (
+          <ReadoutItem
+            tone="error"
+            value={destructiveCount}
+            label="destructive"
+          />
+        ) : null}
+      </Readout>
+
       <QueueTable queue={props.queue} setQueue={props.setQueue} onEdit={editStep} />
 
       <details className="rounded-md border border-border bg-muted/10 p-2 text-xs">
@@ -813,14 +837,34 @@ function QueueColumn({
         </div>
       </details>
 
-      <details className="rounded-md border border-border bg-muted/10 p-2 text-xs" open>
-        <summary className="cursor-pointer font-medium text-muted-foreground">
-          Delays & limits
-        </summary>
-        <div className="pt-2">
-          <SafetyEditor safety={props.safety} setSafety={props.setSafety} dense />
-        </div>
-      </details>
+      {/* Safety interlocks stay on as a gauge — they are the personality of a
+          guarded console, not config to bury. The dividers render the "·"
+          between values; the full editor is one click away under "Adjust". */}
+      <div className="space-y-2">
+        <Readout>
+          <ReadoutItem
+            value={`${props.safety.delay_between_accounts}s`}
+            label="accounts"
+          />
+          <ReadoutItem
+            value={`${props.safety.delay_between_actions}s`}
+            label="actions"
+          />
+          <ReadoutItem value={props.safety.max_operations} label="cap" />
+        </Readout>
+        <details className="rounded-md border border-border bg-muted/10 p-2 text-xs">
+          <summary className="cursor-pointer font-medium text-muted-foreground">
+            Adjust delays &amp; limits
+          </summary>
+          <div className="pt-2">
+            <SafetyEditor
+              safety={props.safety}
+              setSafety={props.setSafety}
+              dense
+            />
+          </div>
+        </details>
+      </div>
 
       {destructiveCount ? (
         <p className="flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs font-medium text-destructive">
