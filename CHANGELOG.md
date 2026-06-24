@@ -11,6 +11,26 @@ section below, with auto-generated commit/PR notes appended.
 
 ## [Unreleased]
 
+## [1.9.2] - 2026-06-24
+
+A focused cleanup of the Actions screen — the scheduler moves out of the cramped
+queue rail into a dedicated modal, so the recurrence form finally has room to
+breathe and the rail reads as a calm queue-and-run instrument.
+
+### Changed
+
+- **Scheduling moved into a focused modal.** The Actions queue rail previously
+  stacked the queue, reusable queues, the safety editor, a Run/Schedule toggle,
+  *and* the full recurrence form (Every / Starts / Ends / count / stagger / name /
+  preview) into one ~22rem column, which overflowed into an internal scrollbar in
+  Schedule mode. The rail is now a compact queue + **Run** + **Schedule…**; the
+  recurrence form opens in a dedicated modal where it lays out two-up. Arriving
+  from Dialogs "Schedule selected" opens the modal directly. The schedule
+  create/preview payloads are unchanged.
+- **Queue rail declutter.** Removed the duplicate operation count from the queued-
+  steps table header (the rail's console readout already states operations and
+  steps directly above it).
+
 ## [1.9.1] - 2026-06-24
 
 A correctness fix for how group and channel ids are stored, plus a visual pass
