@@ -12,24 +12,18 @@ import {
 } from "@tabler/icons-react"
 
 import { Button } from "../ui/button"
-import { cn } from "../ui/utils"
 
 import { ActionFields } from "../components/action-fields"
 import { QueueTable } from "../components/queue-table"
 import { RunHistory } from "../components/run-history"
 import { SafetyEditor } from "../components/safety-editor"
 import { ScheduledInspector } from "../components/scheduled-inspector"
-import {
-  RecurrenceFields,
-  ScheduleCard,
-  SchedulePreviewCard,
-} from "../components/schedule-parts"
+import { ScheduleCard, ScheduleModal } from "../components/schedule-parts"
 import { TargetComposer } from "../components/target-composer"
 import {
   Badge,
   EmptyState,
   Field,
-  Input,
   Panel,
   Readout,
   ReadoutItem,
@@ -47,13 +41,7 @@ import {
 import { actionMeta, categoryLabels, categoryOrder } from "../lib/constants"
 import { accountStatus, splitTargets, statusTone } from "../lib/helpers"
 import { startQueueRun } from "../lib/queue-run"
-import {
-  buildRecurrence,
-  defaultRecurrenceForm,
-  describeRecurrence,
-  validateRecurrence,
-  type RecurrenceForm,
-} from "../lib/schedules"
+import { defaultRecurrenceForm, type RecurrenceForm } from "../lib/schedules"
 import { partitionTargets } from "../lib/targeting"
 import type {
   ActionType,
@@ -63,7 +51,6 @@ import type {
 } from "../types"
 import type { ActionsScreenProps } from "./screen-props"
 
-type RunMode = "run" | "schedule"
 type BottomTab = "history" | "schedules" | "inspector"
 
 const SINGLE_TARGET_ACTIONS = new Set<ActionType>([
@@ -126,9 +113,26 @@ export function ActionsScreen(props: ActionsScreenProps) {
           activeRunId={queueRunner.activeRunId}
           pollQueueRun={queueRunner.pollQueueRun}
           composer={composer}
-          setBottomTab={setBottomTab}
         />
       </div>
+      <ScheduleModal
+        open={composer.scheduleOpen}
+        onClose={() => composer.setScheduleOpen(false)}
+        queuePayload={props.queuePayload}
+        form={composer.form}
+        setForm={composer.setForm}
+        name={composer.name}
+        setName={composer.setName}
+        preview={composer.preview}
+        setPreview={composer.setPreview}
+        guarded={props.guarded}
+        flash={props.flash}
+        loadSchedules={props.loadSchedules}
+        onCreated={() => {
+          composer.setScheduleOpen(false)
+          setBottomTab("schedules")
+        }}
+      />
       <Panel className="space-y-3 overflow-hidden">
         <Tabs<BottomTab>
           value={bottomTab}
@@ -170,15 +174,17 @@ export function ActionsScreen(props: ActionsScreenProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Schedule composer — local state for the Col-3 "Schedule" mode. The schedule
-// is built from the SAME shared queue/queuePayload the run-now mode uses.
+// Schedule composer — local state for the Schedule modal. The schedule is built
+// from the SAME shared queue/queuePayload the run-now path uses; `scheduleOpen`
+// just controls the modal's visibility (seeded open when arriving from Dialogs
+// "Schedule selected").
 // ---------------------------------------------------------------------------
 
 type ScheduleComposer = ReturnType<typeof useScheduleComposer>
 
 function useScheduleComposer(props: ActionsScreenProps) {
-  const [mode, setMode] = React.useState<RunMode>(() =>
-    props.scheduleSeed?.mode === "schedule" ? "schedule" : "run"
+  const [scheduleOpen, setScheduleOpen] = React.useState(
+    () => props.scheduleSeed?.mode === "schedule"
   )
   const [name, setName] = React.useState("")
   const [form, setForm] = React.useState<RecurrenceForm>(defaultRecurrenceForm)
@@ -198,7 +204,16 @@ function useScheduleComposer(props: ActionsScreenProps) {
   const preview =
     previewState && previewState.queue === props.queue ? previewState.data : null
 
-  return { mode, setMode, name, setName, form, setForm, preview, setPreview }
+  return {
+    scheduleOpen,
+    setScheduleOpen,
+    name,
+    setName,
+    form,
+    setForm,
+    preview,
+    setPreview,
+  }
 }
 
 function SchedulesList({ props }: { props: ActionsScreenProps }) {
@@ -706,63 +721,16 @@ function QueueColumn({
   activeRunId,
   pollQueueRun,
   composer,
-  setBottomTab,
 }: {
   props: ActionsScreenProps
   actionBusy: ActionBusy
   activeRunId: string | null
   pollQueueRun: (runId: string) => Promise<void>
   composer: ScheduleComposer
-  setBottomTab: React.Dispatch<React.SetStateAction<BottomTab>>
 }) {
   const destructiveCount = countDestructiveOperations(props.queue)
   const operationCount = countOperations(props.queue)
   const runDisabled = actionBusy.busy || Boolean(activeRunId) || !props.queue.length
-
-  // Schedule mode operates on the SAME built queue (props.queuePayload). A
-  // schedule is just "this queue, on a cadence" — backend ScheduleRequest.queue
-  // is an ActionQueueRequest, so the payload matches directly.
-  function scheduleBlocker(): string | null {
-    if (!props.queue.length) return "Add at least one step to the queue first."
-    if (composer.name.trim().length < 3) return "Name the schedule (3+ characters)."
-    return validateRecurrence(composer.form)
-  }
-
-  function schedulePayload() {
-    return {
-      name: composer.name.trim(),
-      queue: props.queuePayload,
-      recurrence: buildRecurrence(composer.form),
-    }
-  }
-
-  async function previewSchedule() {
-    const blocker = scheduleBlocker()
-    if (blocker) return props.flash(blocker)
-    const result = await api<SchedulePreview>("/api/schedules/preview", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(schedulePayload()),
-    })
-    composer.setPreview(result)
-    props.flash(`Preview ready (${result.engine}).`)
-  }
-
-  async function createSchedule() {
-    const blocker = scheduleBlocker()
-    if (blocker) return props.flash(blocker)
-    await api("/api/schedules", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(schedulePayload()),
-    })
-    props.flash("Schedule created.", "success")
-    composer.setName("")
-    composer.setForm(defaultRecurrenceForm)
-    composer.setPreview(null)
-    await props.loadSchedules()
-    setBottomTab("schedules")
-  }
 
   // Pop a step back into the builder fully populated so a mistake is a tweak,
   // not a rebuild. Removing it here avoids a duplicate when it's re-added.
@@ -873,118 +841,56 @@ function QueueColumn({
         </p>
       ) : null}
 
-      {/* A quiet segmented control — the active side is a muted fill, not the
-          brand teal, so the only filled-teal button below is the real action
-          (Run / Create schedule). Two teal buttons read as two primaries. */}
-      <div className="flex gap-1 rounded-md border border-border p-1">
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-pressed={composer.mode === "run"}
-          className={cn(
-            "flex-1",
-            composer.mode === "run" && "bg-muted text-foreground"
-          )}
-          onClick={() => composer.setMode("run")}
-        >
-          Run now
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-pressed={composer.mode === "schedule"}
-          className={cn(
-            "flex-1",
-            composer.mode === "schedule" && "bg-muted text-foreground"
-          )}
-          onClick={() => composer.setMode("schedule")}
-        >
-          Schedule
-        </Button>
-      </div>
-
-      {composer.mode === "run" ? (
-        <>
-          <Button
-            size="comfortable"
-            className="w-full"
-            loading={actionBusy.isPending("run")}
-            disabled={runDisabled}
-            onClick={() =>
-              actionBusy.runAction("run", async () => {
-                if (activeRunId) return props.flash("A queue is already running.")
-                if (!props.queue.length) return props.flash("Add at least one step.")
-                const confirmed = await props.askDialog({
-                  kicker: destructiveCount ? "Destructive queue" : "Run queue",
-                  title: "Run this queue?",
-                  description: runConfirmationDetail(operationCount, props.queue.length, destructiveCount),
-                  confirmLabel: destructiveCount ? "Run Destructive Queue" : "Run Queue",
-                  danger: destructiveCount > 0,
-                })
-                if (!confirmed) return
-                const response = await startQueueRun(props.queuePayload)
-                props.flash(
-                  `Queue started: ${response.operation_count} operations.`,
-                  "success"
-                )
-                void pollQueueRun(response.run_id)
-              })
-            }
-          >
-            {activeRunId ? "Queue running…" : `Run ${operationCount || ""} operation(s)`}
-          </Button>
-          {!props.queue.length ? (
-            <p className="text-center text-xs text-muted-foreground">
-              Add steps in the builder, then run.
-            </p>
-          ) : null}
-        </>
-      ) : (
-        <div className="space-y-3">
-          <RecurrenceFields
-            form={composer.form}
-            setForm={(next) => {
-              composer.setForm(next)
-              composer.setPreview(null)
-            }}
-          />
-          <Field label="Schedule name">
-            <Input
-              value={composer.name}
-              maxLength={80}
-              autoComplete="off"
-              placeholder="Daily hello"
-              onChange={(event) => {
-                composer.setName(event.target.value)
-                composer.setPreview(null)
-              }}
-            />
-          </Field>
-          <p className="rounded-md border border-border bg-muted/20 p-2 text-xs text-muted-foreground">
-            {describeRecurrence(buildRecurrence(composer.form))}
-          </p>
-          {composer.preview ? (
-            <SchedulePreviewCard preview={composer.preview} />
-          ) : null}
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" onClick={() => props.guarded(previewSchedule)}>
-              Preview
-            </Button>
-            <Button
-              size="comfortable"
-              className="flex-1"
-              onClick={() => props.guarded(createSchedule)}
-            >
-              <IconClockPlus /> Create Schedule
-            </Button>
-          </div>
-          <p
-            className={`text-xs ${scheduleBlocker() ? "text-muted-foreground" : "text-primary"}`}
-          >
-            {scheduleBlocker() || "Ready to schedule."}
-          </p>
-        </div>
-      )}
+      {/* Two stacked actions. Run is the single filled-teal primary; Schedule…
+          is a quiet outline that opens the focused scheduler modal. The
+          recurrence form used to live inline here and overflowed the rail. */}
+      <Button
+        size="comfortable"
+        className="w-full"
+        loading={actionBusy.isPending("run")}
+        disabled={runDisabled}
+        onClick={() =>
+          actionBusy.runAction("run", async () => {
+            if (activeRunId) return props.flash("A queue is already running.")
+            if (!props.queue.length) return props.flash("Add at least one step.")
+            const confirmed = await props.askDialog({
+              kicker: destructiveCount ? "Destructive queue" : "Run queue",
+              title: "Run this queue?",
+              description: runConfirmationDetail(operationCount, props.queue.length, destructiveCount),
+              confirmLabel: destructiveCount ? "Run Destructive Queue" : "Run Queue",
+              danger: destructiveCount > 0,
+            })
+            if (!confirmed) return
+            const response = await startQueueRun(props.queuePayload)
+            props.flash(
+              `Queue started: ${response.operation_count} operations.`,
+              "success"
+            )
+            void pollQueueRun(response.run_id)
+          })
+        }
+      >
+        {activeRunId ? "Queue running…" : `Run ${operationCount || ""} operation(s)`}
+      </Button>
+      <Button
+        variant="outline"
+        size="comfortable"
+        className="w-full"
+        disabled={!props.queue.length}
+        title={
+          props.queue.length
+            ? undefined
+            : "Add at least one step to the queue first."
+        }
+        onClick={() => composer.setScheduleOpen(true)}
+      >
+        <IconClockPlus /> Schedule…
+      </Button>
+      {!props.queue.length ? (
+        <p className="text-center text-xs text-muted-foreground">
+          Add steps in the builder, then run or schedule.
+        </p>
+      ) : null}
     </Panel>
   )
 }

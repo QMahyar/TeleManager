@@ -1,28 +1,34 @@
 import {
   IconBolt,
+  IconClockPlus,
   IconPlayerPause,
   IconPlayerPlay,
   IconTrash,
 } from "@tabler/icons-react"
 
 import { Button } from "../ui/button"
+import { Modal } from "../ui/modal"
 
 import { api } from "../lib/api"
 import { actionMeta } from "../lib/constants"
 import { humanTime, statusTone } from "../lib/helpers"
 import {
+  buildRecurrence,
+  defaultRecurrenceForm,
   describeRecurrence,
   endModeOptions,
   engineLabel,
   engineTone,
   intervalUnitOptions,
   startModeOptions,
+  validateRecurrence,
   type RecurrenceForm,
 } from "../lib/schedules"
 import type {
   ActionType,
   AskDialog,
   Flash,
+  QueueStep,
   Schedule,
   SchedulePreview,
 } from "../types"
@@ -46,7 +52,7 @@ export function RecurrenceFields({
 
   return (
     <section className="space-y-3">
-      <div className="grid gap-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Every">
           <div className="flex gap-2">
             <Input
@@ -87,7 +93,7 @@ export function RecurrenceFields({
         </Field>
       </div>
 
-      <div className="grid gap-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Starts">
           <Select
             value={form.startMode}
@@ -204,6 +210,175 @@ export function SchedulePreviewCard({ preview }: { preview: SchedulePreview }) {
         </p>
       ))}
     </div>
+  )
+}
+
+// `queuePayload.steps` is the same array the builder edits (`{ steps: queue, ...safety }`),
+// so the modal derives its header summary and empty-guard straight from it.
+type QueuePayload = {
+  steps: QueueStep[]
+  delay_between_accounts: number
+  delay_between_actions: number
+  max_operations: number
+}
+
+function queueStepsSummary(steps: QueueStep[]): string {
+  const ops = steps.reduce(
+    (total, step) => total + step.account_ids.length * step.targets.length,
+    0
+  )
+  const first = steps[0]
+  const firstLabel = first
+    ? actionMeta[first.action_type as ActionType]?.label || first.action_type
+    : ""
+  return `${ops} op${ops === 1 ? "" : "s"} · ${steps.length} step${
+    steps.length === 1 ? "" : "s"
+  }${firstLabel ? ` · ${firstLabel}` : ""}`
+}
+
+// The scheduler, lifted out of the cramped Actions rail into a focused modal so the
+// recurrence form gets room to lay out two-up. It builds a schedule from the SAME
+// queue the run-now path uses — a schedule is just "this queue, on a cadence", so the
+// create/preview payload (ScheduleRequest.queue = ActionQueueRequest) matches directly.
+export function ScheduleModal({
+  open,
+  onClose,
+  queuePayload,
+  form,
+  setForm,
+  name,
+  setName,
+  preview,
+  setPreview,
+  guarded,
+  flash,
+  loadSchedules,
+  onCreated,
+}: {
+  open: boolean
+  onClose: () => void
+  queuePayload: QueuePayload
+  form: RecurrenceForm
+  setForm: (next: RecurrenceForm) => void
+  name: string
+  setName: (next: string) => void
+  preview: SchedulePreview | null
+  setPreview: (preview: SchedulePreview | null) => void
+  guarded: (work: () => Promise<void>) => Promise<void>
+  flash: Flash
+  loadSchedules: () => Promise<void>
+  onCreated: () => void
+}) {
+  const steps = queuePayload.steps
+
+  function scheduleBlocker(): string | null {
+    if (!steps.length) return "Add at least one step to the queue first."
+    if (name.trim().length < 3) return "Name the schedule (3+ characters)."
+    return validateRecurrence(form)
+  }
+
+  function schedulePayload() {
+    return {
+      name: name.trim(),
+      queue: queuePayload,
+      recurrence: buildRecurrence(form),
+    }
+  }
+
+  async function previewSchedule() {
+    const blocker = scheduleBlocker()
+    if (blocker) return flash(blocker)
+    const result = await api<SchedulePreview>("/api/schedules/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(schedulePayload()),
+    })
+    setPreview(result)
+    flash(`Preview ready (${result.engine}).`)
+  }
+
+  async function createSchedule() {
+    const blocker = scheduleBlocker()
+    if (blocker) return flash(blocker)
+    await api("/api/schedules", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(schedulePayload()),
+    })
+    flash("Schedule created.", "success")
+    setName("")
+    setForm(defaultRecurrenceForm)
+    setPreview(null)
+    await loadSchedules()
+    onCreated()
+  }
+
+  const blocker = scheduleBlocker()
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      className="max-w-2xl p-0"
+      labelledBy="schedule-modal-title"
+    >
+      <header className="space-y-1 border-b border-border px-5 py-4">
+        <h2
+          id="schedule-modal-title"
+          className="font-heading text-lg text-foreground"
+        >
+          Schedule this queue
+        </h2>
+        <p className="font-mono text-xs text-muted-foreground">
+          {steps.length ? queueStepsSummary(steps) : "Queue is empty"}
+        </p>
+      </header>
+
+      <div className="max-h-[70vh] space-y-4 overflow-auto px-5 py-4">
+        <RecurrenceFields
+          form={form}
+          setForm={(next) => {
+            setForm(next)
+            setPreview(null)
+          }}
+        />
+        <Field label="Schedule name">
+          <Input
+            value={name}
+            maxLength={80}
+            autoComplete="off"
+            placeholder="Daily hello"
+            onChange={(event) => {
+              setName(event.target.value)
+              setPreview(null)
+            }}
+          />
+        </Field>
+        <p className="rounded-md border border-border bg-muted/20 p-2 text-xs text-muted-foreground">
+          {describeRecurrence(buildRecurrence(form))}
+        </p>
+        {preview ? <SchedulePreviewCard preview={preview} /> : null}
+      </div>
+
+      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-4">
+        <p
+          className={`text-xs ${blocker ? "text-muted-foreground" : "text-primary"}`}
+        >
+          {blocker || "Ready to schedule."}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => guarded(previewSchedule)}>
+            Preview
+          </Button>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={() => guarded(createSchedule)}>
+            <IconClockPlus /> Create Schedule
+          </Button>
+        </div>
+      </footer>
+    </Modal>
   )
 }
 

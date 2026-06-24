@@ -19,16 +19,8 @@ export function QueueTable({
 }) {
   return (
     <div className="overflow-hidden rounded-lg border border-border">
-      <div className="sticky top-0 z-10 grid grid-cols-[1fr_auto] border-b border-border bg-card p-3 text-xs tracking-[0.16em] text-muted-foreground uppercase">
-        <span>Queued steps</span>
-        <span>
-          {queue.reduce(
-            (total, step) =>
-              total + step.targets.length * step.account_ids.length,
-            0
-          )}{" "}
-          ops
-        </span>
+      <div className="sticky top-0 z-10 border-b border-border bg-card p-3 text-xs tracking-[0.16em] text-muted-foreground uppercase">
+        Queued steps
       </div>
       {queue.length ? (
         queue.map((step, index) => {
