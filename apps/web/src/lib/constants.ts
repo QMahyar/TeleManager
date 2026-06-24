@@ -116,10 +116,10 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
     ]),
   },
   schedule_message: {
-    label: "Schedule message",
+    label: "Schedule message (one-off)",
     category: "messaging",
     description:
-      "Schedule a message for later. Use text=... and schedule=ISO time or +15m/+2h/+1d.",
+      "Send a single message at one specific time, delivered by Telegram even while TeleManager is closed. For a repeating send, add a Send message step and use Schedule… instead.",
     needsMessage: true,
     messagePlaceholder: "text=Message to send later\nschedule=+15m",
     targetHint: HINT_CHAT_TARGET,

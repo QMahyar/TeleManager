@@ -81,8 +81,21 @@ def test_classify_engine_and_native_text(app_context: dict) -> None:
     )
     assert mixed == "runner"
 
-    assert ss.native_text_for_step({"action_type": "start_bot", "message": ""}) == "/start"
-    assert ss.native_text_for_step({"action_type": "send_message", "message": "hello"}) == "hello"
+    assert ss.native_payload_for_step({"action_type": "start_bot", "message": ""}) == {
+        "kind": "text",
+        "text": "/start",
+    }
+    assert ss.native_payload_for_step({"action_type": "send_message", "message": "hello"}) == {
+        "kind": "text",
+        "text": "hello",
+    }
+    # send_media classifies native and carries the file/caption to schedule offline.
+    media_payload = ss.native_payload_for_step(
+        {"action_type": "send_media", "message": "file=E:/p.jpg\ncaption=hi"}
+    )
+    assert media_payload == {"kind": "media", "file": "E:/p.jpg", "caption": "hi", "parse_mode": None}
+    native_only, _ = ss.classify_engine([{"action_type": "send_media", "message": "file=E:/p.jpg"}])
+    assert native_only == "native"
 
 
 def test_create_list_pause_resume_delete_schedule(app_context: dict, client) -> None:
@@ -190,13 +203,20 @@ def test_native_reconcile_fills_buffer_and_dedupes(app_context: dict, monkeypatc
     desired = ss.upcoming_fire_times(now, recurrence, now, now + ss.NATIVE_HORIZON, cap)
     native_chats: dict[str, Any] = {}
 
-    coverage = asyncio.run(service._reconcile_chat(object(), native_chats, "k1", "@chat", "hi", desired))
-    assert len(created) == cap
+    payload = {"kind": "text", "text": "hi"}
+    coverage, capped = asyncio.run(
+        service._reconcile_chat(object(), native_chats, "k1", "@chat", payload, desired)
+    )
+    assert len(created) == cap  # exactly the per-chat limit, which fits
     assert coverage is not None
+    assert capped is False
 
     created.clear()
-    asyncio.run(service._reconcile_chat(object(), native_chats, "k1", "@chat", "hi", desired))
+    _, capped_again = asyncio.run(
+        service._reconcile_chat(object(), native_chats, "k1", "@chat", payload, desired)
+    )
     assert created == []  # already buffered, nothing new and no room left
+    assert capped_again is False
 
 
 def test_recurrence_with_start_delay(app_context: dict) -> None:
@@ -312,3 +332,52 @@ def test_fire_runner_skips_and_records_when_account_busy(app_context: dict, monk
     assert "busy" in (schedule.get("last_error") or "").lower()
     assert "Busy One" in schedule["last_error"]  # account label surfaced
     assert new_next is not None and schedule["next_fire_at"] != before_next  # advanced
+
+
+def test_reconcile_chat_caps_at_per_chat_limit(app_context: dict, monkeypatch) -> None:
+    # A chat already holding Telegram's 100-message limit leaves no room: nothing
+    # new is created and the call reports capped=True so the scheduler can warn.
+    ss = _ss()
+    service = ss.SchedulerService(app_context["main"].manager, {})
+    cap = ss.TELEGRAM_SCHEDULED_PER_CHAT_LIMIT
+
+    full = {mid: ss.utcnow() for mid in range(1, cap + 1)}  # chat is already full
+
+    async def fake_list(_client, _target):
+        return dict(full)
+
+    async def fake_create(*_args, **_kwargs):  # must never be called
+        raise AssertionError("created a scheduled message in a full chat")
+
+    monkeypatch.setattr(ss, "list_scheduled_message_times", fake_list)
+    monkeypatch.setattr(ss, "create_scheduled_text", fake_create)
+
+    now = ss.utcnow()
+    desired = ss.upcoming_fire_times(now, _recurrence(interval_value=1), now, now + ss.NATIVE_HORIZON, 5)
+    coverage, capped = asyncio.run(
+        service._reconcile_chat(object(), {}, "k1", "@chat", {"kind": "text", "text": "hi"}, desired)
+    )
+    assert capped is True
+    assert coverage is None  # tracked nothing for this schedule
+
+
+def test_create_native_dispatches_media_to_media_creator(app_context: dict, monkeypatch) -> None:
+    # A media payload must go through create_scheduled_media (so the file/caption are
+    # scheduled), not the text creator.
+    ss = _ss()
+    calls: dict[str, Any] = {}
+
+    async def fake_media(_client, target, file, caption, parse_mode, when):
+        calls.update(target=target, file=file, caption=caption, parse_mode=parse_mode)
+        return 999
+
+    async def fake_text(*_a, **_k):
+        raise AssertionError("media payload routed to the text creator")
+
+    monkeypatch.setattr(ss, "create_scheduled_media", fake_media)
+    monkeypatch.setattr(ss, "create_scheduled_text", fake_text)
+
+    payload = {"kind": "media", "file": "E:/p.jpg", "caption": "hi", "parse_mode": "markdown"}
+    message_id = asyncio.run(ss._create_native(object(), "@chat", payload, ss.utcnow()))
+    assert message_id == 999
+    assert calls == {"target": "@chat", "file": "E:/p.jpg", "caption": "hi", "parse_mode": "markdown"}

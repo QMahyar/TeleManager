@@ -232,6 +232,30 @@ async def create_scheduled_text(client: TelegramClient, target: str, text: str, 
     return int(sent.id)
 
 
+async def create_scheduled_media(
+    client: TelegramClient,
+    target: str,
+    file: str,
+    caption: str,
+    parse_mode: str | None,
+    when: datetime,
+) -> int:
+    """Create one Telegram-native scheduled *media* message and return its id.
+
+    Telegram pre-delivers scheduled media server-side just like text, so a media
+    schedule can run while TeleManager is closed. Each scheduled instance uploads the
+    file once (Telegram has no scheduled re-use of an upload)."""
+    clean_file = (file or "").strip()
+    if not clean_file:
+        raise ValueError("Scheduled media requires a file path.")
+    peer = await resolve_input_peer(client, target)
+    kwargs: dict[str, Any] = {"caption": caption or "", "schedule": when}
+    if parse_mode:
+        kwargs["parse_mode"] = parse_mode
+    sent = cast(Any, await client.send_file(peer, file=clean_file, **kwargs))
+    return int(sent.id)
+
+
 async def list_scheduled_message_times(client: TelegramClient, target: str) -> dict[int, datetime]:
     """Return {message_id: scheduled_send_time} for the chat's scheduled messages."""
     entity = await resolve_input_peer(client, target)

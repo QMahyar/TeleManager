@@ -14,18 +14,21 @@ from .audit_service import log_event
 from .config import SCHEDULES_FILE, read_json, write_json
 from .telegram_actions import (
     TELEGRAM_SCHEDULED_PER_CHAT_LIMIT,
+    create_scheduled_media,
     create_scheduled_text,
     delete_scheduled_messages,
     fetch_scheduled_messages,
     list_scheduled_message_times,
+    parse_options,
     safe_delay,
 )
 
 logger = logging.getLogger("telemanager.scheduler")
 
-# Action types Telegram can pre-deliver server-side as a plain scheduled message,
-# so a schedule made only of these can fire while TeleManager is closed.
-NATIVE_MESSAGE_ACTIONS = {"send_message"}
+# Action types Telegram can pre-deliver server-side as a scheduled message, so a
+# schedule made only of these can fire while TeleManager is closed. Telegram
+# schedules both text (sendMessage) and media (sendMedia) this way.
+NATIVE_MESSAGE_ACTIONS = {"send_message", "send_media"}
 # Telegram only schedules messages 365 days out; keep a small safety margin.
 NATIVE_HORIZON = timedelta(days=364)
 # How often a running app refills the per-chat native buffer. With a 100-message
@@ -295,10 +298,37 @@ def classify_engine(steps: list[dict[str, Any]]) -> tuple[str, str]:
     return "runner", f"Contains actions Telegram cannot pre-schedule ({pretty}); runs only while TeleManager is open."
 
 
-def native_text_for_step(step: dict[str, Any]) -> str:
-    if step.get("action_type") == "start_bot":
-        return "/start"
-    return (step.get("message") or "").strip()
+def native_payload_for_step(step: dict[str, Any]) -> dict[str, Any] | None:
+    """Describe what to pre-schedule for a native step, or None if it has nothing.
+
+    Returns {"kind": "text", "text": ...} or {"kind": "media", "file", "caption",
+    "parse_mode"} so the reconcile loop can dispatch to the right native creator.
+    """
+    action = step.get("action_type")
+    if action == "start_bot":
+        return {"kind": "text", "text": "/start"}
+    if action == "send_media":
+        options = parse_options(step.get("message"))
+        file = (options.get("file") or options.get("path") or "").strip()
+        if not file:
+            return None
+        return {
+            "kind": "media",
+            "file": file,
+            "caption": options.get("caption") or options.get("message") or "",
+            "parse_mode": options.get("parse_mode"),
+        }
+    text = (step.get("message") or "").strip()
+    return {"kind": "text", "text": text} if text else None
+
+
+async def _create_native(client: Any, target: str, payload: dict[str, Any], when: datetime) -> int:
+    """Create one native scheduled message for `payload` and return its id."""
+    if payload["kind"] == "media":
+        return await create_scheduled_media(
+            client, target, payload["file"], payload.get("caption") or "", payload.get("parse_mode"), when
+        )
+    return await create_scheduled_text(client, target, payload["text"], when)
 
 
 # ---------------------------------------------------------------------------
@@ -741,13 +771,14 @@ class SchedulerService:
         account_ids = sorted({account_id for step in schedule["queue"]["steps"] for account_id in step["account_ids"]})
         warmed: list[str] = []
         chat_index = 0
+        capped = False
         # Take the session locks so a native reconcile never opens an account's
         # `.session` while a runner fire (or manual queue) is using it.
         async with self.manager.session_guard(account_ids):
             try:
                 for step_index, step in enumerate(schedule["queue"]["steps"]):
-                    text = native_text_for_step(step)
-                    if not text:
+                    payload = native_payload_for_step(step)
+                    if payload is None:
                         continue
                     for account_id in step["account_ids"]:
                         client = await self._warm(account_id, warmed)
@@ -758,12 +789,22 @@ class SchedulerService:
                             key = f"{account_id}|{step_index}|{target}"
                             offset = timedelta(seconds=stagger * chat_index)
                             chat_index += 1
-                            chat_coverage = await self._reconcile_chat(
-                                client, native_chats, key, target, text, desired, offset
+                            chat_coverage, chat_capped = await self._reconcile_chat(
+                                client, native_chats, key, target, payload, desired, offset
                             )
+                            capped = capped or chat_capped
                             if chat_coverage and (coverage is None or chat_coverage > coverage):
                                 coverage = chat_coverage
                 schedule["coverage_until"] = iso(coverage) if coverage else None
+                # Telegram caps scheduled messages at 100 per chat; surface it when a
+                # chat is full so the operator knows later fires may not pre-deliver.
+                schedule["coverage_warning"] = (
+                    f"A chat is at Telegram's {TELEGRAM_SCHEDULED_PER_CHAT_LIMIT}-scheduled-message "
+                    "limit; later fires won't pre-deliver until earlier ones send. Reopen "
+                    "TeleManager periodically to refill."
+                    if capped
+                    else None
+                )
                 schedule["last_error"] = None
             finally:
                 await self.manager.release_run_clients(account_ids)
@@ -783,10 +824,13 @@ class SchedulerService:
         native_chats: dict[str, Any],
         key: str,
         target: str,
-        text: str,
+        payload: dict[str, Any],
         desired: list[datetime],
         offset: timedelta = timedelta(0),
-    ) -> datetime | None:
+    ) -> tuple[datetime | None, bool]:
+        """Top up a chat's native buffer toward `desired`. Returns (latest covered
+        time, capped) where `capped` is True if Telegram's per-chat limit stopped us
+        from covering every desired fire."""
         entry = native_chats.setdefault(key, {"target": target, "ids": {}})
         existing = await list_scheduled_message_times(client, target)
         # Drop ids that Telegram already delivered or that no longer exist.
@@ -795,24 +839,26 @@ class SchedulerService:
         }
         covered = {parse_iso(when) for when in tracked.values()}
         room = TELEGRAM_SCHEDULED_PER_CHAT_LIMIT - len(existing)
+        capped = False
         first = True
         for fire in desired:
-            if room <= 0:
-                break
             send_at = fire + offset
             if send_at in covered:
                 continue
+            if room <= 0:
+                capped = True  # wanted to schedule more but the chat is full
+                break
             if not first:
                 await safe_delay(NATIVE_SEND_DELAY)
             first = False
-            message_id = await create_scheduled_text(client, target, text, send_at)
+            message_id = await _create_native(client, target, payload, send_at)
             tracked[str(message_id)] = iso(send_at)
             covered.add(send_at)
             room -= 1
         entry["ids"] = tracked
         scheduled_times = [parse_iso(when) for when in tracked.values()]
         valid_times = [when for when in scheduled_times if when is not None]
-        return max(valid_times) if valid_times else None
+        return (max(valid_times) if valid_times else None), capped
 
     def _complete(self, schedule: dict[str, Any]) -> None:
         schedule["status"] = "completed"

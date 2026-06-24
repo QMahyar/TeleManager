@@ -12,6 +12,7 @@ import { Modal } from "../ui/modal"
 import { api } from "../lib/api"
 import { actionMeta } from "../lib/constants"
 import { humanTime, statusTone } from "../lib/helpers"
+import { classifyScheduleEngine } from "../lib/scheduling"
 import {
   buildRecurrence,
   defaultRecurrenceForm,
@@ -270,6 +271,7 @@ export function ScheduleModal({
   onCreated: () => void
 }) {
   const steps = queuePayload.steps
+  const { engine, blockers } = classifyScheduleEngine(steps)
 
   function scheduleBlocker(): string | null {
     if (!steps.length) return "Add at least one step to the queue first."
@@ -335,6 +337,27 @@ export function ScheduleModal({
       </header>
 
       <div className="max-h-[70vh] space-y-4 overflow-auto px-5 py-4">
+        {/* Action-aware engine signal, shown up front (not just after Preview) so
+            the operator knows whether this queue is delivered by Telegram offline
+            or only runs while the app is open — and exactly which steps decide it. */}
+        {steps.length ? (
+          <div
+            className={`rounded-md border p-2.5 text-xs leading-5 ${engineTone(engine)}`}
+          >
+            {engine === "native" ? (
+              <>
+                <strong>Delivered by Telegram.</strong> Every step is pre-scheduled
+                server-side, so this runs even while TeleManager is closed.
+              </>
+            ) : (
+              <>
+                <strong>Runs only while TeleManager is open.</strong> Telegram can&apos;t
+                pre-schedule: {blockers.join(", ")}. Keep the app running for these to
+                fire on time.
+              </>
+            )}
+          </div>
+        ) : null}
         <RecurrenceFields
           form={form}
           setForm={(next) => {
