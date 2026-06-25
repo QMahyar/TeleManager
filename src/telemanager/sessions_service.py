@@ -138,6 +138,8 @@ def rename_account(manager: AccountManager, account_id: str, label: str) -> Acco
 def rename_session_file(manager: AccountManager, account_id: str, session_name: str) -> AccountRecord:
     validate_session_slug(session_name)
     account = manager._get_account(account_id)
+    if manager.is_account_busy(account.id):
+        raise ValueError("This account is busy with a running queue or schedule. Stop it before renaming the session.")
     old_path = session_file_path(account.session_name)
     new_path = session_file_path(session_name)
     if new_path.exists():
@@ -156,6 +158,8 @@ def rename_session_file(manager: AccountManager, account_id: str, session_name: 
 
 def delete_local_session(manager: AccountManager, account_id: str) -> None:
     account = manager._get_account(account_id)
+    if manager.is_account_busy(account.id):
+        raise ValueError("This account is busy with a running queue or schedule. Stop it before deleting the session.")
     path = session_file_path(account.session_name)
     journal = path.with_name(f"{path.name}-journal")
     if path.exists():

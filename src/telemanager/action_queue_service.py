@@ -172,11 +172,6 @@ async def process_action_queue(
                     run["status"] = "canceled"
                     run["error"] = "Queue canceled before the next operation started."
                     break
-                operation["status"] = "running"
-                operation["started_at"] = now_iso()
-                run["current"] = operation
-                run["updated_at"] = now_iso()
-                throttled_save()
                 if index > 0:
                     previous = expanded[index - 1]
                     delay = (
@@ -185,6 +180,19 @@ async def process_action_queue(
                         else delay_between_actions
                     )
                     await safe_delay(delay)
+                    # A cancel can land during the inter-op pause (up to 60s); honour it
+                    # here too so the queue stops promptly instead of running one more
+                    # operation. The op is still "pending", so it's marked skipped.
+                    if run.get("cancel_requested"):
+                        mark_remaining_operations(expanded[index:])
+                        run["status"] = "canceled"
+                        run["error"] = "Queue canceled before the next operation started."
+                        break
+                operation["status"] = "running"
+                operation["started_at"] = now_iso()
+                run["current"] = operation
+                run["updated_at"] = now_iso()
+                throttled_save()
                 action = TelegramAction(
                     action_type=operation["action_type"],
                     target=operation["target"],

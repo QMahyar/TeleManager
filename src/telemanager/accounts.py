@@ -26,6 +26,16 @@ CONNECT_TIMEOUT_SECONDS = 25
 RuntimeStatus = Literal["stopped", "running", "login_pending", "password_pending", "error"]
 
 
+class AccountBusyError(ValueError):
+    """An ad-hoc session op (read/validate/logout) was attempted on an account a
+    queue run or schedule is currently using.
+
+    Subclasses ValueError so the existing endpoint handlers turn it into a clear
+    400 instead of a 500. Opening a second Telethon client on the same `.session`
+    SQLite file concurrently corrupts it, so these ops fail fast rather than race.
+    """
+
+
 async def _disconnect(client: TelegramClient) -> None:
     """Disconnect a client, awaiting the coroutine Telethon returns under a running loop.
 
@@ -175,45 +185,49 @@ class AccountManager:
     async def validate_account(self, account_id: str) -> AccountRecord:
         async with self.lock:
             account = self._get_account(account_id)
-            api_id, api_hash = self.get_api_credentials()
-            client = self._new_client(account.session_name, api_id, api_hash)
-            try:
-                await self._connect_client(client)
-                authorized = await self._is_user_authorized(client)
-                if not authorized:
-                    account.authorized = False
+            async with self.exclusive_session(account.id):
+                api_id, api_hash = self.get_api_credentials()
+                client = self._new_client(account.session_name, api_id, api_hash)
+                try:
+                    await self._connect_client(client)
+                    authorized = await self._is_user_authorized(client)
+                    if not authorized:
+                        account.authorized = False
+                        account.status = "stopped"
+                        account.last_error = "Session is not authorized. Log in again."
+                        self._save_accounts()
+                        return account
+                    await self._refresh_account_identity(account, client)
+                    account.authorized = True
                     account.status = "stopped"
-                    account.last_error = "Session is not authorized. Log in again."
+                    account.last_error = None
+                    account.last_validated_at = now_iso()
                     self._save_accounts()
                     return account
-                await self._refresh_account_identity(account, client)
-                account.authorized = True
-                account.status = "stopped"
-                account.last_error = None
-                account.last_validated_at = now_iso()
-                self._save_accounts()
-                return account
-            finally:
-                await _disconnect(client)
+                finally:
+                    await _disconnect(client)
 
     async def logout_account(self, account_id: str) -> AccountRecord:
         async with self.lock:
             account = self._get_account(account_id)
-            client = self.clients.pop(account.id, None)
-            if client is None:
-                api_id, api_hash = self.get_api_credentials()
-                client = self._new_client(account.session_name, api_id, api_hash)
-                await client.connect()
-            try:
-                if await client.is_user_authorized():
-                    await client.log_out()
-            finally:
-                await _disconnect(client)
-            account.authorized = False
-            account.status = "stopped"
-            account.last_error = None
-            self._save_accounts()
-            return account
+            # exclusive_session refuses if a run holds the session, so a logout can
+            # never disconnect/log out a client a live queue is mid-action on.
+            async with self.exclusive_session(account.id):
+                client = self.clients.pop(account.id, None)
+                if client is None:
+                    api_id, api_hash = self.get_api_credentials()
+                    client = self._new_client(account.session_name, api_id, api_hash)
+                    await self._connect_client(client)
+                try:
+                    if await client.is_user_authorized():
+                        await client.log_out()
+                finally:
+                    await _disconnect(client)
+                account.authorized = False
+                account.status = "stopped"
+                account.last_error = None
+                self._save_accounts()
+                return account
 
     async def warm_client(self, account_id: str) -> TelegramClient:
         """Connect and cache a client for the account for the duration of a run.
@@ -304,27 +318,75 @@ class AccountManager:
                 self._busy_accounts.discard(account_id)
                 self._session_lock(account_id).release()
 
+    async def try_begin_exclusive(self, account_ids: list[str]) -> bool:
+        """Non-blocking, all-or-nothing acquire of the per-account session locks.
+
+        Returns True (locks held, accounts marked busy) only if every account is
+        currently free; otherwise acquires nothing and returns False so the caller
+        can fail fast or defer instead of stalling behind a long-running queue.
+
+        Correct on a single event loop: we first confirm none are held, so each
+        ``await lock.acquire()`` on an unheld, waiter-free lock completes without
+        suspending — no other task runs between the check and the acquisitions.
+        """
+        ordered = sorted(set(account_ids))
+        if any(aid in self._busy_accounts or self._session_lock(aid).locked() for aid in ordered):
+            return False
+        for account_id in ordered:
+            await self._session_lock(account_id).acquire()
+            self._busy_accounts.add(account_id)
+        return True
+
+    def end_exclusive(self, account_ids: list[str]) -> None:
+        """Release locks taken by :meth:`try_begin_exclusive`."""
+        for account_id in sorted(set(account_ids)):
+            if account_id in self._busy_accounts:
+                self._busy_accounts.discard(account_id)
+                self._session_lock(account_id).release()
+
+    @asynccontextmanager
+    async def exclusive_session(self, account_id: str) -> AsyncIterator[None]:
+        """Hold one account's session lock for a short ad-hoc op, failing fast with
+        :class:`AccountBusyError` if a run (or another ad-hoc op) already uses it.
+
+        Unlike :meth:`session_guard` (which a run holds for its whole lifetime and
+        which *waits* its turn), ad-hoc reads must never stall behind a long queue —
+        surfacing "busy" immediately is the honest, non-blocking behaviour.
+        """
+        if not await self.try_begin_exclusive([account_id]):
+            raise AccountBusyError(
+                "This account is busy with a running queue or schedule. "
+                "Wait for it to finish, then try again."
+            )
+        try:
+            yield
+        finally:
+            self.end_exclusive([account_id])
+
     @asynccontextmanager
     async def temp_client(self, account_id: str) -> AsyncIterator[TelegramClient]:
         """Yield a short-lived authorized client and disconnect it afterwards.
 
-        Unlike warm_client this never touches the shared self.clients pool, so it
-        is safe for one-off reads (e.g. inspecting scheduled messages) that must
-        not interfere with an in-flight queue run on the same account.
+        Unlike warm_client this never touches the shared self.clients pool. It holds
+        the account's session lock (via exclusive_session) for the read so it can
+        never open a second client on a `.session` file an in-flight run is using —
+        which would corrupt the SQLite session. Raises AccountBusyError if a run
+        currently holds that session.
         """
         account = self._get_account(account_id)
-        api_id, api_hash = self.get_api_credentials()
-        client = self._new_client(account.session_name, api_id, api_hash)
-        await self._connect_client(client)
-        try:
-            if not await self._is_user_authorized(client):
-                account.authorized = False
-                account.last_error = "Session is not authorized. Log in again."
-                self._save_accounts()
-                raise ValueError(account.last_error)
-            yield client
-        finally:
-            await _disconnect(client)
+        async with self.exclusive_session(account.id):
+            api_id, api_hash = self.get_api_credentials()
+            client = self._new_client(account.session_name, api_id, api_hash)
+            await self._connect_client(client)
+            try:
+                if not await self._is_user_authorized(client):
+                    account.authorized = False
+                    account.last_error = "Session is not authorized. Log in again."
+                    self._save_accounts()
+                    raise ValueError(account.last_error)
+                yield client
+            finally:
+                await _disconnect(client)
 
     async def shutdown(self) -> None:
         for client in list(self.clients.values()):

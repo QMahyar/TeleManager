@@ -34,6 +34,10 @@ NATIVE_HORIZON = timedelta(days=364)
 # How often a running app refills the per-chat native buffer. With a 100-message
 # buffer this comfortably covers any interval down to the 1-minute minimum.
 NATIVE_RECONCILE_INTERVAL = timedelta(hours=1)
+# When a reconcile is deferred because an account is mid-run (its session is in
+# use), retry this soon instead of waiting a full interval. The 100-message buffer
+# means a short deferral never starves delivery.
+NATIVE_RECONCILE_DEFER = timedelta(seconds=60)
 # Re-evaluate the schedule set at least this often even when nothing is due.
 MAX_SLEEP_SECONDS = 3600.0
 MIN_SLEEP_SECONDS = 1.0
@@ -496,9 +500,17 @@ class SchedulerService:
             schedule = schedules.get(schedule_id)
             if not schedule:
                 raise KeyError(schedule_id)
-            await self.teardown_native(schedule)
             schedules.pop(schedule_id, None)
             save_schedules(schedules)
+        # Delete any Telegram-native scheduled messages this schedule pre-created —
+        # outside self._lock so a long run on a shared account can't freeze every
+        # schedule endpoint, and best-effort so a connection failure (the schedule is
+        # already gone) never fails the request. teardown_native serializes with runs
+        # via session_guard so it never yanks a session from a live queue.
+        try:
+            await self.teardown_native(schedule)
+        except Exception:  # noqa: BLE001 - schedule is already removed; cleanup is best-effort
+            logger.exception("Native teardown failed for deleted schedule %s", schedule_id)
         log_event(
             "schedule_deleted",
             "Schedule deleted",
@@ -740,9 +752,14 @@ class SchedulerService:
         last_reconcile = parse_iso(schedule.get("last_reconcile_at"))
         due = last_reconcile is None or (now - last_reconcile) >= NATIVE_RECONCILE_INTERVAL
 
+        deferred = False
         if due:
-            await self._reconcile_native(schedule, now)
-            schedule["last_reconcile_at"] = iso(now)
+            if await self._reconcile_native(schedule, now):
+                schedule["last_reconcile_at"] = iso(now)
+            else:
+                # An account was busy with a run; the buffer top-up is skipped this
+                # round. Leave last_reconcile_at so it stays "due" and retry soon.
+                deferred = True
 
         schedule["fires_done"] = fires_elapsed(anchor, recurrence, now)
         upcoming = next_future_slot(anchor, recurrence, now)
@@ -754,13 +771,15 @@ class SchedulerService:
             self._complete(schedule)
             return None
 
-        next_reconcile = now + NATIVE_RECONCILE_INTERVAL
+        next_reconcile = now + (NATIVE_RECONCILE_DEFER if deferred else NATIVE_RECONCILE_INTERVAL)
         candidates = [next_reconcile]
         if upcoming:
             candidates.append(upcoming)
         return min(candidates)
 
-    async def _reconcile_native(self, schedule: dict[str, Any], now: datetime) -> None:
+    async def _reconcile_native(self, schedule: dict[str, Any], now: datetime) -> bool:
+        """Top up the per-chat native buffers. Returns True if it ran, or False if
+        an account was busy and the reconcile was deferred to the next tick."""
         recurrence = schedule["recurrence"]
         anchor = parse_iso(schedule["anchor_at"]) or now
         horizon = native_horizon(recurrence, now)
@@ -772,42 +791,47 @@ class SchedulerService:
         warmed: list[str] = []
         chat_index = 0
         capped = False
-        # Take the session locks so a native reconcile never opens an account's
-        # `.session` while a runner fire (or manual queue) is using it.
-        async with self.manager.session_guard(account_ids):
-            try:
-                for step_index, step in enumerate(schedule["queue"]["steps"]):
-                    payload = native_payload_for_step(step)
-                    if payload is None:
+        # Non-blocking exclusive hold of the session locks: if any account is mid-run
+        # or mid-read, skip this reconcile (the tick retries soon) rather than block
+        # the scheduler loop — which holds self._lock and would freeze every schedule
+        # endpoint behind it. The hold also stops opening a `.session` a run is using.
+        if not await self.manager.try_begin_exclusive(account_ids):
+            return False
+        try:
+            for step_index, step in enumerate(schedule["queue"]["steps"]):
+                payload = native_payload_for_step(step)
+                if payload is None:
+                    continue
+                for account_id in step["account_ids"]:
+                    client = await self._warm(account_id, warmed)
+                    if client is None:
+                        chat_index += len(step["targets"])
                         continue
-                    for account_id in step["account_ids"]:
-                        client = await self._warm(account_id, warmed)
-                        if client is None:
-                            chat_index += len(step["targets"])
-                            continue
-                        for target in step["targets"]:
-                            key = f"{account_id}|{step_index}|{target}"
-                            offset = timedelta(seconds=stagger * chat_index)
-                            chat_index += 1
-                            chat_coverage, chat_capped = await self._reconcile_chat(
-                                client, native_chats, key, target, payload, desired, offset
-                            )
-                            capped = capped or chat_capped
-                            if chat_coverage and (coverage is None or chat_coverage > coverage):
-                                coverage = chat_coverage
-                schedule["coverage_until"] = iso(coverage) if coverage else None
-                # Telegram caps scheduled messages at 100 per chat; surface it when a
-                # chat is full so the operator knows later fires may not pre-deliver.
-                schedule["coverage_warning"] = (
-                    f"A chat is at Telegram's {TELEGRAM_SCHEDULED_PER_CHAT_LIMIT}-scheduled-message "
-                    "limit; later fires won't pre-deliver until earlier ones send. Reopen "
-                    "TeleManager periodically to refill."
-                    if capped
-                    else None
-                )
-                schedule["last_error"] = None
-            finally:
-                await self.manager.release_run_clients(account_ids)
+                    for target in step["targets"]:
+                        key = f"{account_id}|{step_index}|{target}"
+                        offset = timedelta(seconds=stagger * chat_index)
+                        chat_index += 1
+                        chat_coverage, chat_capped = await self._reconcile_chat(
+                            client, native_chats, key, target, payload, desired, offset
+                        )
+                        capped = capped or chat_capped
+                        if chat_coverage and (coverage is None or chat_coverage > coverage):
+                            coverage = chat_coverage
+            schedule["coverage_until"] = iso(coverage) if coverage else None
+            # Telegram caps scheduled messages at 100 per chat; surface it when a
+            # chat is full so the operator knows later fires may not pre-deliver.
+            schedule["coverage_warning"] = (
+                f"A chat is at Telegram's {TELEGRAM_SCHEDULED_PER_CHAT_LIMIT}-scheduled-message "
+                "limit; later fires won't pre-deliver until earlier ones send. Reopen "
+                "TeleManager periodically to refill."
+                if capped
+                else None
+            )
+            schedule["last_error"] = None
+        finally:
+            await self.manager.release_run_clients(account_ids)
+            self.manager.end_exclusive(account_ids)
+        return True
 
     async def _warm(self, account_id: str, warmed: list[str]):
         try:
@@ -872,24 +896,32 @@ class SchedulerService:
         )
 
     async def teardown_native(self, schedule: dict[str, Any]) -> None:
-        """Delete any Telegram-native scheduled messages this schedule created."""
+        """Delete any Telegram-native scheduled messages this schedule created.
+
+        Holds session_guard (blocking) rather than the non-blocking exclusive hold:
+        teardown runs off the scheduler lock, and orphaned scheduled messages keep
+        sending, so it's worth waiting for an in-flight run to release the session
+        instead of skipping cleanup."""
         if schedule.get("engine") != "native":
             return
         native_chats: dict[str, Any] = schedule.get("native_chats", {})
         account_ids = sorted({account_id for step in schedule["queue"]["steps"] for account_id in step["account_ids"]})
+        if not account_ids:
+            return
         warmed: list[str] = []
-        try:
-            for step_index, step in enumerate(schedule["queue"]["steps"]):
-                for account_id in step["account_ids"]:
-                    for target in step["targets"]:
-                        key = f"{account_id}|{step_index}|{target}"
-                        entry = native_chats.get(key)
-                        if not entry or not entry.get("ids"):
-                            continue
-                        client = await self._warm(account_id, warmed)
-                        if client is None:
-                            continue
-                        await delete_scheduled_messages(client, target, [int(mid) for mid in entry["ids"]])
-                        entry["ids"] = {}
-        finally:
-            await self.manager.release_run_clients(account_ids)
+        async with self.manager.session_guard(account_ids):
+            try:
+                for step_index, step in enumerate(schedule["queue"]["steps"]):
+                    for account_id in step["account_ids"]:
+                        for target in step["targets"]:
+                            key = f"{account_id}|{step_index}|{target}"
+                            entry = native_chats.get(key)
+                            if not entry or not entry.get("ids"):
+                                continue
+                            client = await self._warm(account_id, warmed)
+                            if client is None:
+                                continue
+                            await delete_scheduled_messages(client, target, [int(mid) for mid in entry["ids"]])
+                            entry["ids"] = {}
+            finally:
+                await self.manager.release_run_clients(account_ids)

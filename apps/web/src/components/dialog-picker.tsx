@@ -58,14 +58,19 @@ export function DialogPicker({
   const [picked, setPicked] = React.useState<Set<string>>(new Set())
   const [busy, setBusy] = React.useState(false)
   const [status, setStatus] = React.useState("")
+  // Monotonic token so out-of-order responses (rapid account switches, or a Live
+  // fetch overlapping a cached load) never overwrite the latest request's result.
+  const requestToken = React.useRef(0)
 
   const loadCached = React.useCallback(async (id: string) => {
     if (!id) return
+    const token = ++requestToken.current
     setBusy(true)
     try {
       const payload = await api<{ dialogs: TelegramDialog[] }>(
         `/api/accounts/${id}/dialogs`
       )
+      if (token !== requestToken.current) return
       setDialogs(payload.dialogs || [])
       setStatus(
         payload.dialogs?.length
@@ -73,10 +78,11 @@ export function DialogPicker({
           : "No cached chats. Use Fetch Live to pull them from Telegram."
       )
     } catch (error) {
+      if (token !== requestToken.current) return
       setDialogs([])
       setStatus(error instanceof Error ? error.message : "Failed to load chats.")
     } finally {
-      setBusy(false)
+      if (token === requestToken.current) setBusy(false)
     }
   }, [])
 
@@ -92,6 +98,7 @@ export function DialogPicker({
 
   async function fetchLive() {
     if (!effectiveId) return
+    const token = ++requestToken.current
     setBusy(true)
     setStatus("Fetching chats from Telegram…")
     try {
@@ -99,12 +106,14 @@ export function DialogPicker({
         `/api/accounts/${effectiveId}/dialogs/fetch?limit=500`,
         { method: "POST" }
       )
+      if (token !== requestToken.current) return
       setDialogs(payload.dialogs || [])
       setStatus(`Fetched ${payload.dialogs?.length || 0} chats.`)
     } catch (error) {
+      if (token !== requestToken.current) return
       setStatus(error instanceof Error ? error.message : "Live fetch failed.")
     } finally {
-      setBusy(false)
+      if (token === requestToken.current) setBusy(false)
     }
   }
 

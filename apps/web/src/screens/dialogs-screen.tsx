@@ -181,10 +181,15 @@ function useCachedDialogs(
     if (!dialogAccountId) {
       return
     }
+    // Guard against out-of-order responses: switching accounts quickly fires
+    // overlapping fetches, and a slow earlier one must not overwrite the newer
+    // account's dialogs. `active` flips false on cleanup so stale replies are ignored.
+    let active = true
     api<{ dialogs: TelegramDialog[]; fetched_at?: string | null }>(
       `/api/accounts/${dialogAccountId}/dialogs`
     )
       .then((payload) => {
+        if (!active) return
         setDialogs(payload.dialogs || [])
         setValue(
           payload.fetched_at
@@ -193,6 +198,7 @@ function useCachedDialogs(
         )
       })
       .catch((error) => {
+        if (!active) return
         setDialogs([])
         setValue(
           error instanceof Error
@@ -200,6 +206,9 @@ function useCachedDialogs(
             : "Failed to load cached dialogs."
         )
       })
+    return () => {
+      active = false
+    }
   }, [dialogAccountId, setDialogs])
 
   return { setValue, value }

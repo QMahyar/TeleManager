@@ -187,12 +187,12 @@ function RunHistoryRow({
   async function exportRun() {
     const response = await fetch(`/api/actions/queue/runs/${run.id}/export`)
     if (!response.ok) {
-      try {
-        const payload = (await response.json()) as { detail?: string }
-        throw new Error(payload.detail || "Export failed")
-      } catch {
-        throw new Error("Export failed")
-      }
+      // Parse the server's detail without a try whose catch would swallow the throw.
+      const detail = await response
+        .json()
+        .then((payload: { detail?: string }) => payload?.detail)
+        .catch(() => null)
+      throw new Error(detail || "Export failed")
     }
     const blob = await response.blob()
     downloadBlob(blob, `queue-run-${run.id}.json`)

@@ -1031,12 +1031,13 @@ async function exportSessions(
     body: JSON.stringify({ account_ids: [...selectedIds], redact_phone: true }),
   })
   if (!response.ok) {
-    try {
-      const payload = (await response.json()) as { detail?: string }
-      throw new Error(payload.detail || "Export failed")
-    } catch {
-      throw new Error("Export failed")
-    }
+    // Parse the server's detail without a try whose catch would swallow the throw
+    // (the old shape always lost the real message and showed a generic error).
+    const detail = await response
+      .json()
+      .then((payload: { detail?: string }) => payload?.detail)
+      .catch(() => null)
+    throw new Error(detail || "Export failed")
   }
   const blob = await response.blob()
   downloadBlob(blob, "telemanager-sessions.zip")
