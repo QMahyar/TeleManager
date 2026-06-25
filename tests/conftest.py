@@ -18,6 +18,16 @@ def app_context(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[dic
     monkeypatch.setenv("TELEMANAGER_DATA_DIR", str(data_dir))
     monkeypatch.setenv("TELEMANAGER_SESSIONS_DIR", str(sessions_dir))
 
+    # Point the served-frontend dir at a stub with an index.html so tests don't
+    # depend on whether `apps/web/dist` was actually built (CI runs pytest without
+    # a frontend build, which otherwise makes GET / return 503).
+    frontend_dist = tmp_path / "web-dist"
+    frontend_dist.mkdir()
+    (frontend_dist / "index.html").write_text(
+        "<!doctype html><title>TeleManager test</title>", encoding="utf-8"
+    )
+    monkeypatch.setenv("TELEMANAGER_FRONTEND_DIST_DIR", str(frontend_dist))
+
     modules = [name for name in sys.modules if name == "telemanager" or name.startswith("telemanager.")]
     for name in modules:
         sys.modules.pop(name, None)
