@@ -57,15 +57,17 @@
 }
 
 .dark {
-    --background: oklch(0.178 0.005 75);
+    --background: oklch(0.168 0.005 75);
     --foreground: oklch(0.93 0.004 85);
-    /* The well drops below --background so the lighter --card panels read as
-       raised. Keeps the three-tier depth (well < background < card) consistent
-       with light mode. */
-    --surface-well: oklch(0.158 0.005 75);
-    --card: oklch(0.214 0.006 75);
+    /* Depth is carried by luminance on dark screens: each tier steps up in L so
+       panels read as raised on their own, not only because of a border.
+       well < background < sidebar < card < muted < popover. Card now lifts
+       ~+0.057 L over the background (into the perceptible band) vs the old
+       +0.036, which read as flat. */
+    --surface-well: oklch(0.150 0.005 75);
+    --card: oklch(0.225 0.006 75);
     --card-foreground: oklch(0.93 0.004 85);
-    --popover: oklch(0.236 0.007 75);
+    --popover: oklch(0.275 0.007 75);
     --popover-foreground: oklch(0.93 0.004 85);
     --primary: oklch(0.76 0.075 185);
     --primary-foreground: oklch(0.20 0.02 185);
@@ -76,7 +78,7 @@
     --accent: oklch(0.76 0.075 185);
     --accent-foreground: oklch(0.20 0.02 185);
     --destructive: oklch(0.64 0.16 28);
-    --border: oklch(0.30 0.006 75);
+    --border: oklch(0.325 0.006 75);
     --input: oklch(0.34 0.007 75);
     --ring: oklch(0.72 0.075 185);
     --elevation-sm: 0 1px 2px 0 oklch(0 0 0 / 30%);
@@ -88,7 +90,7 @@
     --sidebar-primary-foreground: oklch(0.20 0.02 185);
     --sidebar-accent: oklch(0.262 0.007 75);
     --sidebar-accent-foreground: oklch(0.93 0.004 85);
-    --sidebar-border: oklch(0.30 0.006 75);
+    --sidebar-border: oklch(0.325 0.006 75);
     --sidebar-ring: oklch(0.72 0.075 185);
 }
 
@@ -220,10 +222,13 @@
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
-    /* Type roles: mono leads (headings + machine data), Inter for prose. */
+    /* Type roles: Inter leads (headings + prose). JetBrains Mono is reserved for
+       machine data only — session names, IDs, IPs, counts, timestamps, status
+       codes, queue/audit rows, stat values. Mono earns meaning by being scarce;
+       mono-for-headings was the biggest "templated" signal, so headings are sans. */
     --font-sans: 'Inter Variable', system-ui, sans-serif;
     --font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Code', monospace;
-    --font-heading: 'JetBrains Mono Variable', ui-monospace, monospace;
+    --font-heading: 'Inter Variable', system-ui, sans-serif;
 }
 
 @layer base {
@@ -231,7 +236,15 @@
     @apply border-border outline-ring/50;
     }
   body {
-    @apply bg-background text-foreground;
+    /* tabular-nums globally so every changing count/metric aligns in columns —
+       a key "designed, not templated" move for a data-dense console. */
+    @apply bg-background text-foreground tabular-nums;
+    }
+  /* Headings are sans (Inter) now. Give them weight + tight tracking centrally so
+     no h-tag renders as weak Inter 400 where mono used to carry presence.
+     Per-heading utilities still override this. */
+  h1, h2, h3 {
+    @apply font-semibold tracking-tight;
     }
   button:not(:disabled), [role="button"]:not(:disabled) {
     cursor: pointer;
@@ -261,4 +274,34 @@
     width: 1.25rem;
     height: 1.25rem;
     }
+}
+
+/* Motion ---------------------------------------------------------------------
+   Tasteful, CSS-only, zero-bloat. View Transitions drive the screen crossfade
+   (triggered in use-app-state's setView); the keyframe below is the shared
+   entrance vocabulary. Everything is gated behind prefers-reduced-motion so it
+   never fights an accessibility preference. */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 200ms;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  @keyframes tm-rise {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* Add `tm-rise` to a row/card and set `--i` to its index for a gentle stagger. */
+  .tm-rise {
+    animation: tm-rise 240ms cubic-bezier(0.4, 0, 0.2, 1) both;
+    animation-delay: calc(var(--i, 0) * 28ms);
+  }
 }

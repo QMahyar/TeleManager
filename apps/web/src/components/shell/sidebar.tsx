@@ -102,7 +102,7 @@ function SidebarGroup({
 }) {
   return (
     <div className="space-y-1">
-      <p className="px-2 text-[0.62rem] font-semibold tracking-[0.28em] text-muted-foreground uppercase">
+      <p className="px-2 text-[0.62rem] font-semibold tracking-[0.16em] text-muted-foreground uppercase">
         {group}
       </p>
       {groupedNavItems(group).map((item) => (
@@ -156,7 +156,7 @@ function SidebarFleetSummary({
   return (
     <div className="mt-5 space-y-2 rounded-lg border border-sidebar-border bg-sidebar-accent/60 p-3">
       <div className="flex items-center justify-between gap-2">
-        <span className="font-mono text-[0.62rem] font-semibold tracking-[0.22em] text-muted-foreground uppercase">
+        <span className="font-mono text-[0.62rem] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
           Accounts
         </span>
         <Badge tone="border-sidebar-border bg-sidebar text-muted-foreground">

@@ -1,9 +1,14 @@
 import { cn } from "../ui/utils"
+import { BEACON_VIEWBOX } from "../lib/beacon"
 
-// Console brand mark: a terminal prompt ("›_") in a small rounded tile. The
-// chevron + cursor are drawn in the active accent (`stroke-primary`), the tile
-// uses sidebar surface tokens so it sits cleanly in the sidebar lockup. Stays
-// crisp from a 16px favicon up to the lockup because it's pure vector strokes.
+// Brand mark — "signal beacon": a solid core with concentric signal rings (the
+// outer one broken at the bottom so it reads as a live, emanating beacon rather
+// than a bullseye). This is the app's SignalDot status-light motif promoted to a
+// logo, so the mark and every in-UI status light read as one system. Drawn in
+// the active accent (`fill-primary`/`stroke-primary`) inside a rounded tile that
+// uses sidebar surface tokens. Pure vector — crisp from a 16px favicon up.
+// The beacon geometry lives in `lib/beacon.ts` so the favicon generator can
+// reuse it without this component file exporting non-components.
 export function BrandMark({
   size = 40,
   className,
@@ -21,25 +26,31 @@ export function BrandMark({
       style={{ width: size, height: size }}
     >
       <svg
-        width={size * 0.58}
-        height={size * 0.58}
-        viewBox="0 0 24 24"
+        width={size * 0.6}
+        height={size * 0.6}
+        viewBox={BEACON_VIEWBOX}
         fill="none"
         role="img"
         aria-label="TeleManager"
       >
-        <path
-          d="M7 6.5 L12.5 12 L7 17.5"
+        {/* solid core */}
+        <circle cx="12" cy="12" r="2.6" className="fill-primary" />
+        {/* inner signal ring */}
+        <circle
+          cx="12"
+          cy="12"
+          r="5.3"
           className="stroke-primary"
-          strokeWidth="2.4"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+          strokeWidth="2"
+          fill="none"
         />
+        {/* outer ring, broken at the bottom -> emanating beacon */}
         <path
-          d="M13.5 17.5 H18.5"
+          d="M5.15 17.2 A 8.6 8.6 0 1 1 18.85 17.2"
           className="stroke-primary"
-          strokeWidth="2.4"
+          strokeWidth="1.8"
           strokeLinecap="round"
+          fill="none"
         />
       </svg>
     </span>

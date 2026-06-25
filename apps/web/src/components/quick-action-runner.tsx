@@ -89,7 +89,7 @@ export function QuickActionRunner({
       labelledBy="quick-action-title"
     >
       <div className="border-b border-border p-4">
-        <p className="text-[0.65rem] font-semibold tracking-[0.24em] text-primary uppercase">
+        <p className="text-[0.65rem] font-semibold tracking-[0.16em] text-primary uppercase">
           Quick action
         </p>
         <h2 id="quick-action-title" className="font-heading text-xl">

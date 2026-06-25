@@ -7,11 +7,12 @@ import {
   IconDotsVertical,
   IconMessageCircle,
   IconSearch,
-  IconUserCircle,
 } from "@tabler/icons-react"
 
+import { Avatar } from "../components/avatar"
+
 import { Button } from "../ui/button"
-import { Menu } from "../ui/menu"
+import { Menu, MenuItem, MenuSeparator } from "../ui/menu"
 import { Modal } from "../ui/modal"
 import {
   Table,
@@ -540,7 +541,7 @@ function DialogsSourcePanel({
       <div className="grid grid-cols-2 gap-2 text-xs">
         <div className="rounded-lg border border-border bg-muted/20 p-3">
           <span className="text-muted-foreground">Selected</span>
-          <strong className="mt-1 block font-heading text-2xl">
+          <strong className="mt-1 block font-mono text-2xl">
             {selectedDialogTargets.size}
           </strong>
         </div>
@@ -703,15 +704,13 @@ function BulkActionsMenu({
         bulkActions.map((actionType) => {
           const meta = actionMeta[actionType]
           return (
-            <Button
+            <MenuItem
               key={actionType}
-              size="sm"
-              variant={meta.destructive ? "destructive" : "ghost"}
-              className="justify-start"
+              variant={meta.destructive ? "destructive" : "default"}
               onClick={() => onPick(actionType)}
             >
               {meta.label}
-            </Button>
+            </MenuItem>
           )
         })
       ) : (
@@ -830,7 +829,7 @@ function DialogsTablePanel({
           {/* Desktop: full table. */}
           <div className="hidden lg:block">
             <TableWrap className="max-h-[calc(100svh-24rem)] min-h-[28rem]">
-              <Table className="min-w-[50rem]">
+              <Table className="min-w-[44rem]">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-10">
@@ -924,29 +923,10 @@ function DialogTargetLabel({
   )
 }
 
-function DialogAvatar({ title, kind }: { title: string; kind: string }) {
-  const initial = title.trim().charAt(0).toUpperCase()
-  const tone =
-    kind === "bot"
-      ? "bg-primary/10 text-primary"
-      : kind === "channel"
-        ? "bg-amber-500/10 text-amber-600 dark:text-amber-300"
-        : kind === "personal"
-          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300"
-          : "bg-muted text-muted-foreground"
-
-  return (
-    <span
-      className={`grid size-9 shrink-0 place-items-center rounded-full border border-border ${tone}`}
-      aria-hidden
-    >
-      {initial ? (
-        <span className="font-mono text-sm font-semibold">{initial}</span>
-      ) : (
-        <IconUserCircle className="size-4" />
-      )}
-    </span>
-  )
+// Native-style gradient avatar seeded by the chat's stable Telegram id, so the
+// colour stays consistent per peer across reloads. Sized to the row (~36px).
+function DialogAvatar({ title, seed }: { title: string; seed: string | number }) {
+  return <Avatar name={title} seed={seed} size={36} className="text-sm" />
 }
 
 function DialogRow({
@@ -984,7 +964,7 @@ function DialogRow({
       </TableCell>
       <TableCell>
         <div className="flex min-w-0 items-center gap-3">
-          <DialogAvatar title={dialog.title} kind={kind} />
+          <DialogAvatar title={dialog.title} seed={dialog.id} />
           <div className="min-w-0">
             <strong className="block truncate text-sm">{dialog.title}</strong>
             <span className="block truncate text-xs text-muted-foreground">
@@ -1010,20 +990,14 @@ function DialogRow({
             trigger={<IconDotsVertical className="size-4" />}
             panelClassName="min-w-48"
           >
-            <Button
-              size="sm"
-              variant="ghost"
-              className="justify-start"
-              onClick={() => openMessages(dialog)}
-            >
+            <MenuItem onClick={() => openMessages(dialog)}>
               <IconMessageCircle className="size-3.5" />
               Messages
-            </Button>
-            <div className="my-1 border-t border-border" />
+            </MenuItem>
+            <MenuSeparator />
             <DialogQuickActionButtons
               dialog={dialog}
               onQuickAction={onQuickAction}
-              size="sm"
               className="justify-start"
             />
           </Menu>
@@ -1070,7 +1044,7 @@ function DialogCard({
           checked={isSelected}
           onChange={() => toggleSelected(target, setSelectedDialogTargets)}
         />
-        <DialogAvatar title={dialog.title} kind={kind} />
+        <DialogAvatar title={dialog.title} seed={dialog.id} />
         <div className="min-w-0 flex-1">
           <strong className="block truncate text-sm">{dialog.title}</strong>
           <span className="block truncate text-xs text-muted-foreground">
@@ -1096,20 +1070,14 @@ function DialogCard({
           trigger={<IconDotsVertical className="size-4" />}
           panelClassName="min-w-48"
         >
-          <Button
-            size="sm"
-            variant="ghost"
-            className="justify-start"
-            onClick={() => openMessages(dialog)}
-          >
+          <MenuItem onClick={() => openMessages(dialog)}>
             <IconMessageCircle className="size-3.5" />
             Messages
-          </Button>
-          <div className="my-1 border-t border-border" />
+          </MenuItem>
+          <MenuSeparator />
           <DialogQuickActionButtons
             dialog={dialog}
             onQuickAction={onQuickAction}
-            size="sm"
             className="justify-start"
           />
         </Menu>
@@ -1121,26 +1089,23 @@ function DialogCard({
 function DialogQuickActionButtons({
   dialog,
   onQuickAction,
-  size,
   className,
 }: {
   dialog: TelegramDialog
   onQuickAction: (actionType: ActionType, dialog: TelegramDialog) => void
-  size: "xs" | "sm"
   className?: string
 }) {
   return quickActionsForDialog(dialog).map((actionType) => {
     const meta = actionMeta[actionType]
     return (
-      <Button
+      <MenuItem
         key={actionType}
-        size={size}
         className={className}
-        variant={meta.destructive ? "destructive" : "ghost"}
+        variant={meta.destructive ? "destructive" : "default"}
         onClick={() => onQuickAction(actionType, dialog)}
       >
         {meta.label}
-      </Button>
+      </MenuItem>
     )
   })
 }
@@ -1200,7 +1165,7 @@ function DialogMessagesPanel({
         <>
         <div className="flex items-start justify-between gap-3 border-b border-border p-4">
           <div>
-            <p className="text-[0.65rem] font-semibold tracking-[0.24em] text-primary uppercase">
+            <p className="text-[0.65rem] font-semibold tracking-[0.16em] text-primary uppercase">
               Message inspector
             </p>
             <h2 id="dialog-messages-title" className="font-heading text-2xl">

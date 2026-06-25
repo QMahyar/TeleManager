@@ -110,7 +110,7 @@ function Dialog({
       labelledBy="app-dialog-title"
       describedBy={description ? "app-dialog-description" : undefined}
     >
-      <p className="text-[0.65rem] font-semibold tracking-[0.28em] text-primary uppercase">
+      <p className="text-[0.65rem] font-semibold tracking-[0.16em] text-primary uppercase">
         {kicker}
       </p>
       <h2

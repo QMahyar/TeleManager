@@ -10,8 +10,7 @@ import {
   IconTrash,
 } from "@tabler/icons-react"
 
-import { Button } from "../ui/button"
-import { Menu } from "../ui/menu"
+import { Menu, MenuItem, MenuSeparator } from "../ui/menu"
 import {
   Table,
   TableBody,
@@ -25,6 +24,7 @@ import {
 import { api, toForm } from "../lib/api"
 import { accountStatus } from "../lib/helpers"
 import type { Account, AskDialog, Flash } from "../types"
+import { Avatar } from "./avatar"
 import { EmptyState, SignalDot, Skeleton, type SignalTone } from "./ui"
 
 type AccountsTableProps = {
@@ -239,7 +239,7 @@ function AccountRow({
         <StatusSignal status={accountStatus(account)} />
       </TableCell>
       <TableCell>{account.dialog_count || 0}</TableCell>
-      <TableCell className="font-mono text-xs">
+      <TableCell className="max-w-[14rem] truncate font-mono text-xs">
         {account.session_name}.session
       </TableCell>
       <TableCell>
@@ -257,19 +257,24 @@ function AccountIdentity({ account }: { account: Account }) {
     .filter(Boolean)
     .join(" \u00b7 ")
 
+  const display = account.label || account.session_name
+
   return (
-    <div className="min-w-0">
-      <strong className="block truncate leading-tight">
-        {label || account.session_name}
-      </strong>
-      {account.last_error ? (
-        <p
-          className="truncate text-xs text-destructive"
-          title={account.last_error}
-        >
-          {account.last_error}
-        </p>
-      ) : null}
+    <div className="flex min-w-0 items-center gap-3">
+      <Avatar name={display} seed={account.id} size={32} />
+      <div className="min-w-0">
+        <strong className="block truncate leading-tight">
+          {label || account.session_name}
+        </strong>
+        {account.last_error ? (
+          <p
+            className="truncate text-xs text-destructive"
+            title={account.last_error}
+          >
+            {account.last_error}
+          </p>
+        ) : null}
+      </div>
     </div>
   )
 }
@@ -316,72 +321,56 @@ function AccountActions({
           </>
         }
       >
-        <Button
-          size="sm"
-          variant="ghost"
-          className="justify-start"
+        <MenuItem
           onClick={() => guarded(() => validateAccount(account, refresh, flash))}
         >
           <IconShieldCheck className="size-3.5" />
           Validate
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="justify-start"
+        </MenuItem>
+        <MenuItem
           onClick={() =>
             guarded(() => fetchAccountDialogs(account, refresh, flash))
           }
         >
           <IconMessageCircle className="size-3.5" />
           Fetch dialogs
-        </Button>
-        <div className="my-1 border-t border-border" />
-        <Button
-          size="sm"
-          variant="ghost"
-          className="justify-start"
+        </MenuItem>
+        <MenuSeparator />
+        <MenuItem
           onClick={() =>
             guarded(() => renameAccount(account, refresh, flash, askDialog))
           }
         >
           <IconPencil className="size-3.5" />
           Rename label
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="justify-start"
+        </MenuItem>
+        <MenuItem
           onClick={() =>
             guarded(() => renameSessionFile(account, refresh, flash, askDialog))
           }
         >
           <IconFileText className="size-3.5" />
           Rename file
-        </Button>
-        <div className="my-1 border-t border-border" />
-        <Button
-          size="sm"
+        </MenuItem>
+        <MenuSeparator />
+        <MenuItem
           variant="destructive"
-          className="justify-start"
           onClick={() =>
             guarded(() => logoutAccount(account, refresh, flash, askDialog))
           }
         >
           <IconLogout className="size-3.5" />
           Logout
-        </Button>
-        <Button
-          size="sm"
+        </MenuItem>
+        <MenuItem
           variant="destructive"
-          className="justify-start"
           onClick={() =>
             guarded(() => deleteLocalSession(account, refresh, flash, askDialog))
           }
         >
           <IconTrash className="size-3.5" />
           Delete local
-        </Button>
+        </MenuItem>
       </Menu>
     </div>
   )

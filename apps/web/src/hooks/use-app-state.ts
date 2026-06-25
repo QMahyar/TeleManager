@@ -10,6 +10,7 @@ import {
 import { partitionTargets } from "../lib/targeting"
 import { dialogKind, dialogTarget, splitTargets } from "../lib/helpers"
 import { awaitQueueRun } from "../lib/queue-run"
+import { withViewTransition } from "../lib/view-transition"
 import type {
   Account,
   AccountsTab,
@@ -160,7 +161,18 @@ function useViewState() {
     window.location.hash = view
   }, [view])
 
-  return { accountsTab, setAccountsTab, setView, view }
+  // Crossfade screen changes via the View Transitions API. Wrapping the raw
+  // setter here means every nav surface (sidebar, header, command palette)
+  // animates for free; it degrades to an instant swap when unsupported or under
+  // reduced-motion.
+  const setViewAnimated = React.useCallback(
+    (next: React.SetStateAction<View>) => {
+      withViewTransition(() => setView(next))
+    },
+    []
+  )
+
+  return { accountsTab, setAccountsTab, setView: setViewAnimated, view }
 }
 
 function useAccountState() {

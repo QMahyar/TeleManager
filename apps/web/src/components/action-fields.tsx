@@ -54,7 +54,7 @@ export function ActionFields({
     <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-3">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <p className="font-heading text-sm text-foreground">Required details</p>
+          <p className="font-heading text-sm font-medium text-foreground">Required details</p>
           <p className="text-xs text-muted-foreground">
             Only fields needed by this action are shown.
           </p>

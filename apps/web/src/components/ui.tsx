@@ -1,4 +1,5 @@
 import * as React from "react"
+import { Tabs as BaseTabs } from "@base-ui/react/tabs"
 
 import {
   IconChevronDown,
@@ -36,7 +37,7 @@ export function SectionTitle({
   return (
     <div className="space-y-1">
       {kicker ? (
-        <p className="font-mono text-[0.65rem] tracking-[0.22em] text-muted-foreground uppercase">
+        <p className="font-mono text-[0.65rem] tracking-[0.1em] text-muted-foreground uppercase">
           <span className="text-primary">›</span> {kicker}
         </p>
       ) : null}
@@ -287,8 +288,10 @@ export type TabItem<T extends string> = {
   badge?: React.ReactNode
 }
 
-// Dependency-free segmented tab strip. Used by the Accounts and Settings hubs
-// to keep several related tools on one screen instead of separate nav routes.
+// Segmented tab strip. Built on Base UI Tabs so it gets roving tabindex, arrow-
+// key navigation, and Home/End for free; the props (items/value/onChange) and
+// the styling are unchanged, so every call site stays the same. Renders only the
+// tab list — panels are rendered by the parent off `value`, as before.
 export function Tabs<T extends string>({
   items,
   value,
@@ -301,40 +304,38 @@ export function Tabs<T extends string>({
   className?: string
 }) {
   return (
-    <div
-      role="tablist"
-      className={cn(
-        "flex flex-wrap gap-1 border-b border-border pb-2",
-        className
-      )}
-    >
-      {items.map((item) => {
-        const Icon = item.icon
-        const active = item.id === value
-        return (
-          <button
-            key={item.id}
-            role="tab"
-            aria-selected={active}
-            onClick={() => onChange(item.id)}
-            className={cn(
-              "flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors [&_svg]:size-3.5",
-              active
-                ? "border-primary/40 bg-primary/10 text-primary"
-                : "border-transparent text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground"
-            )}
-          >
-            {Icon ? <Icon /> : null}
-            {item.label}
-            {item.badge != null ? (
-              <span className="ml-1 text-[0.65rem] opacity-70">
-                {item.badge}
-              </span>
-            ) : null}
-          </button>
-        )
-      })}
-    </div>
+    <BaseTabs.Root value={value} onValueChange={(next) => onChange(next as T)}>
+      <BaseTabs.List
+        className={cn(
+          "flex flex-wrap gap-1 border-b border-border pb-2",
+          className
+        )}
+      >
+        {items.map((item) => {
+          const Icon = item.icon
+          return (
+            <BaseTabs.Tab
+              key={item.id}
+              value={item.id}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors outline-none [&_svg]:size-3.5",
+                "border-transparent text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground",
+                "focus-visible:ring-2 focus-visible:ring-ring/40",
+                "data-[selected]:border-primary/40 data-[selected]:bg-primary/10 data-[selected]:text-primary"
+              )}
+            >
+              {Icon ? <Icon /> : null}
+              {item.label}
+              {item.badge != null ? (
+                <span className="ml-1 text-[0.65rem] opacity-70">
+                  {item.badge}
+                </span>
+              ) : null}
+            </BaseTabs.Tab>
+          )
+        })}
+      </BaseTabs.List>
+    </BaseTabs.Root>
   )
 }
 
@@ -373,7 +374,7 @@ export function StatCard({
   )
   const body = (
     <>
-      <span className="font-mono text-[0.62rem] tracking-[0.12em] text-muted-foreground uppercase">
+      <span className="font-mono text-[0.62rem] tracking-[0.08em] text-muted-foreground uppercase">
         {label}
       </span>
       <strong
@@ -500,7 +501,7 @@ export function ReadoutItem({
       <span className="font-mono text-base leading-none tabular-nums text-foreground">
         {value}
       </span>
-      <span className="font-mono text-[0.62rem] leading-none tracking-[0.12em] whitespace-nowrap text-muted-foreground uppercase">
+      <span className="font-mono text-[0.62rem] leading-none tracking-[0.08em] whitespace-nowrap text-muted-foreground uppercase">
         {label}
       </span>
     </>

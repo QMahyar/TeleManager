@@ -350,7 +350,7 @@ function LoginReadinessPanel({
     <Panel className="border-primary/20 bg-primary/5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="space-y-1">
-          <p className="text-[0.65rem] font-semibold tracking-[0.28em] text-primary uppercase">
+          <p className="text-[0.65rem] font-semibold tracking-[0.16em] text-primary uppercase">
             Login Readiness
           </p>
           <p className="text-sm text-foreground">{configStatus}</p>

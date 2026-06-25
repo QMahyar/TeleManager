@@ -1,5 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#1B1D21"/>
-  <path d="M20 20 L31 32 L20 44" fill="none" stroke="#3FB8A6" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M34 44 H46" fill="none" stroke="#3FB8A6" stroke-width="5.5" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <!-- Static "signal beacon" baseline (no-JS). The app's theme-provider swaps this
+       for an accent-coloured data: SVG at runtime; this only needs to look right
+       before that runs, so it adapts dark/light via prefers-color-scheme. -->
+  <style>
+    .tile { fill: #1b1d21; }
+    .mk { stroke: #5fc6bb; }
+    .core { fill: #5fc6bb; }
+    @media (prefers-color-scheme: light) {
+      .tile { fill: #eeede9; }
+      .mk { stroke: #2e9d93; }
+      .core { fill: #2e9d93; }
+    }
+  </style>
+  <rect class="tile" width="24" height="24" rx="5.5"/>
+  <circle class="core" cx="12" cy="12" r="2.6"/>
+  <circle class="mk" cx="12" cy="12" r="5.3" fill="none" stroke-width="2"/>
+  <path class="mk" d="M5.15 17.2 A 8.6 8.6 0 1 1 18.85 17.2" fill="none" stroke-width="1.8" stroke-linecap="round"/>
 </svg>

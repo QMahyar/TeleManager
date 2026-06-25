@@ -1,11 +1,11 @@
-import {
-  IconInfoCircle,
-  IconMessageCircle,
-  IconPlayerPlay,
-  IconSettings,
-  IconUsers,
-} from "@tabler/icons-react"
+import { IconInfoCircle, IconSettings } from "@tabler/icons-react"
 import type * as React from "react"
+
+import {
+  IconChatNodes,
+  IconRunQueue,
+  IconSessionStack,
+} from "../components/icons"
 
 import type { ActionType, SafetySettings, View } from "../types"
 
@@ -15,14 +15,14 @@ export const navItems: Array<{
   group: string
   icon: React.ElementType
 }> = [
-  { id: "accounts", label: "Accounts", group: "Workspace", icon: IconUsers },
+  { id: "accounts", label: "Accounts", group: "Workspace", icon: IconSessionStack },
   {
     id: "dialogs",
     label: "Dialogs",
     group: "Workspace",
-    icon: IconMessageCircle,
+    icon: IconChatNodes,
   },
-  { id: "actions", label: "Actions", group: "Workspace", icon: IconPlayerPlay },
+  { id: "actions", label: "Actions", group: "Workspace", icon: IconRunQueue },
   { id: "settings", label: "Settings", group: "System", icon: IconSettings },
   // Group "About" is intentionally not one of the rendered sidebar groups
   // ("Workspace"/"System"); About is pinned separately at the sidebar bottom.

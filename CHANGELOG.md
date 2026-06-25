@@ -11,6 +11,41 @@ section below, with auto-generated commit/PR notes appended.
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-06-25
+
+A pre-production frontend pass: a real visual identity and a genuine accessibility
+upgrade, with almost no added weight. Headings become clean sans type, monospace is
+reserved for machine data, dark panels finally lift off the canvas, and the console
+gains its own logomark, avatars, and iconography. Under the hood, the hand-rolled
+dropdowns and dialogs are replaced with battle-tested accessible primitives.
+
+### Added
+
+- **Signal-beacon logomark.** A bespoke mark built from the app's own status-light
+  motif, so the logo and every in-UI signal dot read as one system. Replaces the
+  generic terminal chevron.
+- **Accent-aware favicon.** The favicon (and the mobile `theme-color`) now track the
+  active accent and light/dark theme at runtime, resolved to true sRGB.
+- **Telegram-style avatars.** Accounts and dialogs render native-looking gradient
+  avatars (Telegram's documented palette, deterministic per peer), making the tables
+  far more scannable at a glance.
+- **Custom navigation glyphs.** Bespoke icons for the Accounts, Dialogs, and Actions
+  views, drawn to match the rest of the icon set.
+- **Screen transitions.** Switching views now crossfades via the browser's View
+  Transitions API — zero added JavaScript, and it respects "reduce motion".
+
+### Changed
+
+- **Typography.** Headings and prose move to Inter; JetBrains Mono is now reserved
+  strictly for machine data (IDs, counts, timestamps, session names, the audit log).
+  All-caps sentences are gone, label tracking is refined, and figures align with
+  tabular numerals throughout.
+- **Dark-mode depth.** Surface tiers were re-tuned so cards and popovers visibly lift
+  off the background instead of relying on hairline borders alone.
+- **Accessible primitives.** Menus, dialogs, and tabs are now built on Base UI,
+  bringing proper focus management, focus trapping, and full keyboard navigation
+  (arrow keys, typeahead, Home/End) that the previous hand-rolled versions lacked.
+
 ## [1.9.3] - 2026-06-24
 
 Safer concurrent sessions, and scheduling that reflects what Telegram can actually

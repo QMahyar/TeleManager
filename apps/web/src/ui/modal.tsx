@@ -1,18 +1,22 @@
 import * as React from "react"
+import { Dialog } from "@base-ui/react/dialog"
 
-import { useFocusTrap } from "./use-focus-trap"
 import { cn } from "./utils"
 
 type ModalAlign = "center" | "start" | "end"
 
-const alignClass: Record<ModalAlign, string> = {
-  center: "place-items-center",
-  start: "place-items-start pt-[10vh]",
-  end: "place-items-end",
+// Vertical placement of the centred box. The box is always horizontally centred;
+// `start`/`end` pin it near the top/bottom to preserve the previous behaviour.
+const positionClass: Record<ModalAlign, string> = {
+  center: "top-1/2 -translate-y-1/2",
+  start: "top-[10vh]",
+  end: "bottom-4",
 }
 
-// Shared overlay: backdrop, Escape to close, click-outside to close, body scroll
-// lock, and a focus trap on the panel. Callers style the panel via `className`.
+// Shared modal overlay, built on Base UI Dialog: focus trap + focus restore,
+// body scroll lock, Escape, and click-outside dismissal all come from the
+// library (the hand-rolled focus-trap hook is gone). Callers keep the same API
+// and style the panel via `className`.
 export function Modal({
   open,
   onClose,
@@ -30,47 +34,28 @@ export function Modal({
   describedBy?: string
   children: React.ReactNode
 }) {
-  const trapRef = useFocusTrap<HTMLElement>(open)
-
-  React.useEffect(() => {
-    if (!open) return undefined
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
-    }
-    window.addEventListener("keydown", onKeyDown)
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-    return () => {
-      window.removeEventListener("keydown", onKeyDown)
-      document.body.style.overflow = previousOverflow
-    }
-  }, [open, onClose])
-
-  if (!open) return null
-
   return (
-    <div
-      className={cn(
-        "fixed inset-0 z-50 grid bg-background/80 p-4 backdrop-blur-sm",
-        alignClass[align]
-      )}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose()
+    <Dialog.Root
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onClose()
       }}
     >
-      <section
-        ref={trapRef as React.RefObject<HTMLElement>}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={labelledBy}
-        aria-describedby={describedBy}
-        className={cn(
-          "w-full rounded-lg border border-border bg-card text-card-foreground shadow-lg",
-          className
-        )}
-      >
-        {children}
-      </section>
-    </div>
+      <Dialog.Portal>
+        <Dialog.Backdrop className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm" />
+        <Dialog.Popup
+          aria-labelledby={labelledBy}
+          aria-describedby={describedBy}
+          className={cn(
+            "fixed left-1/2 z-50 -translate-x-1/2",
+            positionClass[align],
+            "max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] overflow-y-auto rounded-lg border border-border bg-card text-card-foreground shadow-lg outline-none",
+            className
+          )}
+        >
+          {children}
+        </Dialog.Popup>
+      </Dialog.Portal>
+    </Dialog.Root>
   )
 }

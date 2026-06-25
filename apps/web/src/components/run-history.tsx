@@ -315,12 +315,12 @@ function RunDetailsDialog({
         <>
         <div className="flex flex-col gap-3 border-b border-border p-5 md:flex-row md:items-start md:justify-between">
           <div>
-            <p className="text-[0.65rem] font-semibold tracking-[0.28em] text-primary uppercase">
+            <p className="text-[0.65rem] font-semibold tracking-[0.16em] text-primary uppercase">
               Queue run details
             </p>
             <h2
               id="queue-run-title"
-              className="mt-2 font-heading text-2xl break-all"
+              className="mt-2 font-mono text-xl break-all font-medium tracking-normal"
             >
               {run.id}
             </h2>
@@ -477,7 +477,7 @@ function RunStat({ label, value }: { label: string; value: number }) {
       <span className="text-[0.65rem] font-semibold tracking-[0.2em] text-muted-foreground uppercase">
         {label}
       </span>
-      <strong className="mt-2 block font-heading text-2xl">{value}</strong>
+      <strong className="mt-2 block font-mono text-2xl">{value}</strong>
     </div>
   )
 }

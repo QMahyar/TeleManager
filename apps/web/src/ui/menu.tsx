@@ -1,20 +1,15 @@
 import * as React from "react"
-import { createPortal } from "react-dom"
+import { Menu as BaseMenu } from "@base-ui/react/menu"
 
 import { Button } from "./button"
 import { cn } from "./utils"
 
-const GAP = 8 // px between trigger and panel, and from the viewport edge
-
-type PanelStyle = { top: number; left: number }
-
-// Controlled dropdown menu. Unlike a native <details>, it closes on outside
-// click and Escape, and only one is open at a time within its own state. The
-// panel closes after any click inside it, since every item is an action.
-//
-// The panel renders through a portal with `position: fixed`, so it is never
-// clipped by an `overflow` ancestor (e.g. a horizontally scrollable table) and
-// flips above the trigger when there isn't room below.
+// Dropdown menu built on Base UI Menu: it brings keyboard navigation (arrow
+// keys, Home/End, typeahead), focus management, collision-aware positioning
+// (auto-flip), portal rendering (never clipped by a scrollable table), and
+// Escape / outside-click dismissal — replacing the hand-rolled positioning and
+// event wiring this used to do itself. The public API is unchanged; menu entries
+// move from <Button> to <MenuItem> so Base UI can drive their keyboard nav.
 export function Menu({
   label,
   trigger,
@@ -35,109 +30,80 @@ export function Menu({
   >
   children: React.ReactNode
 }) {
-  const [open, setOpen] = React.useState(false)
-  const [style, setStyle] = React.useState<PanelStyle | null>(null)
-  // The wrapper sizes to the trigger (relative + single child), so its rect is
-  // the trigger's rect — no ref forwarding through <Button> required.
-  const triggerRef = React.useRef<HTMLDivElement>(null)
-  const panelRef = React.useRef<HTMLDivElement>(null)
-
-  // Close and drop the measured position together, so the next open re-measures
-  // from the hidden fallback coords (no flash) without resetting state inside the
-  // layout effect.
-  const close = React.useCallback(() => {
-    setOpen(false)
-    setStyle(null)
-  }, [])
-
-  // Position the panel from the trigger's viewport rect. Runs in a layout
-  // effect so the panel is measured (for the upward flip and edge clamping)
-  // before the browser paints — no first-frame jump.
-  React.useLayoutEffect(() => {
-    if (!open) return
-    const triggerEl = triggerRef.current
-    const panel = panelRef.current
-    if (!triggerEl || !panel) return
-
-    const rect = triggerEl.getBoundingClientRect()
-    const { offsetWidth: panelWidth, offsetHeight: panelHeight } = panel
-
-    const left = align === "end" ? rect.right - panelWidth : rect.left
-    const clampedLeft = Math.max(
-      GAP,
-      Math.min(left, window.innerWidth - panelWidth - GAP)
-    )
-
-    const flipUp = rect.bottom + GAP + panelHeight > window.innerHeight
-    const top = flipUp ? rect.top - panelHeight - GAP : rect.bottom + GAP
-
-    setStyle({ top, left: clampedLeft })
-  }, [open, align])
-
-  React.useEffect(() => {
-    if (!open) return undefined
-    const onPointerDown = (event: MouseEvent) => {
-      const target = event.target as Node
-      const insideTrigger = triggerRef.current?.contains(target)
-      const insidePanel = panelRef.current?.contains(target)
-      if (!insideTrigger && !insidePanel) close()
-    }
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close()
-    }
-    // A fixed panel detaches from the trigger on scroll, so dismiss instead of
-    // chasing the trigger. `true` catches scrolls on nested containers too.
-    const onScroll = () => close()
-    document.addEventListener("mousedown", onPointerDown)
-    document.addEventListener("keydown", onKeyDown)
-    window.addEventListener("scroll", onScroll, true)
-    window.addEventListener("resize", onScroll)
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown)
-      document.removeEventListener("keydown", onKeyDown)
-      window.removeEventListener("scroll", onScroll, true)
-      window.removeEventListener("resize", onScroll)
-    }
-  }, [open, close])
-
   return (
-    <div ref={triggerRef} className="relative inline-flex">
-      <Button
-        type="button"
-        variant="outline"
-        size="icon-sm"
-        {...triggerProps}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label={label}
-        onClick={() => setOpen((value) => !value)}
-      >
-        {trigger}
-      </Button>
-      {open
-        ? createPortal(
-            <div
-              ref={panelRef}
-              role="menu"
-              aria-label={label}
-              style={{
-                position: "fixed",
-                top: style?.top ?? -9999,
-                left: style?.left ?? -9999,
-                // Hidden until measured to avoid a flash at the fallback coords.
-                visibility: style ? "visible" : "hidden",
-              }}
-              className={cn(
-                "z-50 grid min-w-44 gap-1 rounded-lg border border-border bg-card p-2 shadow-lg",
-                panelClassName
-              )}
-              onClick={close}
-            >
-              {children}
-            </div>,
-            document.body
-          )
-        : null}
-    </div>
+    <BaseMenu.Root>
+      <BaseMenu.Trigger
+        render={
+          <Button
+            variant="outline"
+            size="icon-sm"
+            {...triggerProps}
+            aria-label={label}
+          >
+            {trigger}
+          </Button>
+        }
+      />
+      <BaseMenu.Portal>
+        <BaseMenu.Positioner
+          side="bottom"
+          align={align}
+          sideOffset={8}
+          className="z-50"
+        >
+          <BaseMenu.Popup
+            aria-label={label}
+            className={cn(
+              "grid min-w-44 gap-1 rounded-lg border border-border bg-card p-2 text-card-foreground shadow-lg outline-none",
+              panelClassName
+            )}
+          >
+            {children}
+          </BaseMenu.Popup>
+        </BaseMenu.Positioner>
+      </BaseMenu.Portal>
+    </BaseMenu.Root>
   )
+}
+
+// A menu entry. `data-highlighted` is set by Base UI on the keyboard/pointer
+// focused item, so hover and arrow-key focus share one visual state. Selecting
+// an item closes the menu (Base UI default), matching the old behaviour where
+// every entry was a one-shot action.
+const menuItemClass =
+  "flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs font-medium outline-none select-none [&_svg]:size-3.5"
+
+const menuItemVariant: Record<"default" | "destructive", string> = {
+  default:
+    "text-foreground data-[highlighted]:bg-muted data-[highlighted]:text-foreground",
+  destructive:
+    "text-destructive data-[highlighted]:bg-destructive/15 data-[highlighted]:text-destructive",
+}
+
+export function MenuItem({
+  onClick,
+  variant = "default",
+  className,
+  disabled,
+  children,
+}: {
+  onClick?: () => void
+  variant?: "default" | "destructive"
+  className?: string
+  disabled?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <BaseMenu.Item
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(menuItemClass, menuItemVariant[variant], className)}
+    >
+      {children}
+    </BaseMenu.Item>
+  )
+}
+
+export function MenuSeparator() {
+  return <BaseMenu.Separator className="my-1 h-px bg-border" />
 }

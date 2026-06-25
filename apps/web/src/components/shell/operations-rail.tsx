@@ -33,7 +33,7 @@ export function OperationsRail({
     <aside className="hidden border-l border-border bg-card/30 px-4 py-4 2xl:sticky 2xl:top-0 2xl:block 2xl:h-full 2xl:overflow-auto">
       <div className="space-y-4">
         <div>
-          <p className="font-mono text-[0.62rem] font-semibold tracking-[0.24em] text-muted-foreground uppercase">
+          <p className="font-mono text-[0.62rem] font-semibold tracking-[0.16em] text-muted-foreground uppercase">
             Activity
           </p>
           <h2 className="mt-1 font-heading text-lg tracking-tight">Queue</h2>
