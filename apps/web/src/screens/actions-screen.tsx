@@ -20,6 +20,7 @@ import { SafetyEditor } from "../components/safety-editor"
 import { ScheduledInspector } from "../components/scheduled-inspector"
 import { ScheduleCard, ScheduleModal } from "../components/schedule-parts"
 import { TargetComposer } from "../components/target-composer"
+import { EmptySchedulesArt } from "../components/empty-illustrations"
 import {
   Badge,
   EmptyState,
@@ -30,6 +31,7 @@ import {
   SectionTitle,
   Select,
   Tabs,
+  TimingBadge,
 } from "../components/ui"
 import { api } from "../lib/api"
 import {
@@ -38,6 +40,12 @@ import {
   getActionSchema,
   isActionFormValid,
 } from "../lib/action-schema"
+import {
+  actionDelaySeconds,
+  estimateQueueSeconds,
+  formatDuration,
+  tierForAction,
+} from "../lib/action-meta"
 import { actionMeta, categoryLabels, categoryOrder } from "../lib/constants"
 import { accountStatus, splitTargets, statusTone } from "../lib/helpers"
 import { startQueueRun } from "../lib/queue-run"
@@ -244,7 +252,7 @@ function SchedulesList({ props }: { props: ActionsScreenProps }) {
         </div>
       ) : (
         <EmptyState
-          icon={IconClockHour4}
+          illustration={<EmptySchedulesArt />}
           title="No schedules yet"
           detail="Build a queue above, switch to Schedule mode, and create your first recurring schedule."
         />
@@ -513,10 +521,14 @@ function PresetRow({
           setQueue(preset.queue.steps || [])
           const savedQueue = preset.queue
           setSafety((current) => ({
+            ...current,
             delay_between_accounts:
               savedQueue.delay_between_accounts ?? current.delay_between_accounts,
             delay_between_actions:
               savedQueue.delay_between_actions ?? current.delay_between_actions,
+            delay_instant: savedQueue.delay_instant ?? current.delay_instant,
+            delay_sensitive:
+              savedQueue.delay_sensitive ?? current.delay_sensitive,
             max_operations: savedQueue.max_operations ?? current.max_operations,
           }))
           flash(`Loaded preset: ${preset.name}`)
@@ -620,7 +632,22 @@ function BuilderColumn({ props }: { props: ActionsScreenProps }) {
               </Select>
             </Field>
             <div className="rounded-lg border border-border bg-muted/10 p-3 text-xs leading-5 text-muted-foreground">
-              <span className="font-medium text-foreground">{currentMeta.label}</span>
+              <div className="flex items-start justify-between gap-2">
+                <span className="font-medium text-foreground">
+                  {currentMeta.label}
+                </span>
+                <TimingBadge
+                  tier={tierForAction(
+                    props.actionsMeta,
+                    props.actionDraft.action_type
+                  )}
+                  seconds={actionDelaySeconds(
+                    props.actionDraft.action_type,
+                    props.actionsMeta,
+                    props.safety
+                  )}
+                />
+              </div>
               <span className="mt-1 block">{currentMeta.description}</span>
             </div>
           </div>
@@ -730,6 +757,11 @@ function QueueColumn({
 }) {
   const destructiveCount = countDestructiveOperations(props.queue)
   const operationCount = countOperations(props.queue)
+  const estimateSeconds = estimateQueueSeconds(
+    props.queue,
+    props.safety,
+    props.actionsMeta
+  )
   const runDisabled = actionBusy.busy || Boolean(activeRunId) || !props.queue.length
 
   // Pop a step back into the builder fully populated so a mistake is a tweak,
@@ -784,6 +816,12 @@ function QueueColumn({
             props.queue.length === 1 ? "step" : "steps"
           }`}
         />
+        {props.queue.length ? (
+          <ReadoutItem
+            value={`~${formatDuration(estimateSeconds)}`}
+            label="est. runtime"
+          />
+        ) : null}
         {destructiveCount ? (
           <ReadoutItem
             tone="error"
@@ -856,7 +894,12 @@ function QueueColumn({
             const confirmed = await props.askDialog({
               kicker: destructiveCount ? "Destructive queue" : "Run queue",
               title: "Run this queue?",
-              description: runConfirmationDetail(operationCount, props.queue.length, destructiveCount),
+              description: runConfirmationDetail(
+                operationCount,
+                props.queue.length,
+                destructiveCount,
+                estimateSeconds
+              ),
               confirmLabel: destructiveCount ? "Run Destructive Queue" : "Run Queue",
               danger: destructiveCount > 0,
             })
@@ -870,7 +913,11 @@ function QueueColumn({
           })
         }
       >
-        {activeRunId ? "Queue running…" : `Run ${operationCount || ""} operation(s)`}
+        {activeRunId
+          ? "Queue running…"
+          : `Run ${operationCount || ""} operation(s)${
+              props.queue.length ? ` · ~${formatDuration(estimateSeconds)}` : ""
+            }`}
       </Button>
       <Button
         variant="outline"
@@ -913,12 +960,16 @@ function countOperations(queue: ActionsScreenProps["queue"]) {
 function runConfirmationDetail(
   operationCount: number,
   stepCount: number,
-  destructiveCount: number
+  destructiveCount: number,
+  estimateSeconds: number
 ) {
   const destructive = destructiveCount
     ? ` This includes ${destructiveCount} destructive operation(s).`
     : ""
-  return `${operationCount} operation(s) across ${stepCount} step(s) will run on the selected sessions.${destructive}`
+  const estimate = estimateSeconds
+    ? ` Estimated runtime ~${formatDuration(estimateSeconds)}.`
+    : ""
+  return `${operationCount} operation(s) across ${stepCount} step(s) will run on the selected sessions.${destructive}${estimate}`
 }
 
 // ---------------------------------------------------------------------------

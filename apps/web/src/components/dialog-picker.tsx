@@ -10,8 +10,16 @@ import {
   type DialogKind,
 } from "../lib/dialog-actions"
 import { dialogKind, dialogTarget } from "../lib/helpers"
+import { actionMeta } from "../lib/constants"
 import type { Account, ActionType, Flash, TelegramDialog } from "../types"
-import { Badge, EmptyState, Input, Select } from "./ui"
+import {
+  Badge,
+  EmptyState,
+  ErrorState,
+  Input,
+  SectionLoader,
+  Select,
+} from "./ui"
 
 // Filter buttons map a friendly label to the kinds they include.
 const KIND_FILTERS: Array<{ id: string; label: string; kinds: Set<DialogKind> }> = [
@@ -58,6 +66,7 @@ export function DialogPicker({
   const [picked, setPicked] = React.useState<Set<string>>(new Set())
   const [busy, setBusy] = React.useState(false)
   const [status, setStatus] = React.useState("")
+  const [error, setError] = React.useState("")
   // Monotonic token so out-of-order responses (rapid account switches, or a Live
   // fetch overlapping a cached load) never overwrite the latest request's result.
   const requestToken = React.useRef(0)
@@ -66,6 +75,7 @@ export function DialogPicker({
     if (!id) return
     const token = ++requestToken.current
     setBusy(true)
+    setError("")
     try {
       const payload = await api<{ dialogs: TelegramDialog[] }>(
         `/api/accounts/${id}/dialogs`
@@ -77,10 +87,10 @@ export function DialogPicker({
           ? ""
           : "No cached chats. Use Fetch Live to pull them from Telegram."
       )
-    } catch (error) {
+    } catch (err) {
       if (token !== requestToken.current) return
       setDialogs([])
-      setStatus(error instanceof Error ? error.message : "Failed to load chats.")
+      setError(err instanceof Error ? err.message : "Failed to load chats.")
     } finally {
       if (token === requestToken.current) setBusy(false)
     }
@@ -100,6 +110,7 @@ export function DialogPicker({
     if (!effectiveId) return
     const token = ++requestToken.current
     setBusy(true)
+    setError("")
     setStatus("Fetching chats from Telegram…")
     try {
       const payload = await api<{ dialogs: TelegramDialog[] }>(
@@ -109,9 +120,10 @@ export function DialogPicker({
       if (token !== requestToken.current) return
       setDialogs(payload.dialogs || [])
       setStatus(`Fetched ${payload.dialogs?.length || 0} chats.`)
-    } catch (error) {
+    } catch (err) {
       if (token !== requestToken.current) return
-      setStatus(error instanceof Error ? error.message : "Live fetch failed.")
+      setError(err instanceof Error ? err.message : "Live fetch failed.")
+      setStatus("")
     } finally {
       if (token === requestToken.current) setBusy(false)
     }
@@ -146,6 +158,7 @@ export function DialogPicker({
 
   const compatibleCount = rows.filter((row) => row.compatible && !row.added).length
   const addedCount = rows.filter((row) => row.added).length
+  const incompatibleCount = rows.filter((row) => !row.compatible).length
 
   function toggle(target: string) {
     setPicked((current) => {
@@ -255,12 +268,24 @@ export function DialogPicker({
       </div>
 
       <div className="max-h-48 space-y-1 overflow-auto rounded-md border border-border bg-muted/10 p-1">
-        {rows.length === 0 ? (
+        {busy && rows.length === 0 ? (
+          <SectionLoader label="Loading chats…" className="px-4 py-6" />
+        ) : error ? (
+          <ErrorState
+            title="Couldn't load chats"
+            detail={error}
+            onRetry={() => loadCached(effectiveId)}
+            retryLabel="Retry"
+            className="px-4 py-6"
+          />
+        ) : rows.length === 0 ? (
           <EmptyState
             title={dialogs.length ? "No chats match" : "No chats loaded"}
             detail={
-              status ||
-              "Pick an account and load its chats, then tick the ones to target."
+              dialogs.length
+                ? "No loaded chat matches the current search and type filter."
+                : status ||
+                  "Pick an account and load its chats, then tick the ones to target."
             }
             className="px-4 py-6"
           />
@@ -282,6 +307,11 @@ export function DialogPicker({
                   onChange={() => toggle(target)}
                 />
                 <span className="min-w-0 flex-1 truncate">{dialog.title}</span>
+                {!compatible && !added ? (
+                  <Badge tone="border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                    skipped
+                  </Badge>
+                ) : null}
                 {added ? (
                   <Badge tone="text-primary border-primary/30 bg-primary/10">
                     added
@@ -295,6 +325,14 @@ export function DialogPicker({
           })
         )}
       </div>
+
+      {incompatibleCount && !busy && !error ? (
+        <p className="text-xs leading-5 text-muted-foreground">
+          {incompatibleCount} greyed chat(s) can&apos;t take “
+          {actionMeta[actionType].label}” and can&apos;t be ticked. Hover one to
+          see why.
+        </p>
+      ) : null}
 
       <div className="flex items-center justify-between gap-2 border-t border-border pt-2">
         <span className="text-xs text-muted-foreground">

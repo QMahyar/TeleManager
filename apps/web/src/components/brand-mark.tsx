@@ -56,3 +56,32 @@ export function BrandMark({
     </span>
   )
 }
+
+// The full identity lockup: the beacon mark + the "telemanager" wordmark in mono
+// (the brand's machine-data voice), with an optional tagline. Used on the About
+// hero and anywhere the product needs to introduce itself by name.
+export function BrandLockup({
+  size = 40,
+  tagline,
+  className,
+}: {
+  size?: number
+  tagline?: string
+  className?: string
+}) {
+  return (
+    <div className={cn("flex items-center gap-3", className)}>
+      <BrandMark size={size} />
+      <div className="leading-tight">
+        <span className="block font-mono text-lg font-semibold tracking-tight text-foreground lowercase">
+          telemanager
+        </span>
+        {tagline ? (
+          <span className="block font-mono text-[0.62rem] tracking-[0.16em] text-primary uppercase">
+            {tagline}
+          </span>
+        ) : null}
+      </div>
+    </div>
+  )
+}

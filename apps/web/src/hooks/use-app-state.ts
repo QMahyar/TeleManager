@@ -15,6 +15,7 @@ import type {
   Account,
   AccountsTab,
   ActionDraft,
+  ActionsMeta,
   ActivityEvent,
   Flash,
   Preset,
@@ -49,6 +50,7 @@ export function useAppState(flash: (message: string) => void) {
 
   useInitialLoad({
     flash,
+    loadActionsMeta: resourceState.loadActionsMeta,
     loadPresets: resourceState.loadPresets,
     loadRuns: resourceState.loadRuns,
     refresh: accountState.refresh,
@@ -276,7 +278,16 @@ function useResourceState(flash: (message: string) => void, view: View) {
   const [presets, setPresets] = React.useState<Preset[]>([])
   const [schedules, setSchedules] = React.useState<Schedule[]>([])
   const [safety, setSafety] = React.useState<SafetySettings>(emptySafety)
+  const [actionsMeta, setActionsMeta] = React.useState<ActionsMeta | null>(null)
   const safetyLoaded = React.useRef(false)
+
+  // Per-action metadata (risk tiers, validity, flags) — the canonical source the
+  // timing badges and run-duration estimates read. Fetched once at startup since
+  // it's small and rarely changes (only when safety delays are re-saved).
+  const loadActionsMeta = React.useCallback(async () => {
+    const payload = await api<ActionsMeta>("/api/actions/meta")
+    setActionsMeta(payload)
+  }, [])
 
   const loadActivity = React.useCallback(async () => {
     const payload = await api<{ events: ActivityEvent[] }>(
@@ -356,7 +367,9 @@ function useResourceState(flash: (message: string) => void, view: View) {
   }, [flash, loadSchedules, view])
 
   return {
+    actionsMeta,
     activity,
+    loadActionsMeta,
     loadActivity,
     loadPresets,
     loadRuns,
@@ -440,24 +453,29 @@ function useQueueState(
 
 function useInitialLoad({
   flash,
+  loadActionsMeta,
   loadPresets,
   loadRuns,
   refresh,
 }: {
   flash: Flash
+  loadActionsMeta: () => Promise<void>
   loadPresets: () => Promise<void>
   loadRuns: () => Promise<void>
   refresh: () => Promise<void>
 }) {
   React.useEffect(() => {
     const task = window.setTimeout(() => {
-      Promise.all([refresh(), loadRuns(), loadPresets()]).catch((error) =>
-        flash(error.message)
-      )
+      Promise.all([
+        refresh(),
+        loadRuns(),
+        loadPresets(),
+        loadActionsMeta(),
+      ]).catch((error) => flash(error.message))
     }, 0)
 
     return () => window.clearTimeout(task)
-  }, [flash, loadPresets, loadRuns, refresh])
+  }, [flash, loadActionsMeta, loadPresets, loadRuns, refresh])
 }
 
 function filterKnownIds(current: Set<string>, known: Set<string>) {

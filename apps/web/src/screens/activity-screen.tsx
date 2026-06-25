@@ -10,14 +10,20 @@ import {
   Input,
   Panel,
   Select,
+  ShowMore,
   StepHeading,
 } from "../components/ui"
 import { humanTime } from "../lib/helpers"
 import type { ActivityEvent } from "../types"
 
+// Render the log in pages so a long audit trail (thousands of events) doesn't
+// mount every row at once.
+const ACTIVITY_PAGE = 50
+
 export function ActivityScreen({ activity }: { activity: ActivityEvent[] }) {
   const [search, setSearch] = React.useState("")
   const [typeFilter, setTypeFilter] = React.useState("all")
+  const [visible, setVisible] = React.useState(ACTIVITY_PAGE)
 
   const eventTypes = React.useMemo(() => {
     const set = new Set<string>()
@@ -70,14 +76,20 @@ export function ActivityScreen({ activity }: { activity: ActivityEvent[] }) {
             type="search"
             autoComplete="off"
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => {
+              setSearch(event.target.value)
+              setVisible(ACTIVITY_PAGE)
+            }}
             placeholder="Search title, detail, or account"
           />
         </div>
         <Select
           className="lg:w-56"
           value={typeFilter}
-          onChange={(event) => setTypeFilter(event.target.value)}
+          onChange={(event) => {
+            setTypeFilter(event.target.value)
+            setVisible(ACTIVITY_PAGE)
+          }}
         >
           <option value="all">All event types</option>
           {eventTypes.map((type) => (
@@ -88,15 +100,18 @@ export function ActivityScreen({ activity }: { activity: ActivityEvent[] }) {
         </Select>
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        {filtered.length} of {activity.length} event(s) shown.
-      </p>
-
       <div className="space-y-2">
         {filtered.length ? (
-          filtered.map((entry, index) => (
-            <ActivityRow key={entry.id || index} entry={entry} />
-          ))
+          <>
+            {filtered.slice(0, visible).map((entry, index) => (
+              <ActivityRow key={entry.id || index} entry={entry} />
+            ))}
+            <ShowMore
+              shown={Math.min(visible, filtered.length)}
+              total={filtered.length}
+              onMore={() => setVisible((current) => current + ACTIVITY_PAGE)}
+            />
+          </>
         ) : (
           <EmptyState
             icon={IconTimeline}

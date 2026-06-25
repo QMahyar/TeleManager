@@ -303,7 +303,7 @@ function SafetyPanel({
     <Panel className="max-w-2xl space-y-4">
       <StepHeading
         title="Safety defaults"
-        detail="These values prefill new queues and are enforced by the backend when a request omits values."
+        detail="Prefill new queues and bound every run. Cooldowns are action-aware — each action waits the delay for its risk tier, so benign reads run fast while spam-prone sends stay spaced."
       />
       <SafetyEditor safety={safety} setSafety={setSafety} />
       <Button

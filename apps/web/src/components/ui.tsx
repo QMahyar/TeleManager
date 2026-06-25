@@ -2,11 +2,16 @@ import * as React from "react"
 import { Tabs as BaseTabs } from "@base-ui/react/tabs"
 
 import {
+  IconAlertTriangle,
+  IconBolt,
   IconChevronDown,
+  IconClock,
   IconFile,
   IconFolder,
   IconFolderOpen,
+  IconHourglassHigh,
   IconLoader2,
+  IconRefresh,
 } from "@tabler/icons-react"
 
 import { Badge as UiBadge } from "../ui/badge"
@@ -20,7 +25,13 @@ import {
 } from "../ui/form"
 import { cn } from "../ui/utils"
 import { api } from "../lib/api"
-import type { Flash } from "../types"
+import {
+  TIER_BADGE_CLASS,
+  TIER_BLURB,
+  TIER_LABEL,
+  formatDuration,
+} from "../lib/action-meta"
+import type { ActionTier, Flash } from "../types"
 
 // `kicker` is optional: the `› EYEBROW` motif was on every section and became
 // noise. Pass it only where the category isn't already obvious from context.
@@ -528,15 +539,22 @@ export function ReadoutItem({
   return <div className={classes}>{inner}</div>
 }
 
+// Empty placeholder for a zero-state list/panel. Pass `illustration` (a themed
+// SVG) for hero empties, or `icon` for compact ones; `action` renders a CTA
+// (e.g. "Add account") beneath the copy.
 export function EmptyState({
   icon: Icon,
+  illustration,
   title,
   detail,
+  action,
   className,
 }: {
   icon?: React.ElementType
+  illustration?: React.ReactNode
   title: string
   detail: string
+  action?: React.ReactNode
   className?: string
 }) {
   return (
@@ -546,13 +564,147 @@ export function EmptyState({
         className
       )}
     >
-      {Icon ? <Icon className="size-8 text-muted-foreground/50" /> : null}
+      {illustration ? (
+        <div className="text-muted-foreground/70">{illustration}</div>
+      ) : Icon ? (
+        <Icon className="size-8 text-muted-foreground/50" />
+      ) : null}
       <div className="space-y-1">
         <p className="text-sm font-medium text-foreground">{title}</p>
         <p className="max-w-sm text-xs leading-5 text-muted-foreground">
           {detail}
         </p>
       </div>
+      {action ? <div className="mt-1">{action}</div> : null}
     </div>
+  )
+}
+
+// Failure placeholder with an optional retry. Use where a fetch can fail and the
+// operator should be able to try again without reloading the app.
+export function ErrorState({
+  title = "Something went wrong",
+  detail,
+  onRetry,
+  retryLabel = "Try again",
+  className,
+}: {
+  title?: string
+  detail: string
+  onRetry?: () => void
+  retryLabel?: string
+  className?: string
+}) {
+  return (
+    <div
+      role="alert"
+      className={cn(
+        "flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-destructive/40 bg-destructive/5 px-6 py-10 text-center",
+        className
+      )}
+    >
+      <IconAlertTriangle className="size-7 text-destructive" />
+      <div className="space-y-1">
+        <p className="text-sm font-medium text-foreground">{title}</p>
+        <p className="max-w-sm text-xs leading-5 text-muted-foreground">{detail}</p>
+      </div>
+      {onRetry ? (
+        <Button variant="outline" size="sm" onClick={onRetry}>
+          <IconRefresh />
+          {retryLabel}
+        </Button>
+      ) : null}
+    </div>
+  )
+}
+
+// Centered spinner for an in-flight section fetch. Keeps loading feedback
+// consistent instead of each screen rolling its own.
+export function SectionLoader({
+  label = "Loading…",
+  className,
+}: {
+  label?: string
+  className?: string
+}) {
+  return (
+    <div
+      className={cn(
+        "flex flex-col items-center justify-center gap-2 px-6 py-10 text-center text-muted-foreground",
+        className
+      )}
+    >
+      <IconLoader2 className="size-6 animate-spin" />
+      <p className="text-xs">{label}</p>
+    </div>
+  )
+}
+
+// "Showing N of M · Load more" footer for paginated/capped lists (activity,
+// chat messages). Hides the button when everything is already shown.
+export function ShowMore({
+  shown,
+  total,
+  onMore,
+  label = "Load more",
+  className,
+}: {
+  shown: number
+  total: number
+  onMore: () => void
+  label?: string
+  className?: string
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-center justify-between gap-3 px-1 pt-2 text-xs text-muted-foreground",
+        className
+      )}
+    >
+      <span className="font-mono tabular-nums">
+        Showing {shown} of {total}
+      </span>
+      {shown < total ? (
+        <Button variant="ghost" size="xs" onClick={onMore}>
+          {label}
+        </Button>
+      ) : null}
+    </div>
+  )
+}
+
+const TIER_ICON: Record<ActionTier, React.ElementType> = {
+  instant: IconBolt,
+  standard: IconClock,
+  sensitive: IconHourglassHigh,
+}
+
+// Compact pill stating an action's risk tier (and optionally an estimated time).
+// Reads from the backend-served tier so it never contradicts how the queue will
+// actually pace the action. Colour rises with risk: calm primary → amber.
+export function TimingBadge({
+  tier,
+  seconds,
+  className,
+}: {
+  tier: ActionTier
+  seconds?: number
+  className?: string
+}) {
+  const Icon = TIER_ICON[tier]
+  return (
+    <span
+      title={TIER_BLURB[tier]}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-mono text-[0.6rem] tracking-[0.08em] whitespace-nowrap uppercase [&_svg]:size-3",
+        TIER_BADGE_CLASS[tier],
+        className
+      )}
+    >
+      <Icon />
+      {TIER_LABEL[tier]}
+      {seconds != null ? <span className="opacity-80">· ~{formatDuration(seconds)}</span> : null}
+    </span>
   )
 }

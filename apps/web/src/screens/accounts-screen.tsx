@@ -9,6 +9,7 @@ import {
   IconLockPassword,
   IconLogin2,
   IconMessage2Bolt,
+  IconSearch,
   IconUpload,
   IconUsers,
   IconX,
@@ -110,6 +111,20 @@ function FleetTab({ props }: { props: AccountsScreenProps }) {
     setStatusFilter((current) => (current === next ? "all" : next))
   }
 
+  function clearFilters() {
+    setAccountSearch("")
+    setStatusFilter("all")
+  }
+
+  // Distinguish "search/filter hid everything" from "there are genuinely no
+  // accounts" — the table owns the zero-accounts empty state (with its Add CTA);
+  // this only fires when accounts exist but the active filter excludes them.
+  const filtersActive = accountSearch.trim() !== "" || statusFilter !== "all"
+  const noMatches =
+    props.accountsLoaded &&
+    props.accounts.length > 0 &&
+    filteredAccounts.length === 0
+
   return (
     <PageGrid>
       <PrimaryPane>
@@ -178,16 +193,33 @@ function FleetTab({ props }: { props: AccountsScreenProps }) {
             <option value="error">Error</option>
           </Select>
         </div>
-        <AccountsTable
-          accounts={filteredAccounts}
-          loaded={props.accountsLoaded}
-          selectedIds={props.selectedIds}
-          setSelectedIds={props.setSelectedIds}
-          refresh={props.refresh}
-          flash={props.flash}
-          guarded={props.guarded}
-          askDialog={props.askDialog}
-        />
+        {noMatches ? (
+          <EmptyState
+            icon={IconSearch}
+            title="No accounts match"
+            detail="No sessions match the current search and status filter. Adjust them or clear the filters to see the whole fleet."
+            action={
+              filtersActive ? (
+                <Button variant="outline" size="sm" onClick={clearFilters}>
+                  Clear filters
+                </Button>
+              ) : null
+            }
+            className="px-4 py-8"
+          />
+        ) : (
+          <AccountsTable
+            accounts={filteredAccounts}
+            loaded={props.accountsLoaded}
+            selectedIds={props.selectedIds}
+            setSelectedIds={props.setSelectedIds}
+            refresh={props.refresh}
+            flash={props.flash}
+            guarded={props.guarded}
+            askDialog={props.askDialog}
+            onAddAccount={() => props.setAccountsTab("login")}
+          />
+        )}
       </Panel>
       </PrimaryPane>
       <SidePane>
@@ -233,6 +265,12 @@ function LoginTab({ props }: { props: AccountsScreenProps }) {
           apiConfigured={props.apiConfigured}
           loading={props.loading}
           onSubmit={loginFlow.startLogin}
+          error={
+            loginFlow.loginError?.step === "request"
+              ? loginFlow.loginError.message
+              : null
+          }
+          onDismissError={loginFlow.clearLoginError}
         />
         <FinishLoginPanel
           accounts={props.accounts}
@@ -244,6 +282,17 @@ function LoginTab({ props }: { props: AccountsScreenProps }) {
           passwordInputRef={loginFlow.passwordInputRef}
           onCodeSubmit={loginFlow.confirmCode}
           onPasswordSubmit={loginFlow.confirmPassword}
+          codeError={
+            loginFlow.loginError?.step === "code"
+              ? loginFlow.loginError.message
+              : null
+          }
+          passwordError={
+            loginFlow.loginError?.step === "2fa"
+              ? loginFlow.loginError.message
+              : null
+          }
+          onDismissError={loginFlow.clearLoginError}
         />
       </div>
     </div>
@@ -276,17 +325,44 @@ function TransferTab({ props }: { props: AccountsScreenProps }) {
   )
 }
 
+// Which step of the Telegram login a failure belongs to, so each form shows
+// only its own inline error instead of a single shared (and stale) message.
+type LoginStep = "request" | "code" | "2fa"
+type LoginError = { step: LoginStep; message: string }
+
 function useAccountLoginFlow(props: AccountsScreenProps) {
   const codeInputRef = React.useRef<HTMLInputElement>(null)
   const passwordInputRef = React.useRef<HTMLInputElement>(null)
+  const [loginError, setLoginError] = React.useState<LoginError | null>(null)
   const pendingAccount = props.accounts.find(
     (account) => account.id === props.pendingAccountId
   )
 
+  // Run the step's work, but pin its failure to an inline, dismissible message
+  // (and re-throw so `guarded` still flashes the toast). The form is left
+  // untouched on error so the operator can fix the value and resubmit without
+  // re-typing — the retry is just pressing the button again.
+  function runStep(step: LoginStep, work: () => Promise<void>) {
+    return props.guarded(async () => {
+      try {
+        await work()
+        setLoginError((current) =>
+          current?.step === step ? null : current
+        )
+      } catch (error) {
+        setLoginError({
+          step,
+          message: error instanceof Error ? error.message : "Request failed",
+        })
+        throw error
+      }
+    })
+  }
+
   async function startLogin(event: FormSubmitEvent) {
     event.preventDefault()
     const formElement = event.currentTarget
-    await props.guarded(async () => {
+    await runStep("request", async () => {
       if (!ensureApiConfigured(props)) return
       const form = loginFormData(formElement)
       if (!form)
@@ -301,7 +377,7 @@ function useAccountLoginFlow(props: AccountsScreenProps) {
   async function confirmCode(event: FormSubmitEvent) {
     event.preventDefault()
     const formElement = event.currentTarget
-    await props.guarded(async () => {
+    await runStep("code", async () => {
       const accountId = requirePendingAccount(props, "code")
       if (!accountId) return
       const code = String(new FormData(formElement).get("code") || "").trim()
@@ -316,7 +392,7 @@ function useAccountLoginFlow(props: AccountsScreenProps) {
   async function confirmPassword(event: FormSubmitEvent) {
     event.preventDefault()
     const formElement = event.currentTarget
-    await props.guarded(async () => {
+    await runStep("2fa", async () => {
       const accountId = requirePendingAccount(props, "2FA")
       if (!accountId) return
       const password = String(new FormData(formElement).get("password") || "")
@@ -330,9 +406,11 @@ function useAccountLoginFlow(props: AccountsScreenProps) {
   }
 
   return {
+    clearLoginError: () => setLoginError(null),
     codeInputRef,
     confirmCode,
     confirmPassword,
+    loginError,
     passwordInputRef,
     pendingAccount,
     startLogin,
@@ -372,10 +450,14 @@ function RequestLoginPanel({
   apiConfigured,
   loading,
   onSubmit,
+  error,
+  onDismissError,
 }: {
   apiConfigured: boolean
   loading: boolean
   onSubmit: (event: FormSubmitEvent) => Promise<void>
+  error: string | null
+  onDismissError: () => void
 }) {
   return (
     <Panel className="space-y-4">
@@ -384,6 +466,13 @@ function RequestLoginPanel({
         title="Request login code"
         detail="Use the same international phone format you use in Telegram, for example +15551234567."
       />
+      {error ? (
+        <LoginErrorNote
+          message={error}
+          hint="Check the phone number, then send the code again."
+          onDismiss={onDismissError}
+        />
+      ) : null}
       <form className="grid gap-3" onSubmit={onSubmit}>
         <Field label="Local Label">
           <Input
@@ -433,6 +522,9 @@ function FinishLoginPanel({
   passwordInputRef,
   onCodeSubmit,
   onPasswordSubmit,
+  codeError,
+  passwordError,
+  onDismissError,
 }: {
   accounts: Account[]
   loading: boolean
@@ -443,6 +535,9 @@ function FinishLoginPanel({
   passwordInputRef: React.RefObject<HTMLInputElement | null>
   onCodeSubmit: (event: FormSubmitEvent) => Promise<void>
   onPasswordSubmit: (event: FormSubmitEvent) => Promise<void>
+  codeError: string | null
+  passwordError: string | null
+  onDismissError: () => void
 }) {
   const pendingAccounts = accounts.filter(
     (account) =>
@@ -503,6 +598,13 @@ function FinishLoginPanel({
               Use the login code Telegram sent to the official app for this
               account.
             </p>
+            {codeError ? (
+              <LoginErrorNote
+                message={codeError}
+                hint="The code may be wrong or expired. Re-enter it, or request a fresh code on the left."
+                onDismiss={onDismissError}
+              />
+            ) : null}
             <Button
               type="submit"
               disabled={!pendingAccountId}
@@ -537,6 +639,13 @@ function FinishLoginPanel({
             <p className="text-xs text-muted-foreground">
               Leave this alone unless the selected account says it needs 2FA.
             </p>
+            {passwordError ? (
+              <LoginErrorNote
+                message={passwordError}
+                hint="Re-enter the account's 2FA password and confirm again."
+                onDismiss={onDismissError}
+              />
+            ) : null}
             <Button
               type="submit"
               disabled={!pendingAccountId}
@@ -556,9 +665,51 @@ function LoginChecklist() {
   return (
     <div className="grid gap-2 rounded-lg border border-border bg-background/60 p-3 text-xs leading-5 text-muted-foreground">
       <strong className="text-foreground">If no code arrives:</strong>
-      <span>Keep Telegram open on the phone or desktop account.</span>
-      <span>Confirm the phone number includes the country code.</span>
-      <span>Wait before retrying if Telegram rate-limits code requests.</span>
+      <span>
+        Open Telegram on this phone number and check the “Telegram” service chat
+        — the login code is sent there, not by SMS.
+      </span>
+      <span>
+        Re-check the number above: it must start with “+” and the country code,
+        e.g. +15551234567.
+      </span>
+      <span>
+        If Telegram says you’re requesting codes too often, wait a few minutes,
+        then press “Send Login Code” again.
+      </span>
+    </div>
+  )
+}
+
+// Inline, dismissible failure note for a single login step. Sits in the form it
+// belongs to so the operator sees what went wrong, gets a concrete next step,
+// and can retry in place (the form keeps its value; the button re-runs it).
+function LoginErrorNote({
+  message,
+  hint,
+  onDismiss,
+}: {
+  message: string
+  hint: string
+  onDismiss: () => void
+}) {
+  return (
+    <div
+      role="alert"
+      className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs leading-5"
+    >
+      <div className="min-w-0 flex-1 space-y-0.5">
+        <p className="font-medium text-destructive">{message}</p>
+        <p className="text-muted-foreground">{hint}</p>
+      </div>
+      <button
+        type="button"
+        aria-label="Dismiss error"
+        className="shrink-0 rounded-sm text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
+        onClick={onDismiss}
+      >
+        <IconX className="size-3.5" />
+      </button>
     </div>
   )
 }
@@ -726,6 +877,19 @@ type TransferPanelProps = Pick<
   "guarded" | "refresh" | "flash" | "loading"
 >
 
+// Build a specific "X is not a .session file" message, naming up to three files
+// so the operator can see exactly which drops were ignored (the rest roll up
+// into "and N more").
+function describeRejectedFiles(rejected: File[]) {
+  const names = rejected.map((file) => file.name)
+  if (names.length === 1) {
+    return `${names[0]} is not a .session file — skipped.`
+  }
+  const shown = names.slice(0, 3).join(", ")
+  const extra = names.length > 3 ? ` and ${names.length - 3} more` : ""
+  return `Skipped ${names.length} non-.session files: ${shown}${extra}.`
+}
+
 function ImportPanel({ guarded, refresh, flash, loading }: TransferPanelProps) {
   const inputRef = React.useRef<HTMLInputElement>(null)
   const [files, setFiles] = React.useState<File[]>([])
@@ -736,11 +900,16 @@ function ImportPanel({ guarded, refresh, flash, loading }: TransferPanelProps) {
   // same file twice doesn't import it twice.
   function addFiles(incoming: FileList | null) {
     if (!incoming || !incoming.length) return
-    const sessionFiles = [...incoming].filter((file) =>
+    const all = [...incoming]
+    const sessionFiles = all.filter((file) =>
       file.name.toLowerCase().endsWith(".session")
     )
-    const rejected = incoming.length - sessionFiles.length
-    setError(rejected > 0 ? `Skipped ${rejected} non-.session file(s).` : "")
+    // Name the skipped file(s) and why, so the operator knows exactly what was
+    // dropped by mistake rather than a faceless "Skipped N files".
+    const rejected = all.filter(
+      (file) => !file.name.toLowerCase().endsWith(".session")
+    )
+    setError(rejected.length ? describeRejectedFiles(rejected) : "")
     setFiles((current) => {
       const seen = new Set(current.map((file) => `${file.name}:${file.size}`))
       const merged = [...current]
@@ -835,7 +1004,7 @@ function ImportPanel({ guarded, refresh, flash, loading }: TransferPanelProps) {
             <span>{files.length} file(s) ready</span>
             <button
               type="button"
-              className="underline-offset-2 hover:underline"
+              className="rounded-sm underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
               onClick={clearFiles}
             >
               Clear
@@ -847,13 +1016,16 @@ function ImportPanel({ guarded, refresh, flash, loading }: TransferPanelProps) {
                 key={`${file.name}-${index}`}
                 className="flex items-center gap-2 rounded-md border border-border p-2 text-xs"
               >
-                <span className="min-w-0 flex-1 truncate font-mono">
+                <span
+                  className="min-w-0 flex-1 truncate font-mono"
+                  title={file.name}
+                >
                   {file.name}
                 </span>
                 <button
                   type="button"
                   aria-label={`Remove ${file.name}`}
-                  className="shrink-0 opacity-60 hover:opacity-100"
+                  className="shrink-0 rounded-sm opacity-60 hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
                   onClick={() =>
                     setFiles((current) =>
                       current.filter((_, i) => i !== index)

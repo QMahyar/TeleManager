@@ -13,8 +13,10 @@ import {
 
 import { Button } from "../ui/button"
 
+import { BrandLockup } from "../components/brand-mark"
 import { Badge, Panel, StepHeading } from "../components/ui"
 import { api } from "../lib/api"
+import { humanTime } from "../lib/helpers"
 import type { Flash } from "../types"
 
 type VersionInfo = {
@@ -35,7 +37,7 @@ type UpdateInfo = {
 type UpdateState =
   | { status: "idle" }
   | { status: "checking" }
-  | { status: "result"; info: UpdateInfo }
+  | { status: "result"; info: UpdateInfo; checkedAt: string }
   | { status: "error"; message: string }
 
 const SOCIAL_LINKS: Array<{
@@ -121,7 +123,7 @@ export function AboutScreen({ flash }: { flash: Flash }) {
     setUpdate({ status: "checking" })
     try {
       const info = await api<UpdateInfo>("/api/updates/check")
-      setUpdate({ status: "result", info })
+      setUpdate({ status: "result", info, checkedAt: new Date().toISOString() })
     } catch (error) {
       setUpdate({
         status: "error",
@@ -138,15 +140,17 @@ export function AboutScreen({ flash }: { flash: Flash }) {
   return (
     <div className="grid gap-4 xl:grid-cols-2">
       <Panel tone="raised" className="space-y-4 xl:col-span-2">
-        <StepHeading
-          title="TeleManager"
-          detail="Local Telegram session manager for managing Telethon .session files. Everything runs on 127.0.0.1 — nothing leaves your machine."
-          trailing={
-            <Badge tone="border-primary/30 bg-primary/10 text-primary">
-              {version ? `v${version}` : "version unavailable"}
-            </Badge>
-          }
-        />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <BrandLockup size={44} tagline="local session ops" />
+          <Badge tone="border-primary/30 bg-primary/10 text-primary">
+            {version ? `v${version}` : "version unavailable"}
+          </Badge>
+        </div>
+        <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+          Local-first manager for your own Telegram accounts — sessions, dialog
+          discovery, guarded action queues, schedules, and a local audit log.
+          Everything runs on 127.0.0.1; nothing leaves your machine.
+        </p>
         <div className="flex flex-wrap items-center gap-2">
           <Button
             size="comfortable"
@@ -203,29 +207,40 @@ function UpdateStatus({ state }: { state: UpdateState }) {
   }
 
   const { info } = state
+  const checkedAt = (
+    <p className="mt-2 text-[0.7rem] text-muted-foreground">
+      Last checked {humanTime(state.checkedAt)}.
+    </p>
+  )
   if (info.update_available) {
     return (
-      <div className="flex flex-col gap-3 rounded-lg border border-primary/40 bg-primary/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-0.5">
-          <strong className="block text-sm text-foreground">
-            Update available — v{info.latest}
-          </strong>
-          <span className="text-xs text-muted-foreground">
-            You are running v{info.current}. Download the latest release from
-            GitHub.
-          </span>
+      <div>
+        <div className="flex flex-col gap-3 rounded-lg border border-primary/40 bg-primary/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-0.5">
+            <strong className="block text-sm text-foreground">
+              Update available — v{info.latest}
+            </strong>
+            <span className="text-xs text-muted-foreground">
+              You are running v{info.current}. Download the latest release from
+              GitHub.
+            </span>
+          </div>
+          <Button onClick={() => openExternal(info.html_url)}>
+            <IconExternalLink /> Get v{info.latest}
+          </Button>
         </div>
-        <Button onClick={() => openExternal(info.html_url)}>
-          <IconExternalLink /> Get v{info.latest}
-        </Button>
+        {checkedAt}
       </div>
     )
   }
 
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-foreground">
-      <IconCheck className="size-4 text-primary" />
-      You are on the latest version (v{info.current}).
+    <div>
+      <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-foreground">
+        <IconCheck className="size-4 text-primary" />
+        You are on the latest version (v{info.current}).
+      </div>
+      {checkedAt}
     </div>
   )
 }

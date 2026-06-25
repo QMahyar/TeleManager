@@ -1,12 +1,10 @@
 import * as React from "react"
 
-import {
-  IconAlertTriangle,
-  IconPlayerPlay,
-  IconProgressCheck,
-} from "@tabler/icons-react"
+import { IconAlertTriangle, IconProgressCheck } from "@tabler/icons-react"
+
+import { EmptyHistoryArt } from "./empty-illustrations"
 import { Button } from "../ui/button"
-import { Modal } from "../ui/modal"
+import { ModalShell } from "../ui/modal"
 import {
   Table,
   TableBody,
@@ -98,7 +96,7 @@ export function RunHistory({
         />
       ) : (
         <EmptyState
-          icon={IconPlayerPlay}
+          illustration={<EmptyHistoryArt />}
           title="No queue runs yet"
           detail="Build a queue in the Action Queue panel and run it. Completed, failed, and canceled runs appear here."
         />
@@ -305,38 +303,34 @@ function RunDetailsDialog({
   const progress = run ? queueRunProgress(run) : null
 
   return (
-    <Modal
+    <ModalShell
       open={Boolean(run)}
       onClose={onClose}
-      className="max-h-[90vh] max-w-5xl overflow-hidden"
-      labelledBy="queue-run-title"
+      size="xl"
+      kicker="Queue run details"
+      title={
+        <span className="font-mono text-base break-all">{run?.id}</span>
+      }
+      description={
+        run && progress
+          ? `${humanTime(run.created_at)} · ${
+              progress.operationCount || operations.length
+            } operation(s)`
+          : undefined
+      }
+      headerExtra={
+        run ? (
+          <Badge tone={statusTone(run.status)}>{run.status}</Badge>
+        ) : null
+      }
+      footer={
+        <Button variant="outline" onClick={onClose}>
+          Close
+        </Button>
+      }
     >
       {run && progress ? (
-        <>
-        <div className="flex flex-col gap-3 border-b border-border p-5 md:flex-row md:items-start md:justify-between">
-          <div>
-            <p className="text-[0.65rem] font-semibold tracking-[0.16em] text-primary uppercase">
-              Queue run details
-            </p>
-            <h2
-              id="queue-run-title"
-              className="mt-2 font-mono text-xl break-all font-medium tracking-normal"
-            >
-              {run.id}
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {humanTime(run.created_at)} /{" "}
-              {progress.operationCount || operations.length} operation(s)
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 md:justify-end">
-            <Badge tone={statusTone(run.status)}>{run.status}</Badge>
-            <Button variant="outline" onClick={onClose}>
-              Close
-            </Button>
-          </div>
-        </div>
-        <div className="max-h-[calc(90vh-7rem)] space-y-4 overflow-auto p-5">
+        <div className="space-y-4">
           <div className="grid gap-3 md:grid-cols-4">
             <RunStat label="Completed" value={progress.completedCount} />
             <RunStat label="Failed" value={progress.failedCount} />
@@ -355,9 +349,8 @@ function RunDetailsDialog({
           <RunErrorPanel error={error} />
           <RunOperationsTable operations={operations} />
         </div>
-        </>
       ) : null}
-    </Modal>
+    </ModalShell>
   )
 }
 

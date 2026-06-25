@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import random
 import time
 import uuid
 
@@ -11,7 +12,19 @@ from .accounts import AccountManager
 from .action_runs_service import save_action_runs
 from .audit_service import log_event
 from .config import SAFETY_SETTINGS_FILE, now_iso, read_json, write_json
-from .telegram_actions import TelegramAction, TelegramActionType, safe_delay, validate_target_for_action
+from .telegram_actions import (
+    MESSAGE_REQUIRED_ACTIONS,
+    TelegramAction,
+    TelegramActionType,
+    action_tier,
+    safe_delay,
+    validate_target_for_action,
+)
+
+# Fraction of the sensitive-tier delay added as random jitter, so identical
+# back-to-back sensitive ops (and any synchronized retries across accounts) don't
+# all hit Telegram at the exact same cadence — a documented FloodWait mitigation.
+SENSITIVE_JITTER_FRACTION = 0.25
 
 QUEUE_SAVE_INTERVAL_SECONDS = 2.0
 TERMINAL_RUN_STATUSES = {"completed", "failed", "interrupted", "canceled", "flood_wait"}
@@ -34,21 +47,7 @@ class ActionQueueStep(BaseModel):
         if not clean_targets:
             raise ValueError("At least one target is required.")
         self.targets = clean_targets
-        if (
-            self.action_type
-            in {
-                "send_message",
-                "send_media",
-                "schedule_message",
-                "forward_message",
-                "edit_message",
-                "delete_messages",
-                "pin_message",
-                "unpin_message",
-                "download_media",
-            }
-            and not (self.message or "").strip()
-        ):
+        if self.action_type in MESSAGE_REQUIRED_ACTIONS and not (self.message or "").strip():
             raise ValueError("Message text is required for this action. Options may be required for advanced actions.")
         for target in self.targets:
             error = validate_target_for_action(self.action_type, target)
@@ -60,16 +59,29 @@ class ActionQueueStep(BaseModel):
 class ActionQueueRequest(BaseModel):
     steps: list[ActionQueueStep] = Field(min_length=1, max_length=20)
     confirm: bool = False
+    # delay_between_actions doubles as the *standard*-tier delay (kept under its old
+    # name for backward compatibility with saved presets/schedules). delay_instant
+    # and delay_sensitive are the other two tiers; all default from safety settings.
     delay_between_accounts: float | None = Field(default=None, ge=1.0, le=60.0)
     delay_between_actions: float | None = Field(default=None, ge=1.0, le=120.0)
+    delay_instant: float | None = Field(default=None, ge=0.0, le=120.0)
+    delay_sensitive: float | None = Field(default=None, ge=1.0, le=120.0)
     max_operations: int | None = Field(default=None, ge=1, le=250)
 
     @model_validator(mode="after")
     def validate_queue(self) -> ActionQueueRequest:
         defaults = safety_defaults()
-        self.delay_between_accounts = self.delay_between_accounts or defaults["delay_between_accounts"]
-        self.delay_between_actions = self.delay_between_actions or defaults["delay_between_actions"]
-        self.max_operations = self.max_operations or defaults["max_operations"]
+        # Explicit None checks (not `or`): delay_instant may legitimately be 0.
+        if self.delay_between_accounts is None:
+            self.delay_between_accounts = defaults["delay_between_accounts"]
+        if self.delay_between_actions is None:
+            self.delay_between_actions = defaults["delay_between_actions"]
+        if self.delay_instant is None:
+            self.delay_instant = defaults["delay_instant"]
+        if self.delay_sensitive is None:
+            self.delay_sensitive = defaults["delay_sensitive"]
+        if self.max_operations is None:
+            self.max_operations = defaults["max_operations"]
         operation_count = sum(len(step.account_ids) * len(step.targets) for step in self.steps)
         if operation_count > self.max_operations:
             raise ValueError(
@@ -80,7 +92,11 @@ class ActionQueueRequest(BaseModel):
 
 class SafetySettingsRequest(BaseModel):
     delay_between_accounts: float = Field(default=4.0, ge=1.0, le=60.0)
+    # Standard-tier delay. Retains the historical field name so settings/presets
+    # saved before tiered timing keep loading unchanged (missing tier fields default).
     delay_between_actions: float = Field(default=8.0, ge=1.0, le=120.0)
+    delay_instant: float = Field(default=1.0, ge=0.0, le=120.0)
+    delay_sensitive: float = Field(default=12.0, ge=1.0, le=120.0)
     max_operations: int = Field(default=100, ge=1, le=250)
 
 
@@ -159,7 +175,7 @@ async def process_action_queue(
             save_action_runs(queue_runs)
             last_save = now
 
-    delay_between_accounts, delay_between_actions = resolved_queue_delays(request)
+    delays = resolved_queue_delays(request)
     run_account_ids = sorted({operation["account_id"] for operation in expanded})
     # Hold the per-account session locks for the whole run so a `.session` file is
     # never opened by two runs at once (manual + scheduled, or two schedules). Runs
@@ -174,13 +190,11 @@ async def process_action_queue(
                     break
                 if index > 0:
                     previous = expanded[index - 1]
-                    delay = (
-                        delay_between_accounts
-                        if previous["account_id"] != operation["account_id"]
-                        else delay_between_actions
+                    delay = inter_operation_delay(
+                        previous["account_id"], operation["account_id"], operation["action_type"], delays
                     )
                     await safe_delay(delay)
-                    # A cancel can land during the inter-op pause (up to 60s); honour it
+                    # A cancel can land during the inter-op pause (up to 120s); honour it
                     # here too so the queue stops promptly instead of running one more
                     # operation. The op is still "pending", so it's marked skipped.
                     if run.get("cancel_requested"):
@@ -199,7 +213,7 @@ async def process_action_queue(
                     account_ids=[operation["account_id"]],
                     message=operation.get("message"),
                     confirm=True,
-                    delay_seconds=delay_between_accounts,
+                    delay_seconds=delays["accounts"],
                 )
                 try:
                     result = await manager.run_warm_action(action)
@@ -316,8 +330,78 @@ def expand_action_queue(manager: AccountManager, request: ActionQueueRequest) ->
     return operations
 
 
-def resolved_queue_delays(request: ActionQueueRequest) -> tuple[float, float]:
-    if request.delay_between_accounts is None or request.delay_between_actions is None:
-        defaults = safety_defaults()
-        return defaults["delay_between_accounts"], defaults["delay_between_actions"]
-    return request.delay_between_accounts, request.delay_between_actions
+def resolved_queue_delays(request: ActionQueueRequest) -> dict[str, float]:
+    """Resolve the four delay knobs for a run, filling any unset from safety defaults.
+
+    Keys: "accounts" (pause when rotating to a different account) and one per risk
+    tier — "instant", "standard", "sensitive". `delay_between_actions` maps to the
+    standard tier (its historical role).
+    """
+    defaults = safety_defaults()
+
+    def pick(value: float | None, key: str) -> float:
+        return value if value is not None else defaults[key]
+
+    return {
+        "accounts": pick(request.delay_between_accounts, "delay_between_accounts"),
+        "instant": pick(request.delay_instant, "delay_instant"),
+        "standard": pick(request.delay_between_actions, "delay_between_actions"),
+        "sensitive": pick(request.delay_sensitive, "delay_sensitive"),
+    }
+
+
+def tier_delay(tier: str, delays: dict[str, float]) -> float:
+    """Base delay for a risk tier, adding jitter to the sensitive tier."""
+    base = delays.get(tier, delays["standard"])
+    if tier == "sensitive":
+        base += random.uniform(0.0, SENSITIVE_JITTER_FRACTION * base)
+    return base
+
+
+def inter_operation_delay(prev_account: str, next_account: str, next_action: str, delays: dict[str, float]) -> float:
+    """Seconds to wait before the next operation.
+
+    Rotating to a different account pauses for the account delay; same-account ops
+    pause for the upcoming action's tier delay. When the accounts differ we still
+    honour the larger of the two, so a sensitive send never gets less spacing than
+    its tier demands just because the account also changed.
+    """
+    tier = action_tier(next_action)
+    action_delay = tier_delay(tier, delays)
+    if prev_account != next_account:
+        return max(delays["accounts"], action_delay)
+    return action_delay
+
+
+def actions_meta_payload() -> dict:
+    """Per-action metadata + the currently-resolved tier delays, for the frontend.
+
+    The single source the UI reads to show each action's risk tier, timing badge,
+    valid targets, and to estimate a run's duration — so it never re-hardcodes any
+    of it. Mirrors backend behaviour exactly because it's built from ACTION_META.
+    """
+    from .telegram_actions import ACTION_META  # local import: avoids a cycle at module load
+
+    settings = safety_defaults()
+    return {
+        "actions": {
+            action: {
+                "tier": meta.tier,
+                "category": meta.category,
+                "valid_targets": sorted(meta.valid_targets),
+                "needs_message": meta.needs_message,
+                "message_optional": meta.message_optional,
+                "destructive": meta.destructive,
+                "natively_schedulable": meta.natively_schedulable,
+                "creates_content": meta.creates_content,
+            }
+            for action, meta in ACTION_META.items()
+        },
+        "tier_delays": {
+            "instant": settings["delay_instant"],
+            "standard": settings["delay_between_actions"],
+            "sensitive": settings["delay_sensitive"],
+        },
+        "delay_between_accounts": settings["delay_between_accounts"],
+        "max_operations": settings["max_operations"],
+    }

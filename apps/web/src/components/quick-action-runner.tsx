@@ -3,7 +3,7 @@ import * as React from "react"
 import { IconAlertTriangle } from "@tabler/icons-react"
 
 import { Button } from "../ui/button"
-import { Modal } from "../ui/modal"
+import { ModalShell } from "../ui/modal"
 import { ActionFields } from "./action-fields"
 import {
   defaultFieldValues,
@@ -82,25 +82,34 @@ export function QuickActionRunner({
   }
 
   return (
-    <Modal
+    <ModalShell
       open={open}
       onClose={onClose}
-      className="max-w-lg"
-      labelledBy="quick-action-title"
-    >
-      <div className="border-b border-border p-4">
-        <p className="text-[0.65rem] font-semibold tracking-[0.16em] text-primary uppercase">
-          Quick action
-        </p>
-        <h2 id="quick-action-title" className="font-heading text-xl">
-          {meta.label}
-        </h2>
-        <p className="text-xs text-muted-foreground">
+      kicker="Quick action"
+      title={meta.label}
+      danger={meta.destructive}
+      description={
+        <>
           {dialogTitle} · <span className="font-mono">{target}</span> · as{" "}
           {accountLabel}
-        </p>
-      </div>
-      <div className="space-y-3 p-4">
+        </>
+      }
+      footer={
+        <>
+          <Button variant="outline" onClick={onClose} disabled={running}>
+            Cancel
+          </Button>
+          <Button
+            variant={meta.destructive ? "destructive" : "default"}
+            loading={running}
+            onClick={run}
+          >
+            Run on {accountLabel}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
         {meta.destructive ? (
           <p className="flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs font-medium text-destructive">
             <IconAlertTriangle className="size-3.5 shrink-0" />
@@ -114,20 +123,8 @@ export function QuickActionRunner({
           showErrors={submitAttempted}
           flash={flash}
         />
-        <div className="flex justify-end gap-2 border-t border-border pt-3">
-          <Button variant="outline" onClick={onClose} disabled={running}>
-            Cancel
-          </Button>
-          <Button
-            variant={meta.destructive ? "destructive" : "default"}
-            loading={running}
-            onClick={run}
-          >
-            Run on {accountLabel}
-          </Button>
-        </div>
       </div>
-    </Modal>
+    </ModalShell>
   )
 }
 

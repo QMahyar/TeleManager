@@ -139,13 +139,42 @@ export type Preset = {
     steps: QueueStep[]
     delay_between_accounts?: number
     delay_between_actions?: number
+    delay_instant?: number
+    delay_sensitive?: number
     max_operations?: number
   }
 }
 
 export type SafetySettings = {
   delay_between_accounts: number
+  // Standard-tier action delay (historical field name kept for back-compat).
   delay_between_actions: number
+  delay_instant: number
+  delay_sensitive: number
+  max_operations: number
+}
+
+// Risk tier an action falls into — drives the inter-operation cooldown and the
+// timing badge. Mirrors the backend ACTION_META tiers.
+export type ActionTier = "instant" | "standard" | "sensitive"
+
+// Per-action metadata served by GET /api/actions/meta (backend ACTION_META). The
+// frontend reads this as the source of truth for tier/timing instead of guessing.
+export type ActionMetaInfo = {
+  tier: ActionTier
+  category: string
+  valid_targets: string[]
+  needs_message: boolean
+  message_optional: boolean
+  destructive: boolean
+  natively_schedulable: boolean
+  creates_content: boolean
+}
+
+export type ActionsMeta = {
+  actions: Record<string, ActionMetaInfo>
+  tier_delays: Record<ActionTier, number>
+  delay_between_accounts: number
   max_operations: number
 }
 
@@ -169,6 +198,8 @@ export type ScheduleQueue = {
   steps: QueueStep[]
   delay_between_accounts?: number
   delay_between_actions?: number
+  delay_instant?: number
+  delay_sensitive?: number
   max_operations?: number
 }
 

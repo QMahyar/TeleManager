@@ -27,10 +27,13 @@ import {
 import {
   Badge,
   EmptyState,
+  ErrorState,
   Field,
   Input,
   Panel,
+  SectionLoader,
   Select,
+  ShowMore,
   StepHeading,
 } from "../components/ui"
 import { QuickActionRunner } from "../components/quick-action-runner"
@@ -75,11 +78,25 @@ const FILTER_LABELS: Record<string, string> = {
 
 const OUTLINE_VARIANT = "outline"
 
+// First page of the message inspector, and the hard ceiling the backend honours
+// (it clamps the limit to 100), so "Load more" steps from one to the other.
+const MESSAGES_PAGE = 50
+const MESSAGES_MAX = 100
+
+// Per-dialog message inspector state: the chat, its loaded messages, the limit
+// last requested, and the in-flight / failure flags that drive the loader,
+// retry, and "Load more" affordances.
+type MessagePanelState = {
+  dialog: TelegramDialog
+  messages: TelegramMessage[]
+  limit: number
+  loading: boolean
+  error: string | null
+}
+
 export function DialogsScreen(props: DialogsScreenProps) {
-  const [messagePanel, setMessagePanel] = React.useState<{
-    dialog: TelegramDialog
-    messages: TelegramMessage[]
-  } | null>(null)
+  const [messagePanel, setMessagePanel] =
+    React.useState<MessagePanelState | null>(null)
   const fetchStatus = useCachedDialogs(props.dialogAccountId, props.setDialogs)
   const {
     allFilteredSelected,
@@ -95,16 +112,49 @@ export function DialogsScreen(props: DialogsScreenProps) {
     closeQuickRun,
   } = useDialogsController(props, fetchStatus)
 
-  async function openMessagePanel(dialog: TelegramDialog) {
-    if (!props.dialogAccountId) {
+  // Load (or reload) a dialog's recent messages at the given limit. Drives the
+  // panel's loading/error UI directly so a slow or failing fetch is never a
+  // blank pane. The backend caps the limit at MESSAGES_MAX, so "Load more" just
+  // re-requests with a higher ceiling.
+  async function loadMessages(dialog: TelegramDialog, limit: number) {
+    const accountId = props.dialogAccountId
+    if (!accountId) {
       props.flash("Choose an account first.")
       return
     }
     const target = dialogTarget(dialog)
-    const payload = await api<{ messages: TelegramMessage[] }>(
-      `/api/accounts/${props.dialogAccountId}/messages?target=${encodeURIComponent(target)}&limit=50`
-    )
-    setMessagePanel({ dialog, messages: payload.messages || [] })
+    setMessagePanel((current) => ({
+      dialog,
+      messages: current?.dialog === dialog ? current.messages : [],
+      limit,
+      loading: true,
+      error: null,
+    }))
+    try {
+      const payload = await api<{ messages: TelegramMessage[] }>(
+        `/api/accounts/${accountId}/messages?target=${encodeURIComponent(target)}&limit=${limit}`
+      )
+      setMessagePanel({
+        dialog,
+        messages: payload.messages || [],
+        limit,
+        loading: false,
+        error: null,
+      })
+    } catch (error) {
+      setMessagePanel({
+        dialog,
+        messages: [],
+        limit,
+        loading: false,
+        error:
+          error instanceof Error ? error.message : "Failed to load messages.",
+      })
+    }
+  }
+
+  function openMessagePanel(dialog: TelegramDialog) {
+    return loadMessages(dialog, MESSAGES_PAGE)
   }
 
   return (
@@ -113,6 +163,8 @@ export function DialogsScreen(props: DialogsScreenProps) {
         accounts={props.accounts}
         dialogAccountId={props.dialogAccountId}
         fetchStatus={fetchStatus.value}
+        fetchError={fetchStatus.error}
+        fetchLoading={fetchStatus.loading}
         guarded={props.guarded}
         loading={props.loading}
         loadDialogs={loadDialogs}
@@ -127,10 +179,16 @@ export function DialogsScreen(props: DialogsScreenProps) {
       <DialogsTablePanel
         allFilteredSelected={allFilteredSelected}
         onQuickAction={runRowQuickAction}
+        dialogAccountId={props.dialogAccountId}
         dialogFilter={props.dialogFilter}
         dialogSearch={props.dialogSearch}
         dialogs={props.dialogs}
         filteredDialogs={props.filteredDialogs}
+        fetchLoading={fetchStatus.loading}
+        fetchError={fetchStatus.error}
+        onRetry={fetchStatus.reload}
+        loadDialogs={loadDialogs}
+        guarded={props.guarded}
         selectedDialogTargets={props.selectedDialogTargets}
         setDialogFilter={props.setDialogFilter}
         setDialogSearch={props.setDialogSearch}
@@ -143,6 +201,7 @@ export function DialogsScreen(props: DialogsScreenProps) {
       <DialogMessagesPanel
         panel={messagePanel}
         onStageMessage={runMessageQuickAction}
+        onReload={loadMessages}
         onClose={() => setMessagePanel(null)}
       />
       {quickRun ? (
@@ -172,47 +231,80 @@ function accountLabelFor(
   return account?.label || account?.session_name || "account"
 }
 
+type FetchStatus = {
+  value: string
+  setValue: (value: string) => void
+  loading: boolean
+  setLoading: (loading: boolean) => void
+  error: string | null
+  setError: (error: string | null) => void
+  reload: () => void
+}
+
 function useCachedDialogs(
   dialogAccountId: string,
   setDialogs: DialogsScreenProps["setDialogs"]
-) {
+): FetchStatus {
   const [value, setValue] = React.useState("")
+  const [loading, setLoading] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+  // Bumping this re-runs the auto-load effect so the table's retry can re-fetch
+  // cached dialogs without remounting or switching accounts.
+  const [reloadKey, setReloadKey] = React.useState(0)
+  // Monotonic token so out-of-order responses (rapid account switches) never
+  // overwrite the latest request's result.
+  const requestToken = React.useRef(0)
 
-  React.useEffect(() => {
-    if (!dialogAccountId) {
-      return
-    }
-    // Guard against out-of-order responses: switching accounts quickly fires
-    // overlapping fetches, and a slow earlier one must not overwrite the newer
-    // account's dialogs. `active` flips false on cleanup so stale replies are ignored.
-    let active = true
-    api<{ dialogs: TelegramDialog[]; fetched_at?: string | null }>(
-      `/api/accounts/${dialogAccountId}/dialogs`
-    )
-      .then((payload) => {
-        if (!active) return
+  const loadCached = React.useCallback(
+    async (id: string) => {
+      if (!id) return
+      const token = ++requestToken.current
+      setLoading(true)
+      setError(null)
+      try {
+        const payload = await api<{
+          dialogs: TelegramDialog[]
+          fetched_at?: string | null
+        }>(`/api/accounts/${id}/dialogs`)
+        if (token !== requestToken.current) return
         setDialogs(payload.dialogs || [])
         setValue(
           payload.fetched_at
             ? `Cached dialogs from ${humanTime(payload.fetched_at)}.`
             : ""
         )
-      })
-      .catch((error) => {
-        if (!active) return
+      } catch (err) {
+        if (token !== requestToken.current) return
         setDialogs([])
-        setValue(
-          error instanceof Error
-            ? error.message
-            : "Failed to load cached dialogs."
-        )
-      })
-    return () => {
-      active = false
-    }
-  }, [dialogAccountId, setDialogs])
+        const message =
+          err instanceof Error ? err.message : "Failed to load cached dialogs."
+        setValue(message)
+        setError(message)
+      } finally {
+        if (token === requestToken.current) setLoading(false)
+      }
+    },
+    [setDialogs]
+  )
 
-  return { setValue, value }
+  // Auto-load on account change / explicit reload. Deferred to a timeout (not
+  // called synchronously in the effect body) so the loading flag is set off the
+  // render path, matching the picker's pattern.
+  React.useEffect(() => {
+    if (!dialogAccountId) return undefined
+    const task = window.setTimeout(() => loadCached(dialogAccountId), 0)
+    return () => window.clearTimeout(task)
+  }, [dialogAccountId, reloadKey, loadCached])
+
+  return {
+    value,
+    setValue,
+    loading,
+    setLoading,
+    error,
+    setError,
+    reload: () => setReloadKey((key) => key + 1),
+  }
 }
 
 function useDialogsSelection(
@@ -246,7 +338,7 @@ function useDialogsSelection(
 
 function useDialogsController(
   props: DialogsScreenProps,
-  fetchStatus: { value: string; setValue: (value: string) => void }
+  fetchStatus: FetchStatus
 ) {
   const selection = useDialogsSelection(
     props.filteredDialogs,
@@ -277,43 +369,59 @@ function useDialogsController(
       props.flash("Choose an account first.")
       return
     }
+    fetchStatus.setError(null)
+    fetchStatus.setLoading(true)
     if (mode === "live") {
-      fetchStatus.setValue("Fetching dialogs from Telegram...")
+      fetchStatus.setValue("Fetching dialogs from Telegram…")
     }
 
-    const payload =
-      mode === "live"
-        ? await api<{ dialogs: TelegramDialog[]; fetched_at?: string }>(
-            `/api/accounts/${props.dialogAccountId}/dialogs/fetch?limit=500`,
-            { method: "POST" }
-          )
-        : await api<{ dialogs: TelegramDialog[]; fetched_at?: string | null }>(
-            `/api/accounts/${props.dialogAccountId}/dialogs`
-          )
+    try {
+      const payload =
+        mode === "live"
+          ? await api<{ dialogs: TelegramDialog[]; fetched_at?: string }>(
+              `/api/accounts/${props.dialogAccountId}/dialogs/fetch?limit=500`,
+              { method: "POST" }
+            )
+          : await api<{ dialogs: TelegramDialog[]; fetched_at?: string | null }>(
+              `/api/accounts/${props.dialogAccountId}/dialogs`
+            )
 
-    const dialogs = payload.dialogs || []
-    props.setDialogs(dialogs)
+      const dialogs = payload.dialogs || []
+      props.setDialogs(dialogs)
 
-    if (mode === "live") {
-      fetchStatus.setValue(
-        payload.fetched_at
-          ? `Fetched ${dialogs.length} dialogs at ${humanTime(payload.fetched_at)}.`
-          : `Fetched ${dialogs.length} dialogs.`
+      if (mode === "live") {
+        fetchStatus.setValue(
+          payload.fetched_at
+            ? `Fetched ${dialogs.length} dialogs at ${humanTime(payload.fetched_at)}.`
+            : `Fetched ${dialogs.length} dialogs.`
+        )
+        props.flash(`Fetched ${dialogs.length} dialogs.`)
+        await props.refresh()
+        return
+      }
+
+      const statusMessage = payload.fetched_at
+        ? `Cached dialogs from ${humanTime(payload.fetched_at)}.`
+        : "No cached dialogs for this account yet."
+      fetchStatus.setValue(payload.fetched_at ? statusMessage : "")
+      props.flash(
+        dialogs.length
+          ? `Loaded ${dialogs.length} cached dialogs.`
+          : statusMessage
       )
-      props.flash(`Fetched ${dialogs.length} dialogs.`)
-      await props.refresh()
-      return
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : mode === "live"
+            ? "Live fetch failed."
+            : "Failed to load cached dialogs."
+      fetchStatus.setValue(message)
+      fetchStatus.setError(message)
+      props.flash(message, "error")
+    } finally {
+      fetchStatus.setLoading(false)
     }
-
-    const statusMessage = payload.fetched_at
-      ? `Cached dialogs from ${humanTime(payload.fetched_at)}.`
-      : "No cached dialogs for this account yet."
-    fetchStatus.setValue(payload.fetched_at ? statusMessage : "")
-    props.flash(
-      dialogs.length
-        ? `Loaded ${dialogs.length} cached dialogs.`
-        : statusMessage
-    )
   }
 
   // The account used to fetch these dialogs can always act on them, so every
@@ -496,6 +604,8 @@ function DialogsSourcePanel({
   accounts,
   dialogAccountId,
   fetchStatus,
+  fetchError,
+  fetchLoading,
   guarded,
   loading,
   loadDialogs,
@@ -510,6 +620,8 @@ function DialogsSourcePanel({
   accounts: DialogsScreenProps["accounts"]
   dialogAccountId: string
   fetchStatus: string
+  fetchError: string | null
+  fetchLoading: boolean
   guarded: DialogsScreenProps["guarded"]
   loading: boolean
   loadDialogs: (mode: "cached" | "live") => Promise<void>
@@ -571,8 +683,8 @@ function DialogsSourcePanel({
         <Button
           size="comfortable"
           className="w-full"
-          disabled={loading || !dialogAccountId}
-          loading={loading}
+          disabled={loading || fetchLoading || !dialogAccountId}
+          loading={loading || fetchLoading}
           onClick={() => guarded(() => loadDialogs("live"))}
         >
           Fetch Live
@@ -580,14 +692,20 @@ function DialogsSourcePanel({
         <Button
           variant={OUTLINE_VARIANT}
           className="w-full"
-          disabled={!dialogAccountId}
+          disabled={fetchLoading || !dialogAccountId}
           onClick={() => guarded(() => loadDialogs("cached"))}
         >
           Load Cache
         </Button>
       </div>
       {fetchStatus ? (
-        <div className="rounded-lg border border-border bg-background p-3 text-xs leading-5 text-muted-foreground">
+        <div
+          className={
+            fetchError
+              ? "rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs leading-5 text-destructive"
+              : "rounded-lg border border-border bg-background p-3 text-xs leading-5 text-muted-foreground"
+          }
+        >
           {fetchStatus}
         </div>
       ) : null}
@@ -726,10 +844,16 @@ function BulkActionsMenu({
 function DialogsTablePanel({
   allFilteredSelected,
   onQuickAction,
+  dialogAccountId,
   dialogFilter,
   dialogSearch,
   dialogs,
   filteredDialogs,
+  fetchLoading,
+  fetchError,
+  onRetry,
+  loadDialogs,
+  guarded,
   selectedDialogTargets,
   setDialogFilter,
   setDialogSearch,
@@ -741,10 +865,16 @@ function DialogsTablePanel({
 }: {
   allFilteredSelected: boolean
   onQuickAction: (actionType: ActionType, dialog: TelegramDialog) => void
+  dialogAccountId: string
   dialogFilter: string
   dialogSearch: string
   dialogs: TelegramDialog[]
   filteredDialogs: TelegramDialog[]
+  fetchLoading: boolean
+  fetchError: string | null
+  onRetry: () => void
+  loadDialogs: (mode: "cached" | "live") => Promise<void>
+  guarded: DialogsScreenProps["guarded"]
   selectedDialogTargets: Set<string>
   setDialogFilter: DialogsScreenProps["setDialogFilter"]
   setDialogSearch: DialogsScreenProps["setDialogSearch"]
@@ -755,6 +885,9 @@ function DialogsTablePanel({
   openMessages: (dialog: TelegramDialog) => Promise<void>
 }) {
   const filterCounts = countDialogFilters(dialogs)
+  // A search/filter is narrowing the list (so "nothing matches" is the right
+  // message), versus the account simply having no dialogs cached at all.
+  const isFiltering = Boolean(dialogSearch.trim()) || dialogFilter !== "all"
 
   return (
     <Panel tone="raised" className="space-y-4 overflow-hidden">
@@ -802,11 +935,25 @@ function DialogsTablePanel({
           ))}
         </div>
       </div>
-      {filteredDialogs.length === 0 ? (
-        <EmptyState
-          icon={IconMessageCircle}
-          title="No dialogs"
-          detail="Select an account and fetch dialogs, or adjust search and type filters."
+      {fetchLoading && dialogs.length === 0 ? (
+        <SectionLoader label="Loading dialogs…" />
+      ) : fetchError && dialogs.length === 0 ? (
+        <ErrorState
+          title="Couldn't load dialogs"
+          detail={fetchError}
+          onRetry={onRetry}
+        />
+      ) : filteredDialogs.length === 0 ? (
+        <DialogsEmptyState
+          isFiltering={isFiltering}
+          hasAccount={Boolean(dialogAccountId)}
+          hasAnyDialogs={dialogs.length > 0}
+          onClearFilters={() => {
+            setDialogSearch("")
+            setDialogFilter("all")
+          }}
+          onFetchLive={() => guarded(() => loadDialogs("live"))}
+          fetchLoading={fetchLoading}
         />
       ) : (
         <>
@@ -869,6 +1016,63 @@ function DialogsTablePanel({
         </>
       )}
     </Panel>
+  )
+}
+
+// The empty list means different things — no account picked, an account with no
+// cached dialogs yet, or a search/filter that hides everything — so the copy and
+// the offered action change to match.
+function DialogsEmptyState({
+  isFiltering,
+  hasAccount,
+  hasAnyDialogs,
+  onClearFilters,
+  onFetchLive,
+  fetchLoading,
+}: {
+  isFiltering: boolean
+  hasAccount: boolean
+  hasAnyDialogs: boolean
+  onClearFilters: () => void
+  onFetchLive: () => void
+  fetchLoading: boolean
+}) {
+  if (hasAnyDialogs && isFiltering) {
+    return (
+      <EmptyState
+        icon={IconSearch}
+        title="No dialogs match"
+        detail="No loaded dialog matches the current search and type filter. Widen the search or switch the type filter."
+        action={
+          <Button variant={OUTLINE_VARIANT} size="sm" onClick={onClearFilters}>
+            Clear filters
+          </Button>
+        }
+      />
+    )
+  }
+
+  if (!hasAccount) {
+    return (
+      <EmptyState
+        icon={IconMessageCircle}
+        title="No account selected"
+        detail="Pick an account on the left, then fetch live or load its cached dialogs."
+      />
+    )
+  }
+
+  return (
+    <EmptyState
+      icon={IconMessageCircle}
+      title="No dialogs yet"
+      detail="This account has no cached dialogs. Fetch them live from Telegram to start reviewing targets."
+      action={
+        <Button size="sm" loading={fetchLoading} onClick={onFetchLive}>
+          Fetch live
+        </Button>
+      }
+    />
   )
 }
 
@@ -1133,19 +1337,25 @@ function fieldsForStagedMessage(
 function DialogMessagesPanel({
   panel,
   onStageMessage,
+  onReload,
   onClose,
 }: {
-  panel: { dialog: TelegramDialog; messages: TelegramMessage[] } | null
+  panel: MessagePanelState | null
   onStageMessage: (
     actionType: ActionType,
     dialog: TelegramDialog,
     message: TelegramMessage
   ) => void
+  onReload: (dialog: TelegramDialog, limit: number) => Promise<void>
   onClose: () => void
 }) {
   const dialog = panel?.dialog
   const messages = panel?.messages ?? []
   const target = dialog ? dialogTarget(dialog) : ""
+  // The backend returns the most recent `limit` messages with no cursor, so a
+  // full page implies there may be more — until we hit the server's hard cap.
+  const reachedCap = (panel?.limit ?? 0) >= MESSAGES_MAX
+  const maybeMore = messages.length >= (panel?.limit ?? 0) && !reachedCap
 
   function stageMessage(actionType: ActionType, message: TelegramMessage) {
     if (!dialog) return
@@ -1161,7 +1371,7 @@ function DialogMessagesPanel({
       className="max-h-[90vh] max-w-4xl overflow-hidden"
       labelledBy="dialog-messages-title"
     >
-      {dialog ? (
+      {dialog && panel ? (
         <>
         <div className="flex items-start justify-between gap-3 border-b border-border p-4">
           <div>
@@ -1178,7 +1388,15 @@ function DialogMessagesPanel({
           </Button>
         </div>
         <div className="max-h-[calc(90vh-6rem)] overflow-auto p-4">
-          {messages.length ? (
+          {panel.loading && !messages.length ? (
+            <SectionLoader label="Loading messages…" />
+          ) : panel.error ? (
+            <ErrorState
+              title="Couldn't load messages"
+              detail={panel.error}
+              onRetry={() => onReload(dialog, panel.limit)}
+            />
+          ) : messages.length ? (
             <div className="space-y-2">
               {messages.map((message) => (
                 <div
@@ -1240,6 +1458,22 @@ function DialogMessagesPanel({
                   </div>
                 </div>
               ))}
+              {maybeMore ? (
+                <ShowMore
+                  shown={messages.length}
+                  total={MESSAGES_MAX}
+                  onMore={() => {
+                    if (panel.loading) return
+                    onReload(dialog, MESSAGES_MAX)
+                  }}
+                  label={panel.loading ? "Loading…" : "Load more"}
+                />
+              ) : reachedCap ? (
+                <p className="px-1 pt-2 text-xs text-muted-foreground">
+                  Showing the {messages.length} most recent messages (inspector
+                  cap).
+                </p>
+              ) : null}
             </div>
           ) : (
             <EmptyState

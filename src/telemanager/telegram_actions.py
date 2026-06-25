@@ -504,8 +504,14 @@ async def report_spam(client: TelegramClient, target: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+# Upper bound on any single inter-operation pause. Was 30s when every action shared
+# one flat delay; raised to 120s so a deliberately conservative *sensitive*-tier delay
+# (send/forward/join) is honoured in full instead of being silently truncated.
+MAX_ACTION_DELAY_SECONDS = 120.0
+
+
 async def safe_delay(seconds: float) -> None:
-    await asyncio.sleep(max(0.0, min(seconds, 30.0)))
+    await asyncio.sleep(max(0.0, min(seconds, MAX_ACTION_DELAY_SECONDS)))
 
 
 def normalize_entity_target(target: str) -> str:
@@ -856,30 +862,106 @@ def classify_target_kind(target: str) -> str:
     return TARGET_KIND_UNKNOWN
 
 
-VALID_TARGETS: dict[TelegramActionType, set[str]] = {
-    "join_chat": {TARGET_KIND_INVITE_LINK, TARGET_KIND_PUBLIC_LINK, TARGET_KIND_USERNAME},
-    "leave_chat": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
-    "send_message": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
-    "send_media": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
-    "schedule_message": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
-    "forward_message": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
-    "edit_message": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
-    "delete_messages": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
-    "pin_message": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
-    "unpin_message": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
-    "download_media": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
-    "start_bot": {TARGET_KIND_USERNAME, TARGET_KIND_BOT_LINK},
-    "delete_chat": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
-    "clear_chat": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
-    "block_user": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC},
-    "unblock_user": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC},
-    "archive_chat": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
-    "unarchive_chat": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
-    "mute_chat": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
-    "unmute_chat": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
-    "read_chat": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
-    "report_spam": {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK},
+# ---------------------------------------------------------------------------
+# Unified per-action metadata — the single source of truth for everything the
+# rest of the app needs to know about an action: its risk tier (drives the
+# inter-operation cooldown), which target kinds it accepts, whether it takes a
+# message/options field, whether it's destructive, and whether Telegram can
+# pre-deliver it server-side while the app is closed.
+#
+# `VALID_TARGETS` (validation), the scheduler's native-delivery check, and the
+# queue's required-message rule all derive from this dict so they can never drift.
+#
+# Risk tiers, grounded in Telegram's real flood behaviour:
+#   instant   — read-only / local / leniently limited (mark read, mute, archive,
+#               local delete/clear, media download). Safe to run back-to-back.
+#   standard  — account-visible writes of moderate sensitivity (leave, block,
+#               report, edit/delete/pin own messages).
+#   sensitive — content creation or spam-/abuse-prone or daily-capped actions
+#               (send, media, forward, schedule, start bot, join). These keep the
+#               longest spacing plus jitter — the strictest FloodWait triggers.
+# ---------------------------------------------------------------------------
+
+ActionTier = Literal["instant", "standard", "sensitive"]
+
+_CHAT_TARGETS = {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC, TARGET_KIND_PUBLIC_LINK}
+
+
+@dataclass(frozen=True)
+class ActionMeta:
+    tier: ActionTier
+    valid_targets: set[str]
+    category: str
+    needs_message: bool = False  # action takes a message/options field at all
+    message_optional: bool = False  # the message field is not required to run
+    destructive: bool = False
+    natively_schedulable: bool = False  # Telegram can pre-deliver this offline
+    creates_content: bool = False
+
+
+ACTION_META: dict[TelegramActionType, ActionMeta] = {
+    "join_chat": ActionMeta(
+        "sensitive", {TARGET_KIND_INVITE_LINK, TARGET_KIND_PUBLIC_LINK, TARGET_KIND_USERNAME}, "joining"
+    ),
+    "leave_chat": ActionMeta("standard", _CHAT_TARGETS, "joining"),
+    "send_message": ActionMeta(
+        "sensitive", _CHAT_TARGETS, "messaging", needs_message=True, natively_schedulable=True, creates_content=True
+    ),
+    "send_media": ActionMeta(
+        "sensitive", _CHAT_TARGETS, "messaging", needs_message=True, natively_schedulable=True, creates_content=True
+    ),
+    "schedule_message": ActionMeta(
+        "sensitive", _CHAT_TARGETS, "messaging", needs_message=True, creates_content=True
+    ),
+    "forward_message": ActionMeta(
+        "sensitive", _CHAT_TARGETS, "message_tools", needs_message=True, creates_content=True
+    ),
+    "edit_message": ActionMeta("standard", _CHAT_TARGETS, "message_tools", needs_message=True),
+    "delete_messages": ActionMeta("standard", _CHAT_TARGETS, "message_tools", needs_message=True, destructive=True),
+    "pin_message": ActionMeta("standard", _CHAT_TARGETS, "message_tools", needs_message=True),
+    "unpin_message": ActionMeta("standard", _CHAT_TARGETS, "message_tools", needs_message=True),
+    "download_media": ActionMeta("instant", _CHAT_TARGETS, "downloads", needs_message=True),
+    "start_bot": ActionMeta(
+        "sensitive",
+        {TARGET_KIND_USERNAME, TARGET_KIND_BOT_LINK},
+        "messaging",
+        needs_message=True,
+        message_optional=True,
+        natively_schedulable=True,
+    ),
+    "delete_chat": ActionMeta("instant", _CHAT_TARGETS, "cleanup", destructive=True),
+    "clear_chat": ActionMeta("instant", _CHAT_TARGETS, "cleanup", destructive=True),
+    "block_user": ActionMeta("standard", {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC}, "moderation", destructive=True),
+    "unblock_user": ActionMeta("standard", {TARGET_KIND_USERNAME, TARGET_KIND_NUMERIC}, "moderation"),
+    "archive_chat": ActionMeta("instant", _CHAT_TARGETS, "management"),
+    "unarchive_chat": ActionMeta("instant", _CHAT_TARGETS, "management"),
+    "mute_chat": ActionMeta("instant", _CHAT_TARGETS, "management"),
+    "unmute_chat": ActionMeta("instant", _CHAT_TARGETS, "management"),
+    "read_chat": ActionMeta("instant", _CHAT_TARGETS, "management"),
+    "report_spam": ActionMeta("standard", _CHAT_TARGETS, "moderation", destructive=True),
 }
+
+# Derived projections — keep these as views over ACTION_META, never hand-edited.
+VALID_TARGETS: dict[TelegramActionType, set[str]] = {
+    action: meta.valid_targets for action, meta in ACTION_META.items()
+}
+
+# Actions whose message/options field is mandatory (the queue rejects a step
+# without one). start_bot takes a message but it's optional, so it's excluded.
+MESSAGE_REQUIRED_ACTIONS: frozenset[TelegramActionType] = frozenset(
+    action for action, meta in ACTION_META.items() if meta.needs_message and not meta.message_optional
+)
+
+# Actions Telegram can pre-schedule server-side (deliver while the app is closed).
+NATIVELY_SCHEDULABLE_ACTIONS: frozenset[TelegramActionType] = frozenset(
+    action for action, meta in ACTION_META.items() if meta.natively_schedulable
+)
+
+
+def action_tier(action_type: str) -> ActionTier:
+    """Risk tier for an action, defaulting to the cautious *standard* tier if unknown."""
+    meta = ACTION_META.get(cast(Any, action_type))
+    return meta.tier if meta else "standard"
 
 
 def validate_target_for_action(action_type: TelegramActionType, target: str) -> str | None:

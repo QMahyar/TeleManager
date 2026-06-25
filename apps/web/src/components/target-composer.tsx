@@ -120,6 +120,16 @@ export function TargetComposer({
               ))}
             </div>
           </div>
+          {invalidCount ? (
+            <p className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs leading-5 text-amber-700 dark:text-amber-300">
+              <IconAlertTriangle className="mt-px size-3.5 shrink-0" />
+              <span>
+                Struck-through targets aren&apos;t compatible with “{meta.label}”
+                and will be skipped when this runs. Remove them or switch the
+                action. Hover a target to see why.
+              </span>
+            </p>
+          ) : null}
           <div className="mt-2 flex items-center justify-between gap-2 border-t border-border pt-2 text-xs text-muted-foreground">
             <span>
               {targets.length} target(s)

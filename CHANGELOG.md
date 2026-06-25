@@ -11,7 +11,59 @@ section below, with auto-generated commit/PR notes appended.
 
 ## [Unreleased]
 
-## [1.10.0] - 2026-06-25
+## [1.11.0] - 2026-06-25
+
+A production pass. The headline is **action-aware pacing**: the queue used to wait the
+same flat cooldown between every operation, so marking a handful of chats as read took
+as long as sending the same number of messages. Now each action is paced by how hard
+Telegram actually rate-limits it — benign reads/mutes/archives fly, while spam-prone
+sends/forwards/joins keep the longest spacing plus jitter. Around that, the frontend
+gets the finishing work: animated modals, real empty/loading/error states everywhere,
+a full visual identity, and a card-by-card audit.
+
+### Added
+
+- **Action-aware cooldowns.** Every action now belongs to a risk tier — **Fast**
+  (read, mute, archive, local delete/clear, download), **Standard** (leave, block,
+  edit, pin, report), or **Careful** (send, media, forward, schedule, start bot, join).
+  Each tier has its own configurable delay; the Careful tier adds random jitter to
+  desync retries. A 14-chat "mark as read" that used to crawl now finishes in seconds.
+- **Configurable tier delays.** Settings → Safety exposes the Fast / Standard / Careful
+  delays (and account delay + operation cap), each colour-coded by tier.
+- **Timing everywhere.** Each action shows a tier badge with its per-op delay, and the
+  queue, the Run button, and the run confirmation show an estimated total runtime.
+- **Unified action metadata.** A single backend `ACTION_META` registry is now the one
+  source of truth for tier, valid targets, message rules, destructiveness, and offline
+  schedulability — served to the frontend at `GET /api/actions/meta`, so nothing is
+  hard-coded twice.
+- **Full identity + asset set.** Refined the beacon logomark into a wordmark lockup and
+  generated a complete favicon / PWA icon set, a maskable app icon, an Open Graph /
+  window preview image, and a web app manifest (`scripts/gen-assets.mjs`).
+- **Empty-state artwork.** Themed line-art illustrations for empty queues, history, and
+  schedules, plus retry-able error states and consistent section loaders.
+
+### Changed
+
+- **Modals are a real system.** All dialogs share one animated, focus-trapped,
+  size-scaled shell with a consistent header, close button, and sticky footer (built on
+  Base UI's CSS-driven enter/exit). Confirm, command palette, quick-action, run details,
+  and the scheduler all use it.
+- **Accounts.** Distinct status tones for ready / code-sent / awaiting-2FA / error /
+  idle; full session-name tooltips; inline, retry-able login errors with clearer
+  "no code arrived" guidance; imports name the files they skip.
+- **Dialogs.** The message inspector paginates ("load more"); live/cached fetches show
+  loading and retry-able error states; incompatible targets now explain why they're
+  greyed out instead of being silently dropped at run time.
+- **About / Activity.** About leads with the brand lockup and shows a last-checked
+  timestamp on the update check; the activity log paginates instead of mounting every
+  event at once.
+
+### Fixed
+
+- Marking chats as read (and other benign actions) no longer pays the full
+  message-sending cooldown.
+- The inter-operation delay clamp was raised from 30s to 120s so a deliberately
+  conservative Careful-tier delay is honoured in full.
 
 A pre-production frontend pass: a real visual identity and a genuine accessibility
 upgrade, with almost no added weight. Headings become clean sans type, monospace is

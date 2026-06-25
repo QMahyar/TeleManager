@@ -13,6 +13,7 @@ from .action_queue_service import ActionQueueRequest, start_action_queue
 from .audit_service import log_event
 from .config import SCHEDULES_FILE, read_json, write_json
 from .telegram_actions import (
+    NATIVELY_SCHEDULABLE_ACTIONS,
     TELEGRAM_SCHEDULED_PER_CHAT_LIMIT,
     create_scheduled_media,
     create_scheduled_text,
@@ -26,9 +27,9 @@ from .telegram_actions import (
 logger = logging.getLogger("telemanager.scheduler")
 
 # Action types Telegram can pre-deliver server-side as a scheduled message, so a
-# schedule made only of these can fire while TeleManager is closed. Telegram
-# schedules both text (sendMessage) and media (sendMedia) this way.
-NATIVE_MESSAGE_ACTIONS = {"send_message", "send_media"}
+# schedule made only of these can fire while TeleManager is closed — sourced from
+# the unified ACTION_META registry (send_message/send_media unconditionally, and
+# start_bot only without a referral param, handled in _step_is_native).
 # Telegram only schedules messages 365 days out; keep a small safety margin.
 NATIVE_HORIZON = timedelta(days=364)
 # How often a running app refills the per-chat native buffer. With a 100-message
@@ -285,13 +286,11 @@ def native_horizon(recurrence: dict[str, Any], now: datetime) -> datetime:
 
 def _step_is_native(step: dict[str, Any]) -> bool:
     action = step.get("action_type")
-    if action in NATIVE_MESSAGE_ACTIONS:
-        return True
     # A plain "/start" (no referral parameter) is just a text message and can be
     # pre-scheduled; a referral start goes through StartBotRequest and cannot.
     if action == "start_bot":
         return not (step.get("message") or "").strip()
-    return False
+    return action in NATIVELY_SCHEDULABLE_ACTIONS
 
 
 def classify_engine(steps: list[dict[str, Any]]) -> tuple[str, str]:

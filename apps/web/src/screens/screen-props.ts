@@ -4,6 +4,7 @@ import type {
   Account,
   AccountsTab,
   ActionDraft,
+  ActionsMeta,
   AskDialog,
   Flash,
   Preset,
@@ -48,15 +49,11 @@ export type AppScreenProps = {
   presets: Preset[]
   queue: QueueStep[]
   setQueue: React.Dispatch<React.SetStateAction<QueueStep[]>>
-  queuePayload: {
-    steps: QueueStep[]
-    delay_between_accounts: number
-    delay_between_actions: number
-    max_operations: number
-  }
+  queuePayload: { steps: QueueStep[] } & SafetySettings
   loadPresets: () => Promise<void>
   safety: SafetySettings
   setSafety: React.Dispatch<React.SetStateAction<SafetySettings>>
+  actionsMeta: ActionsMeta | null
   actionDraft: ActionDraft
   quickActionContext: import("../types").QuickActionContext | null
   setActionDraft: React.Dispatch<React.SetStateAction<ActionDraft>>
@@ -124,6 +121,7 @@ export type ActionsScreenProps = Pick<
   | "loadPresets"
   | "safety"
   | "setSafety"
+  | "actionsMeta"
   | "actionDraft"
   | "quickActionContext"
   | "setActionDraft"
@@ -171,5 +169,7 @@ export type DialogsScreenProps = Pick<
   | "setQuickActionContext"
   | "setScheduleSeed"
   | "toggleSelected"
+  | "actionsMeta"
+  | "safety"
 >
 

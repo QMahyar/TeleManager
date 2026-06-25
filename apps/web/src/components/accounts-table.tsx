@@ -6,10 +6,13 @@ import {
   IconLogout,
   IconMessageCircle,
   IconPencil,
+  IconPlus,
   IconShieldCheck,
   IconTrash,
+  IconUsers,
 } from "@tabler/icons-react"
 
+import { Button } from "../ui/button"
 import { Menu, MenuItem, MenuSeparator } from "../ui/menu"
 import {
   Table,
@@ -36,6 +39,9 @@ type AccountsTableProps = {
   flash: Flash
   guarded: (work: () => Promise<void>) => Promise<void>
   askDialog: AskDialog
+  // Sends the operator to the add-account flow from the zero-state CTA; the
+  // Fleet tab wires this to its Login tab.
+  onAddAccount?: () => void
 }
 
 type AccountRowProps = AccountsTableProps & {
@@ -50,7 +56,8 @@ type AccountActionProps = Pick<
 }
 
 export function AccountsTable(props: AccountsTableProps) {
-  const { accounts, loaded = true, selectedIds, setSelectedIds } = props
+  const { accounts, loaded = true, selectedIds, setSelectedIds, onAddAccount } =
+    props
 
   // First load in flight: show skeleton rows so the panel keeps its shape
   // instead of flashing the empty state before data arrives.
@@ -61,8 +68,17 @@ export function AccountsTable(props: AccountsTableProps) {
   if (!accounts.length) {
     return (
       <EmptyState
+        icon={IconUsers}
         title="No accounts yet"
         detail="Add or import a Telegram session to start managing accounts, dialogs, and action queues."
+        action={
+          onAddAccount ? (
+            <Button size="sm" onClick={onAddAccount}>
+              <IconPlus className="size-3.5" />
+              Add account
+            </Button>
+          ) : null
+        }
       />
     )
   }
@@ -181,7 +197,7 @@ function AccountCard({
       </div>
       <p className="text-xs text-muted-foreground">
         {account.dialog_count || 0} dialogs ·{" "}
-        <span className="font-mono break-all">
+        <span className="font-mono break-all" title={`${account.session_name}.session`}>
           {account.session_name}.session
         </span>
       </p>
@@ -239,7 +255,10 @@ function AccountRow({
         <StatusSignal status={accountStatus(account)} />
       </TableCell>
       <TableCell>{account.dialog_count || 0}</TableCell>
-      <TableCell className="max-w-[14rem] truncate font-mono text-xs">
+      <TableCell
+        className="max-w-[14rem] truncate font-mono text-xs"
+        title={`${account.session_name}.session`}
+      >
         {account.session_name}.session
       </TableCell>
       <TableCell>
@@ -281,11 +300,14 @@ function AccountIdentity({ account }: { account: Account }) {
 
 // The fleet table reads as a status board: a calm signal light + the status
 // word, instead of a loud filled pill on every row. Maps the five account
-// status words to the three meaningful signal tones.
+// status words to distinct signal tones so they never collapse visually:
+// ready (teal), an active login challenge that needs a code/2FA now (amber),
+// error (red), and the otherwise-idle "needs login" session (muted).
 function statusSignal(status: string): SignalTone {
   if (status === "ready") return "ready"
   if (status === "error") return "error"
-  return "attention" // needs login / needs 2FA / code sent
+  if (status === "code sent" || status === "needs 2FA") return "attention"
+  return "idle" // needs login — no live challenge, just not signed in yet
 }
 
 function StatusSignal({ status }: { status: string }) {

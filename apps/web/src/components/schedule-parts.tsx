@@ -7,7 +7,7 @@ import {
 } from "@tabler/icons-react"
 
 import { Button } from "../ui/button"
-import { Modal } from "../ui/modal"
+import { ModalShell } from "../ui/modal"
 
 import { api } from "../lib/api"
 import { actionMeta } from "../lib/constants"
@@ -30,6 +30,7 @@ import type {
   AskDialog,
   Flash,
   QueueStep,
+  SafetySettings,
   Schedule,
   SchedulePreview,
 } from "../types"
@@ -216,12 +217,7 @@ export function SchedulePreviewCard({ preview }: { preview: SchedulePreview }) {
 
 // `queuePayload.steps` is the same array the builder edits (`{ steps: queue, ...safety }`),
 // so the modal derives its header summary and empty-guard straight from it.
-type QueuePayload = {
-  steps: QueueStep[]
-  delay_between_accounts: number
-  delay_between_actions: number
-  max_operations: number
-}
+type QueuePayload = { steps: QueueStep[] } & SafetySettings
 
 function queueStepsSummary(steps: QueueStep[]): string {
   const ops = steps.reduce(
@@ -318,25 +314,37 @@ export function ScheduleModal({
   const blocker = scheduleBlocker()
 
   return (
-    <Modal
+    <ModalShell
       open={open}
       onClose={onClose}
-      className="max-w-2xl p-0"
-      labelledBy="schedule-modal-title"
-    >
-      <header className="space-y-1 border-b border-border px-5 py-4">
-        <h2
-          id="schedule-modal-title"
-          className="font-heading text-lg text-foreground"
-        >
-          Schedule this queue
-        </h2>
-        <p className="font-mono text-xs text-muted-foreground">
+      size="lg"
+      kicker="Automation"
+      title="Schedule this queue"
+      description={
+        <span className="font-mono text-xs">
           {steps.length ? queueStepsSummary(steps) : "Queue is empty"}
-        </p>
-      </header>
-
-      <div className="max-h-[70vh] space-y-4 overflow-auto px-5 py-4">
+        </span>
+      }
+      footer={
+        <>
+          <p
+            className={`mr-auto text-xs ${blocker ? "text-muted-foreground" : "text-primary"}`}
+          >
+            {blocker || "Ready to schedule."}
+          </p>
+          <Button variant="outline" onClick={() => guarded(previewSchedule)}>
+            Preview
+          </Button>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={() => guarded(createSchedule)}>
+            <IconClockPlus /> Create Schedule
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
         {/* Action-aware engine signal, shown up front (not just after Preview) so
             the operator knows whether this queue is delivered by Telegram offline
             or only runs while the app is open — and exactly which steps decide it. */}
@@ -382,26 +390,7 @@ export function ScheduleModal({
         </p>
         {preview ? <SchedulePreviewCard preview={preview} /> : null}
       </div>
-
-      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-4">
-        <p
-          className={`text-xs ${blocker ? "text-muted-foreground" : "text-primary"}`}
-        >
-          {blocker || "Ready to schedule."}
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => guarded(previewSchedule)}>
-            Preview
-          </Button>
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button onClick={() => guarded(createSchedule)}>
-            <IconClockPlus /> Create Schedule
-          </Button>
-        </div>
-      </footer>
-    </Modal>
+    </ModalShell>
   )
 }
 

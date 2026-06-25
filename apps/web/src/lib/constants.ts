@@ -363,5 +363,7 @@ export const categoryOrder: ActionCategory[] = [
 export const emptySafety: SafetySettings = {
   delay_between_accounts: 4,
   delay_between_actions: 8,
+  delay_instant: 1,
+  delay_sensitive: 12,
   max_operations: 100,
 }
