@@ -11,6 +11,43 @@ section below, with auto-generated commit/PR notes appended.
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-06-27
+
+A frontend flatten + polish pass. The "Console" theme is unchanged, but every
+screen sheds nested boxes — the rule is now *the panel is the box; everything
+inside it is rhythm*. Boxed lists and one-off notices collapse onto two shared
+primitives (hairline-divided lists and a single `Callout`), the type switches to
+Geist, and a couple of under-the-hood wins land alongside.
+
+### Changed
+
+- **Flatter hierarchy, app-wide.** Stacked stat boxes, nested stat-pills, and
+  box-per-row lists give way to hairline-divided sections and plain columns —
+  the activity rail, the sidebar fleet summary, the Dialogs source panel, the
+  About author and donation lists, and the Activity audit log now read as one
+  ruled instrument instead of boxes within boxes.
+- **One notice, one collapsible.** Inline notices route through a single
+  `Callout` (info / primary / warning / danger) and disclosures through one
+  `Disclosure`, retiring the grab-bag of hand-rolled toggles and tinted boxes
+  (target composer, quick-action runner, scheduled inspector, the About update
+  check, and the Accounts "next move" hint and login checklist). The danger
+  tone carries `role="alert"`, so a couple of failures that were silent `<div>`s
+  are now announced to assistive tech.
+- **Type → Geist.** Geist and Geist Mono (self-hosted) replace Inter and
+  JetBrains Mono; monospace stays reserved for machine data.
+- **Accent + commit-zone polish.** Accent strength was re-tuned, and the Actions
+  run / schedule controls are fenced off from the queue above them so they read
+  as one commit group.
+
+### Internal
+
+- **Backgrounded tabs stop polling.** The activity (10s) and schedule (5s) polls
+  pause while the browser tab is hidden and resync on focus, so a backgrounded
+  console stops hitting the backend and the scheduler.
+- **Vendor chunk splitting.** React, Base UI, and the icon set are split into
+  their own long-lived Vite chunks so heavy dependencies cache across app
+  deploys instead of riding in one bundle with frequently-changing app code.
+
 ## [1.11.0] - 2026-06-25
 
 A production pass. The headline is **action-aware pacing**: the queue used to wait the
