@@ -5,6 +5,7 @@ import { IconAlertTriangle } from "@tabler/icons-react"
 import { Button } from "../ui/button"
 import { ModalShell } from "../ui/modal"
 import { ActionFields } from "./action-fields"
+import { Callout } from "./ui"
 import {
   defaultFieldValues,
   isActionFormValid,
@@ -111,10 +112,9 @@ export function QuickActionRunner({
     >
       <div className="space-y-3">
         {meta.destructive ? (
-          <p className="flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs font-medium text-destructive">
-            <IconAlertTriangle className="size-3.5 shrink-0" />
+          <Callout tone="danger" icon={IconAlertTriangle} className="font-medium">
             This is a destructive action and cannot be undone.
-          </p>
+          </Callout>
         ) : null}
         <ActionFields
           actionType={actionType}

@@ -1,6 +1,6 @@
 @import "tailwindcss";
-@import "@fontsource-variable/inter";
-@import "@fontsource-variable/jetbrains-mono";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
 
 @custom-variant dark (&:is(.dark *));
 @source "../**/*.{ts,tsx}";
@@ -8,8 +8,10 @@
 /* ---------------------------------------------------------------------------
    "Console" theme
    A local operator's console: warm-charcoal neutrals, near-monochrome, with a
-   single dim-teal signal. Monospace (JetBrains Mono) is the lead voice for the
-   machine's own artifacts — session names, IDs, IPs, timestamps, counts.
+   single dim-teal signal. Geist leads (titles + prose); Geist Mono is the voice
+   of the machine's own artifacts — session names, IDs, IPs, timestamps, counts.
+   Typography is governed by the `type-*` scale at the foot of this file, never
+   hand-tuned per call site.
 
    Two independent dimensions:
    - light/dark  -> the `.dark` class on <html> (set by the theme provider).
@@ -21,6 +23,13 @@
 --------------------------------------------------------------------------- */
 
 :root {
+    /* Font stacks live here as real custom properties (not only inside @theme)
+       so they're emitted to :root and can be referenced by both Tailwind's
+       font-* utilities (via @theme inline below) and the type-* scale. Geist is
+       the UI/heading sans; Geist Mono carries all machine data. */
+    --ff-sans: 'Geist Variable', system-ui, sans-serif;
+    --ff-mono: 'Geist Mono Variable', ui-monospace, 'Cascadia Code', monospace;
+
     --background: oklch(0.985 0.003 85);
     --foreground: oklch(0.24 0.008 75);
     /* Recessed "well" behind panels. Cards are pure white here, so the well sits
@@ -30,30 +39,30 @@
     --card-foreground: oklch(0.24 0.008 75);
     --popover: oklch(1 0 0);
     --popover-foreground: oklch(0.24 0.008 75);
-    --primary: oklch(0.55 0.09 190);
+    --primary: oklch(0.56 0.12 190);
     --primary-foreground: oklch(0.99 0.01 190);
     --secondary: oklch(0.965 0.004 85);
     --secondary-foreground: oklch(0.30 0.008 75);
     --muted: oklch(0.965 0.004 85);
     --muted-foreground: oklch(0.48 0.012 80);
-    --accent: oklch(0.55 0.09 190);
+    --accent: oklch(0.56 0.12 190);
     --accent-foreground: oklch(0.99 0.01 190);
     --destructive: oklch(0.58 0.20 28);
     --border: oklch(0.90 0.005 80);
     --input: oklch(0.90 0.005 80);
-    --ring: oklch(0.60 0.085 190);
+    --ring: oklch(0.60 0.12 190);
     --radius: 0.5rem;
     --elevation-sm: 0 1px 2px 0 oklch(0.24 0.01 75 / 6%);
     --elevation-md: 0 2px 8px -2px oklch(0.24 0.01 75 / 10%), 0 1px 3px -1px oklch(0.24 0.01 75 / 8%);
     --elevation-lg: 0 12px 32px -8px oklch(0.24 0.01 75 / 18%);
     --sidebar: oklch(0.975 0.004 85);
     --sidebar-foreground: oklch(0.24 0.008 75);
-    --sidebar-primary: oklch(0.55 0.09 190);
+    --sidebar-primary: oklch(0.56 0.12 190);
     --sidebar-primary-foreground: oklch(0.99 0.01 190);
     --sidebar-accent: oklch(0.965 0.004 85);
     --sidebar-accent-foreground: oklch(0.30 0.008 75);
     --sidebar-border: oklch(0.90 0.005 80);
-    --sidebar-ring: oklch(0.60 0.085 190);
+    --sidebar-ring: oklch(0.60 0.12 190);
 }
 
 .dark {
@@ -69,29 +78,29 @@
     --card-foreground: oklch(0.93 0.004 85);
     --popover: oklch(0.275 0.007 75);
     --popover-foreground: oklch(0.93 0.004 85);
-    --primary: oklch(0.76 0.075 185);
+    --primary: oklch(0.74 0.11 186);
     --primary-foreground: oklch(0.20 0.02 185);
     --secondary: oklch(0.262 0.007 75);
     --secondary-foreground: oklch(0.95 0.003 85);
     --muted: oklch(0.262 0.007 75);
     --muted-foreground: oklch(0.66 0.012 80);
-    --accent: oklch(0.76 0.075 185);
+    --accent: oklch(0.74 0.11 186);
     --accent-foreground: oklch(0.20 0.02 185);
     --destructive: oklch(0.64 0.16 28);
     --border: oklch(0.325 0.006 75);
     --input: oklch(0.34 0.007 75);
-    --ring: oklch(0.72 0.075 185);
+    --ring: oklch(0.72 0.11 186);
     --elevation-sm: 0 1px 2px 0 oklch(0 0 0 / 30%);
     --elevation-md: 0 2px 8px -2px oklch(0 0 0 / 45%), 0 1px 3px -1px oklch(0 0 0 / 35%);
     --elevation-lg: 0 12px 32px -8px oklch(0 0 0 / 60%);
     --sidebar: oklch(0.196 0.006 75);
     --sidebar-foreground: oklch(0.93 0.004 85);
-    --sidebar-primary: oklch(0.76 0.075 185);
+    --sidebar-primary: oklch(0.74 0.11 186);
     --sidebar-primary-foreground: oklch(0.20 0.02 185);
     --sidebar-accent: oklch(0.262 0.007 75);
     --sidebar-accent-foreground: oklch(0.93 0.004 85);
     --sidebar-border: oklch(0.325 0.006 75);
-    --sidebar-ring: oklch(0.72 0.075 185);
+    --sidebar-ring: oklch(0.72 0.11 186);
 }
 
 /* --- Alternate accents -------------------------------------------------------
@@ -222,13 +231,14 @@
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
-    /* Type roles: Inter leads (headings + prose). JetBrains Mono is reserved for
+    /* Type roles: Geist leads (titles + prose). Geist Mono is reserved for
        machine data only — session names, IDs, IPs, counts, timestamps, status
-       codes, queue/audit rows, stat values. Mono earns meaning by being scarce;
-       mono-for-headings was the biggest "templated" signal, so headings are sans. */
-    --font-sans: 'Inter Variable', system-ui, sans-serif;
-    --font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Code', monospace;
-    --font-heading: 'Inter Variable', system-ui, sans-serif;
+       codes, queue/audit rows, stat values. Mono earns meaning by being scarce.
+       These map Tailwind's font-sans/-mono/-heading utilities onto the stacks
+       declared in :root; the type-* scale below references the same stacks. */
+    --font-sans: var(--ff-sans);
+    --font-mono: var(--ff-mono);
+    --font-heading: var(--ff-sans);
 }
 
 @layer base {
@@ -239,6 +249,11 @@
     /* tabular-nums globally so every changing count/metric aligns in columns —
        a key "designed, not templated" move for a data-dense console. */
     @apply bg-background text-foreground tabular-nums;
+    /* Set the base family explicitly so prose renders in Geist regardless of how
+       Tailwind resolves its default font under @theme inline. */
+    font-family: var(--ff-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
     }
   /* Headings are sans (Inter) now. Give them weight + tight tracking centrally so
      no h-tag renders as weak Inter 400 where mono used to carry presence.
@@ -304,4 +319,95 @@
     animation: tm-rise 240ms cubic-bezier(0.4, 0, 0.2, 1) both;
     animation-delay: calc(var(--i, 0) * 28ms);
   }
+
+  /* Toast entrance: a corner notification rises from the bottom-right and fades
+     in, so the one transient surface shares the app's motion vocabulary instead
+     of popping. Enter-only — the toast unmounts on dismiss. */
+  @keyframes tm-toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.75rem) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .tm-toast-in {
+    animation: tm-toast-in 220ms cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+}
+
+/* Type scale -----------------------------------------------------------------
+   One source of truth for every title, eyebrow, and label, so type stops being
+   hand-tuned per call site (the cause of the old "all over the place" feel).
+   Each utility sets *only* type — family, size, weight, tracking, case, leading.
+   Colour and spacing stay in the markup so a role can be muted / primary /
+   destructive and sit in any layout without the utility fighting it.
+
+     Headings (Geist sans):  type-title › type-heading › type-subheading
+     Eyebrow  (Geist Mono):  type-eyebrow — kicker above a title / breadcrumb
+     Labels   (Geist sans):  type-label   — form fields, nav groups, table heads
+     Captions (Geist Mono):  type-meta    — tiny machine-data captions on tiles
+     Metric   (Geist Mono):  type-stat    — the large readout number
+
+   Two families, two cases: sans for human structure (titles, form labels),
+   mono for the machine's own voice (eyebrows, captions, metrics). Tracking and
+   weight step with size so small caps stay legible and large titles stay tight.
+--------------------------------------------------------------------------- */
+@utility type-title {
+  font-family: var(--ff-sans);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  /* Fluid 20→24px: the one page H1 scales with the viewport instead of needing
+     a `sm:` breakpoint bump at every call site. */
+  font-size: clamp(1.25rem, 1.07rem + 0.9vw, 1.5rem);
+}
+@utility type-heading {
+  font-family: var(--ff-sans);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+  font-size: 1.125rem;
+}
+@utility type-subheading {
+  font-family: var(--ff-sans);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+  font-size: 0.875rem;
+}
+@utility type-eyebrow {
+  font-family: var(--ff-mono);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  text-transform: uppercase;
+  font-size: 0.6875rem;
+}
+@utility type-label {
+  font-family: var(--ff-sans);
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  font-size: 0.6875rem;
+}
+@utility type-meta {
+  font-family: var(--ff-mono);
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  line-height: 1;
+  text-transform: uppercase;
+  font-size: 0.625rem;
+}
+@utility type-stat {
+  font-family: var(--ff-mono);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.5rem;
 }

@@ -22,12 +22,18 @@ export function ActionFields({
   setValues,
   showErrors,
   flash,
+  // When true, render just the field grid — no surrounding card or "Required
+  // details" header. Used where a parent (e.g. the Actions screen's Disclosure)
+  // already supplies the frame and label; the standalone quick-runner keeps the
+  // full card by leaving this false.
+  bare = false,
 }: {
   actionType: ActionType
   values: FieldValues
   setValues: (next: FieldValues) => void
   showErrors: boolean
   flash?: Flash
+  bare?: boolean
 }) {
   const schema = getActionSchema(actionType)
   if (!schema) return null
@@ -50,11 +56,28 @@ export function ActionFields({
     return hasContent ? error : undefined
   }
 
+  const fields = (
+    <div className="grid gap-3">
+      {schema.fields.map((field) => (
+        <ActionFieldRow
+          key={field.name}
+          field={field}
+          value={values[field.name]}
+          error={errorFor(field.name)}
+          onChange={(value) => update(field.name, value)}
+          flash={flash}
+        />
+      ))}
+    </div>
+  )
+
+  if (bare) return fields
+
   return (
     <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-3">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <p className="font-heading text-sm font-medium text-foreground">Required details</p>
+          <p className="type-subheading text-foreground">Required details</p>
           <p className="text-xs text-muted-foreground">
             Only fields needed by this action are shown.
           </p>
@@ -63,18 +86,7 @@ export function ActionFields({
           {schema.fields.length}
         </Badge>
       </div>
-      <div className="grid gap-3">
-        {schema.fields.map((field) => (
-          <ActionFieldRow
-            key={field.name}
-            field={field}
-            value={values[field.name]}
-            error={errorFor(field.name)}
-            onChange={(value) => update(field.name, value)}
-            flash={flash}
-          />
-        ))}
-      </div>
+      {fields}
     </div>
   )
 }

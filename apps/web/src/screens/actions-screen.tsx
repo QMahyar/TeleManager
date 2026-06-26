@@ -1,14 +1,20 @@
 import * as React from "react"
 
 import {
+  IconAdjustmentsHorizontal,
   IconAlertTriangle,
+  IconBookmarks,
   IconClockHour4,
   IconClockPlus,
+  IconForms,
   IconHistory,
+  IconListDetails,
   IconLoader2,
+  IconPlayerPlay,
   IconPlayerStop,
   IconRefresh,
   IconTrash,
+  IconUsers,
 } from "@tabler/icons-react"
 
 import { Button } from "../ui/button"
@@ -23,6 +29,8 @@ import { TargetComposer } from "../components/target-composer"
 import { EmptySchedulesArt } from "../components/empty-illustrations"
 import {
   Badge,
+  Callout,
+  Disclosure,
   EmptyState,
   Field,
   Panel,
@@ -261,18 +269,35 @@ function SchedulesList({ props }: { props: ActionsScreenProps }) {
   )
 }
 
+// Panel header for the builder/queue columns: an accent icon-square + title,
+// mirroring the operations-rail card header so the page's major surfaces share
+// one identity. `hint` adds a one-line subtitle; `trailing` holds an action.
 function SectionLabel({
+  icon: Icon,
   title,
+  hint,
   trailing,
 }: {
+  icon?: React.ElementType
   title: string
+  hint?: string
   trailing?: React.ReactNode
 }) {
   return (
-    <div className="flex items-center justify-between gap-2">
-      <h2 className="font-heading text-sm tracking-tight text-foreground">
-        {title}
-      </h2>
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex min-w-0 items-center gap-2.5">
+        {Icon ? (
+          <span className="grid size-7 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
+            <Icon className="size-4" />
+          </span>
+        ) : null}
+        <div className="min-w-0">
+          <h2 className="type-heading text-foreground">{title}</h2>
+          {hint ? (
+            <p className="truncate text-xs text-muted-foreground">{hint}</p>
+          ) : null}
+        </div>
+      </div>
       {trailing}
     </div>
   )
@@ -326,7 +351,6 @@ function RunAsSelector({ props }: { props: ActionsScreenProps }) {
   const readyCount = accounts.filter(
     (account) => account.authorized && !account.last_error
   ).length
-  const [expanded, setExpanded] = React.useState(actionAccountIds.size === 0)
 
   const summary =
     actionAccountIds.size === 0
@@ -334,29 +358,18 @@ function RunAsSelector({ props }: { props: ActionsScreenProps }) {
       : `${actionAccountIds.size} account${actionAccountIds.size === 1 ? "" : "s"} selected`
 
   return (
-    <div className="rounded-lg border border-border bg-background/40">
-      <button
-        type="button"
-        className="flex w-full items-center justify-between px-3 py-2 text-left text-xs transition hover:bg-muted/30"
-        onClick={() => setExpanded((current) => !current)}
-      >
-        <span>
-          <span className="font-medium text-foreground">Run as</span>{" "}
-          <span
-            className={
-              actionAccountIds.size ? "text-primary" : "text-muted-foreground"
-            }
-          >
-            {summary}
-          </span>
+    <Disclosure
+      icon={IconUsers}
+      label="Run as"
+      defaultOpen={actionAccountIds.size === 0}
+      hint={
+        <span className={actionAccountIds.size ? "text-primary" : undefined}>
+          {summary}
         </span>
-        <span className="text-muted-foreground">
-          {expanded ? "Hide" : "Change"}
-        </span>
-      </button>
-      {expanded ? (
-        <div className="space-y-3 border-t border-border p-3">
-          <div className="flex gap-2">
+      }
+    >
+      <div className="space-y-3">
+        <div className="flex gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -423,9 +436,8 @@ function RunAsSelector({ props }: { props: ActionsScreenProps }) {
               )
             })}
           </div>
-        </div>
-      ) : null}
-    </div>
+      </div>
+    </Disclosure>
   )
 }
 
@@ -488,9 +500,7 @@ function PresetSection({ props }: { props: ActionsScreenProps }) {
         />
       ))}
       {presets.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border bg-muted/20 px-3 py-4 text-center text-xs text-muted-foreground">
-          Saved queues appear here for one-click reuse.
-        </p>
+        <Callout tone="info">Saved queues appear here for one-click reuse.</Callout>
       ) : null}
     </div>
   )
@@ -594,9 +604,13 @@ function BuilderColumn({ props }: { props: ActionsScreenProps }) {
       : null
 
   return (
-    <Panel className="overflow-hidden p-0 xl:min-h-[calc(100svh-12rem)]">
+    <Panel className="overflow-hidden p-0">
       <div className="border-b border-border px-4 py-3">
-        <SectionLabel title="Build action" />
+        <SectionLabel
+          icon={IconForms}
+          title="Build action"
+          hint="Compose a step, then add it to the queue."
+        />
       </div>
 
       <div className="space-y-4 p-4">
@@ -631,8 +645,8 @@ function BuilderColumn({ props }: { props: ActionsScreenProps }) {
                 ))}
               </Select>
             </Field>
-            <div className="rounded-lg border border-border bg-muted/10 p-3 text-xs leading-5 text-muted-foreground">
-              <div className="flex items-start justify-between gap-2">
+            <div className="space-y-1.5 px-0.5 text-xs leading-5 text-muted-foreground">
+              <div className="flex items-center justify-between gap-2">
                 <span className="font-medium text-foreground">
                   {currentMeta.label}
                 </span>
@@ -648,7 +662,7 @@ function BuilderColumn({ props }: { props: ActionsScreenProps }) {
                   )}
                 />
               </div>
-              <span className="mt-1 block">{currentMeta.description}</span>
+              <p>{currentMeta.description}</p>
             </div>
           </div>
 
@@ -667,39 +681,32 @@ function BuilderColumn({ props }: { props: ActionsScreenProps }) {
         </div>
 
         {multiTargetWarning ? (
-          <p className="flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-600 dark:text-amber-300">
-            <IconAlertTriangle className="size-3.5 shrink-0" />
+          <Callout tone="warning" icon={IconAlertTriangle}>
             {multiTargetWarning}
-          </p>
+          </Callout>
         ) : null}
 
         {schema ? (
-          <div className="rounded-lg border border-border bg-background/40">
-            <button
-              type="button"
-              className="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-muted-foreground transition hover:bg-muted/30"
-              onClick={() => setShowAdvanced((current) => !current)}
-            >
-              <span>
-                <span className="font-medium text-foreground">Action details</span>{" "}
-                {showAdvanced || submitAttempted ? "shown" : "collapsed"}
-              </span>
-              <span>{showAdvanced || submitAttempted ? "Hide" : "Show"}</span>
-            </button>
-            {showAdvanced || submitAttempted ? (
-              <div className="border-t border-border p-3">
-                <ActionFields
-                  actionType={props.actionDraft.action_type}
-                  values={props.actionDraft.fields}
-                  setValues={(fields) =>
-                    props.setActionDraft({ ...props.actionDraft, fields })
-                  }
-                  showErrors={submitAttempted}
-                  flash={props.flash}
-                />
-              </div>
-            ) : null}
-          </div>
+          <Disclosure
+            flush
+            icon={IconListDetails}
+            label="Action details"
+            hint="fields for this action"
+            count={schema.fields.length}
+            open={showAdvanced || submitAttempted}
+            onOpenChange={setShowAdvanced}
+          >
+            <ActionFields
+              actionType={props.actionDraft.action_type}
+              values={props.actionDraft.fields}
+              setValues={(fields) =>
+                props.setActionDraft({ ...props.actionDraft, fields })
+              }
+              showErrors={submitAttempted}
+              flash={props.flash}
+              bare
+            />
+          </Disclosure>
         ) : null}
       </div>
 
@@ -794,6 +801,7 @@ function QueueColumn({
   return (
     <Panel tone="raised" className="space-y-3 xl:sticky xl:top-4 xl:max-h-[calc(100svh-4.5rem)] xl:self-start xl:overflow-auto">
       <SectionLabel
+        icon={IconPlayerPlay}
         title="Queue & run"
         trailing={
           props.queue.length ? (
@@ -833,15 +841,14 @@ function QueueColumn({
 
       <QueueTable queue={props.queue} setQueue={props.setQueue} onEdit={editStep} />
 
-      <details className="rounded-md border border-border bg-muted/10 p-2 text-xs">
-        <summary className="cursor-pointer font-medium text-muted-foreground">
-          Reusable queues
-          {props.presets.length ? ` · ${props.presets.length}` : ""}
-        </summary>
-        <div className="pt-2">
-          <PresetSection props={props} />
-        </div>
-      </details>
+      <Disclosure
+        flush
+        icon={IconBookmarks}
+        label="Reusable queues"
+        count={props.presets.length || undefined}
+      >
+        <PresetSection props={props} />
+      </Disclosure>
 
       {/* Safety interlocks stay on as a gauge — they are the personality of a
           guarded console, not config to bury. The dividers render the "·"
@@ -858,30 +865,26 @@ function QueueColumn({
           />
           <ReadoutItem value={props.safety.max_operations} label="cap" />
         </Readout>
-        <details className="rounded-md border border-border bg-muted/10 p-2 text-xs">
-          <summary className="cursor-pointer font-medium text-muted-foreground">
-            Adjust delays &amp; limits
-          </summary>
-          <div className="pt-2">
-            <SafetyEditor
-              safety={props.safety}
-              setSafety={props.setSafety}
-              dense
-            />
-          </div>
-        </details>
+        <Disclosure
+          flush
+          icon={IconAdjustmentsHorizontal}
+          label="Adjust delays & limits"
+        >
+          <SafetyEditor safety={props.safety} setSafety={props.setSafety} dense />
+        </Disclosure>
       </div>
 
+      {/* Commit zone — fenced off from the queue above by a hairline so the two
+          actions you take ON the queue (run / schedule) read as one group. Run
+          is the single filled-teal primary; Schedule… is a quiet outline that
+          opens the focused scheduler modal. */}
+      <div className="mt-1 space-y-2 border-t border-border pt-4">
       {destructiveCount ? (
-        <p className="flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs font-medium text-destructive">
-          <IconAlertTriangle className="size-3.5 shrink-0" />
+        <Callout tone="danger" icon={IconAlertTriangle} className="font-medium">
           {destructiveCount} destructive operation(s) queued.
-        </p>
+        </Callout>
       ) : null}
 
-      {/* Two stacked actions. Run is the single filled-teal primary; Schedule…
-          is a quiet outline that opens the focused scheduler modal. The
-          recurrence form used to live inline here and overflowed the rail. */}
       <Button
         size="comfortable"
         className="w-full"
@@ -938,6 +941,7 @@ function QueueColumn({
           Add steps in the builder, then run or schedule.
         </p>
       ) : null}
+      </div>
     </Panel>
   )
 }
@@ -1033,19 +1037,23 @@ function QuickActionNotice({
   if (!quickActionContext) return null
 
   return (
-    <div className="rounded-lg border border-primary/30 bg-primary/10 p-2.5 text-xs">
-      <div className="flex flex-wrap items-center gap-2">
-        <strong>{quickActionContext.title}</strong>
-        <Badge tone="border-primary/30 bg-background text-primary">
-          from dialogs
-        </Badge>
-        <Badge tone="border-border bg-background text-muted-foreground">
-          {quickActionContext.count} target(s)
-        </Badge>
-      </div>
-      <p className="mt-1 text-muted-foreground">
+    <Callout
+      tone="primary"
+      title={
+        <>
+          <strong>{quickActionContext.title}</strong>
+          <Badge tone="border-primary/30 bg-background text-primary">
+            from dialogs
+          </Badge>
+          <Badge tone="border-border bg-background text-muted-foreground">
+            {quickActionContext.count} target(s)
+          </Badge>
+        </>
+      }
+    >
+      <span className="text-muted-foreground">
         Source: {quickActionContext.targetSummary}
-      </p>
-    </div>
+      </span>
+    </Callout>
   )
 }

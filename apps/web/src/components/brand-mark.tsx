@@ -77,9 +77,7 @@ export function BrandLockup({
           telemanager
         </span>
         {tagline ? (
-          <span className="block font-mono text-[0.62rem] tracking-[0.16em] text-primary uppercase">
-            {tagline}
-          </span>
+          <span className="type-eyebrow block text-primary">{tagline}</span>
         ) : null}
       </div>
     </div>

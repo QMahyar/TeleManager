@@ -44,7 +44,7 @@ function Toast({
       role={tone === "error" ? "alert" : "status"}
       aria-live={tone === "error" ? "assertive" : "polite"}
       className={cn(
-        "fixed right-5 bottom-5 z-50 flex max-w-sm items-start gap-2.5 rounded-lg border bg-card px-4 py-3 text-sm text-card-foreground shadow-lg",
+        "tm-toast-in fixed right-5 bottom-5 z-50 flex max-w-sm items-start gap-2.5 rounded-lg border bg-card px-4 py-3 text-sm text-card-foreground shadow-lg",
         container,
         className
       )}

@@ -428,9 +428,7 @@ function LoginReadinessPanel({
     <Panel className="border-primary/20 bg-primary/5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="space-y-1">
-          <p className="text-[0.65rem] font-semibold tracking-[0.16em] text-primary uppercase">
-            Login Readiness
-          </p>
+          <p className="type-label text-primary">Login Readiness</p>
           <p className="text-sm text-foreground">{configStatus}</p>
           <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
             Codes are sent by Telegram to the official Telegram app for this
@@ -721,7 +719,7 @@ function PendingAccountCard({ account }: { account?: Account }) {
     <div className="rounded-lg border border-border bg-background/70 p-4 text-sm">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <strong>{account.label || account.session_name}</strong>
-        <span className="text-xs tracking-[0.18em] text-muted-foreground uppercase">
+        <span className="type-label text-muted-foreground">
           {accountStatusText(account)}
         </span>
       </div>

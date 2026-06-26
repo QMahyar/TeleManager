@@ -33,7 +33,7 @@ function DialogInput({
   title: string
 }) {
   return (
-    <label className="grid gap-2 text-xs font-medium tracking-[0.12em] text-muted-foreground uppercase">
+    <label className="type-label grid gap-2 text-muted-foreground">
       {input.label}
       <input
         ref={inputRef}

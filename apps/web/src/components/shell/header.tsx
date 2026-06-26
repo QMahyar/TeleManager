@@ -44,13 +44,11 @@ export function Header({
           <IconMenu2 />
         </Button>
         <div className="min-w-0">
-          <p className="font-mono text-[0.7rem] tracking-[0.2em] text-muted-foreground uppercase">
+          <p className="type-eyebrow text-muted-foreground">
             <span className="text-primary">›</span>{" "}
             {activeItem?.group || "Workspace"}
           </p>
-          <h1 className="font-heading text-xl tracking-tight sm:text-2xl">
-            {activeItem?.label}
-          </h1>
+          <h1 className="type-title text-foreground">{activeItem?.label}</h1>
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">

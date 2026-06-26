@@ -325,16 +325,23 @@ function useResourceState(flash: (message: string) => void, view: View) {
     // Activity now lives as a tab inside Settings, so load it there.
     if (view !== "settings") return undefined
 
-    const initialTask = window.setTimeout(() => {
-      loadActivity().catch((error) => flash(error.message))
-    }, 0)
+    const load = () => loadActivity().catch((error) => flash(error.message))
+    const initialTask = window.setTimeout(load, 0)
+    // Skip polling while the tab is backgrounded — a hidden tab shouldn't keep
+    // doing backend work — and refetch immediately when it becomes visible so
+    // returning to the tab shows fresh data rather than a stale interval gap.
     const pollTask = window.setInterval(() => {
-      loadActivity().catch((error) => flash(error.message))
+      if (!document.hidden) load()
     }, 10000)
+    const onVisible = () => {
+      if (!document.hidden) load()
+    }
+    document.addEventListener("visibilitychange", onVisible)
 
     return () => {
       window.clearTimeout(initialTask)
       window.clearInterval(pollTask)
+      document.removeEventListener("visibilitychange", onVisible)
     }
   }, [flash, loadActivity, view])
 
@@ -353,16 +360,22 @@ function useResourceState(flash: (message: string) => void, view: View) {
     // Schedules now live on the Actions page (Schedules tab + inspector).
     if (view !== "actions") return undefined
 
-    const initialTask = window.setTimeout(() => {
-      loadSchedules().catch((error) => flash(error.message))
-    }, 0)
+    const load = () => loadSchedules().catch((error) => flash(error.message))
+    const initialTask = window.setTimeout(load, 0)
+    // Pause the 5s poll while the tab is hidden so a backgrounded console stops
+    // hitting the scheduler; resync the moment it's foregrounded again.
     const pollTask = window.setInterval(() => {
-      loadSchedules().catch((error) => flash(error.message))
+      if (!document.hidden) load()
     }, 5000)
+    const onVisible = () => {
+      if (!document.hidden) load()
+    }
+    document.addEventListener("visibilitychange", onVisible)
 
     return () => {
       window.clearTimeout(initialTask)
       window.clearInterval(pollTask)
+      document.removeEventListener("visibilitychange", onVisible)
     }
   }, [flash, loadSchedules, view])
 

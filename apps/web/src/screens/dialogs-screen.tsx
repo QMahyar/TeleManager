@@ -13,7 +13,7 @@ import { Avatar } from "../components/avatar"
 
 import { Button } from "../ui/button"
 import { Menu, MenuItem, MenuSeparator } from "../ui/menu"
-import { Modal } from "../ui/modal"
+import { ModalShell } from "../ui/modal"
 import {
   Table,
   TableBody,
@@ -26,6 +26,7 @@ import {
 
 import {
   Badge,
+  Callout,
   EmptyState,
   ErrorState,
   Field,
@@ -650,16 +651,16 @@ function DialogsSourcePanel({
         title="Find dialogs"
         detail="Pick one account, load cached or live dialogs, then stage selected chats into Actions."
       />
-      <div className="grid grid-cols-2 gap-2 text-xs">
-        <div className="rounded-lg border border-border bg-muted/20 p-3">
-          <span className="text-muted-foreground">Selected</span>
-          <strong className="mt-1 block font-mono text-2xl">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-0.5">
+          <span className="type-meta block text-muted-foreground">Selected</span>
+          <strong className="block font-mono text-2xl">
             {selectedDialogTargets.size}
           </strong>
         </div>
-        <div className="rounded-lg border border-border bg-muted/20 p-3">
-          <span className="text-muted-foreground">Source</span>
-          <strong className="mt-1 block truncate text-sm">
+        <div className="min-w-0 space-y-0.5">
+          <span className="type-meta block text-muted-foreground">Source</span>
+          <strong className="block truncate text-sm">
             {selectedAccount?.label || selectedAccount?.session_name || "None"}
           </strong>
         </div>
@@ -699,23 +700,13 @@ function DialogsSourcePanel({
         </Button>
       </div>
       {fetchStatus ? (
-        <div
-          className={
-            fetchError
-              ? "rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs leading-5 text-destructive"
-              : "rounded-lg border border-border bg-background p-3 text-xs leading-5 text-muted-foreground"
-          }
-        >
-          {fetchStatus}
-        </div>
+        <Callout tone={fetchError ? "danger" : "info"}>{fetchStatus}</Callout>
       ) : null}
 
       <div className="space-y-3 border-t border-border pt-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[0.65rem] font-semibold tracking-[0.2em] text-muted-foreground uppercase">
-              Selected workflow
-            </p>
+            <p className="type-label text-muted-foreground">Selected workflow</p>
             <p className="text-xs text-muted-foreground">
               Bulk actions only show options valid for every selected chat.
             </p>
@@ -1364,30 +1355,23 @@ function DialogMessagesPanel({
   }
 
   return (
-    <Modal
+    <ModalShell
       open={Boolean(panel)}
       onClose={onClose}
-      align="end"
-      className="max-h-[90vh] max-w-4xl overflow-hidden"
-      labelledBy="dialog-messages-title"
+      size="xl"
+      kicker="Message inspector"
+      title={dialog?.title ?? "Messages"}
+      description={
+        target ? <span className="font-mono text-xs">{target}</span> : undefined
+      }
+      footer={
+        <Button variant={OUTLINE_VARIANT} onClick={onClose}>
+          Close
+        </Button>
+      }
     >
       {dialog && panel ? (
         <>
-        <div className="flex items-start justify-between gap-3 border-b border-border p-4">
-          <div>
-            <p className="text-[0.65rem] font-semibold tracking-[0.16em] text-primary uppercase">
-              Message inspector
-            </p>
-            <h2 id="dialog-messages-title" className="font-heading text-2xl">
-              {dialog.title}
-            </h2>
-            <p className="font-mono text-xs text-muted-foreground">{target}</p>
-          </div>
-          <Button variant={OUTLINE_VARIANT} onClick={onClose}>
-            Close
-          </Button>
-        </div>
-        <div className="max-h-[calc(90vh-6rem)] overflow-auto p-4">
           {panel.loading && !messages.length ? (
             <SectionLoader label="Loading messages…" />
           ) : panel.error ? (
@@ -1482,9 +1466,8 @@ function DialogMessagesPanel({
               detail="This dialog has no recent cached messages or Telegram did not return any for this session."
             />
           )}
-        </div>
         </>
       ) : null}
-    </Modal>
+    </ModalShell>
   )
 }

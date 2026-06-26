@@ -102,9 +102,7 @@ function SidebarGroup({
 }) {
   return (
     <div className="space-y-1">
-      <p className="px-2 text-[0.62rem] font-semibold tracking-[0.16em] text-muted-foreground uppercase">
-        {group}
-      </p>
+      <p className="type-label px-2 text-muted-foreground">{group}</p>
       {groupedNavItems(group).map((item) => (
         <SidebarItem
           key={item.id}
@@ -154,30 +152,30 @@ function SidebarFleetSummary({
   metrics: ShellMetrics
 }) {
   return (
-    <div className="mt-5 space-y-2 rounded-lg border border-sidebar-border bg-sidebar-accent/60 p-3">
+    <div className="mt-5 space-y-3 border-t border-sidebar-border pt-5">
       <div className="flex items-center justify-between gap-2">
-        <span className="font-mono text-[0.62rem] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
-          Accounts
-        </span>
+        <span className="type-meta text-muted-foreground">Accounts</span>
         <Badge tone="border-sidebar-border bg-sidebar text-muted-foreground">
           {accounts.length}
         </Badge>
       </div>
-      <div className="grid grid-cols-2 gap-2 text-xs">
-        <StatusPill label="Ready" value={metrics.ready} good />
-        <StatusPill label="Attention" value={metrics.attention} />
+      <div className="grid grid-cols-2 gap-3">
+        <FleetStat label="Ready" value={metrics.ready} good />
+        <FleetStat label="Attention" value={metrics.attention} />
       </div>
-      <div className="rounded-md border border-sidebar-border bg-sidebar/70 px-2.5 py-2 text-xs text-muted-foreground">
+      <p className="text-xs leading-5 text-muted-foreground">
         <span className="font-mono text-sidebar-foreground">
           {metrics.knownDialogs}
         </span>{" "}
         known dialogs cached locally
-      </div>
+      </p>
     </div>
   )
 }
 
-function StatusPill({
+// Plain stat column — no box. Grouping comes from the divider + spacing above,
+// not from bordering each number (the old nested-pill look the redesign drops).
+function FleetStat({
   label,
   value,
   good,
@@ -187,8 +185,8 @@ function StatusPill({
   good?: boolean
 }) {
   return (
-    <div className="rounded-md border border-sidebar-border bg-sidebar px-2.5 py-2">
-      <span className="block text-[0.62rem] text-muted-foreground">{label}</span>
+    <div className="space-y-0.5">
+      <span className="type-meta block text-muted-foreground">{label}</span>
       <strong className={cn("font-mono text-lg", good && "text-primary")}>
         {value}
       </strong>

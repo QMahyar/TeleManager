@@ -1,10 +1,28 @@
-import { AboutScreen } from "./about-screen"
-import { AccountsScreen } from "./accounts-screen"
-import { ActionsScreen } from "./actions-screen"
-import { DialogsScreen } from "./dialogs-screen"
-import { SettingsScreen } from "./settings-screen"
+import * as React from "react"
+
+import { SectionLoader } from "../components/ui"
 import type { AppScreenProps } from "./screen-props"
 import type { ActivityEvent, View } from "../types"
+
+// Route screens are code-split: each is fetched on first navigation so the
+// initial bundle carries only the shell, not every screen plus all of its
+// modals. On localhost the chunk loads instantly, so the Suspense fallback is
+// imperceptible; the win is a far smaller first-parse and per-route caching.
+const AccountsScreen = React.lazy(() =>
+  import("./accounts-screen").then((m) => ({ default: m.AccountsScreen }))
+)
+const DialogsScreen = React.lazy(() =>
+  import("./dialogs-screen").then((m) => ({ default: m.DialogsScreen }))
+)
+const ActionsScreen = React.lazy(() =>
+  import("./actions-screen").then((m) => ({ default: m.ActionsScreen }))
+)
+const SettingsScreen = React.lazy(() =>
+  import("./settings-screen").then((m) => ({ default: m.SettingsScreen }))
+)
+const AboutScreen = React.lazy(() =>
+  import("./about-screen").then((m) => ({ default: m.AboutScreen }))
+)
 
 type AppScreensProps = {
   view: View
@@ -12,7 +30,7 @@ type AppScreensProps = {
   activity: ActivityEvent[]
 }
 
-export function AppScreens({ view, screenProps, activity }: AppScreensProps) {
+function renderScreen({ view, screenProps, activity }: AppScreensProps) {
   if (view === "accounts") return <AccountsScreen {...screenProps} />
   if (view === "dialogs") return <DialogsScreen {...screenProps} />
   if (view === "actions") return <ActionsScreen {...screenProps} />
@@ -20,4 +38,12 @@ export function AppScreens({ view, screenProps, activity }: AppScreensProps) {
     return <SettingsScreen {...screenProps} activity={activity} />
   if (view === "about") return <AboutScreen flash={screenProps.flash} />
   return null
+}
+
+export function AppScreens(props: AppScreensProps) {
+  return (
+    <React.Suspense fallback={<SectionLoader />}>
+      {renderScreen(props)}
+    </React.Suspense>
+  )
 }

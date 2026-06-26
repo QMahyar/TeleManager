@@ -146,7 +146,7 @@ export function ModalShell({
           {kicker ? (
             <p
               className={cn(
-                "font-mono text-[0.62rem] font-semibold tracking-[0.14em] uppercase",
+                "type-eyebrow",
                 danger ? "text-destructive" : "text-primary"
               )}
             >
@@ -155,7 +155,7 @@ export function ModalShell({
           ) : null}
           <h2
             id={titleId}
-            className="font-heading text-lg leading-tight tracking-tight text-foreground"
+            className="type-heading text-foreground"
           >
             {title}
           </h2>

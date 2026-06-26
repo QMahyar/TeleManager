@@ -1,5 +1,7 @@
 import * as React from "react"
 
+import { IconStack2 } from "@tabler/icons-react"
+
 import { Button } from "../ui/button"
 
 import { actionMeta, categoryLabels } from "../lib/constants"
@@ -17,19 +19,25 @@ export function QueueTable({
   // builder. Omitted where there's no builder to load into.
   onEdit?: (step: QueueStep, index: number) => void
 }) {
+  if (!queue.length) {
+    return (
+      <EmptyState
+        icon={IconStack2}
+        title="Queue is empty"
+        detail="Choose accounts and an action, add targets, then Add To Queue."
+      />
+    )
+  }
+
   return (
-    <div className="overflow-hidden rounded-lg border border-border">
-      <div className="sticky top-0 z-10 border-b border-border bg-card p-3 text-xs tracking-[0.16em] text-muted-foreground uppercase">
-        Queued steps
-      </div>
-      {queue.length ? (
-        queue.map((step, index) => {
+    <div className="divide-y divide-border/60 overflow-hidden rounded-lg border border-border">
+      {queue.map((step, index) => {
           const meta = actionMeta[step.action_type]
           const operationCount = step.account_ids.length * step.targets.length
           return (
             <div
               key={`${step.action_type}-${index}`}
-              className="grid gap-2 border-b border-border/60 p-3 text-sm md:grid-cols-[1fr_auto]"
+              className="grid gap-2 p-3 text-sm md:grid-cols-[1fr_auto]"
             >
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
@@ -114,14 +122,7 @@ export function QueueTable({
               </div>
             </div>
           )
-        })
-      ) : (
-        <EmptyState
-          title="Queue is empty"
-          detail="Select action accounts above, choose an action type, add targets, then click Add To Queue."
-          className="border-0 bg-transparent px-6 py-8"
-        />
-      )}
+        })}
     </div>
   )
 }

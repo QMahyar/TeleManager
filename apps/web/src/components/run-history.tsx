@@ -128,7 +128,7 @@ function RunHistoryList({
 }) {
   return (
     <div className="overflow-auto rounded-lg border border-border">
-      <div className="grid min-w-[48rem] grid-cols-[minmax(0,1fr)_8rem_7rem_7rem_9rem] gap-3 border-b border-border bg-muted/20 px-3 py-2 font-mono text-[0.62rem] tracking-[0.18em] text-muted-foreground uppercase">
+      <div className="type-label grid min-w-[48rem] grid-cols-[minmax(0,1fr)_8rem_7rem_7rem_9rem] gap-3 border-b border-border bg-muted/20 px-3 py-2 text-muted-foreground">
         <span>Run</span>
         <span>Status</span>
         <span className="text-right">Done</span>
@@ -467,9 +467,7 @@ function RunOperationsTable({
 function RunStat({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-lg border border-border bg-background p-3">
-      <span className="text-[0.65rem] font-semibold tracking-[0.2em] text-muted-foreground uppercase">
-        {label}
-      </span>
+      <span className="type-meta text-muted-foreground">{label}</span>
       <strong className="mt-2 block font-mono text-2xl">{value}</strong>
     </div>
   )

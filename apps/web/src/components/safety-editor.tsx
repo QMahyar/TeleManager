@@ -57,9 +57,7 @@ function TierField({
   return (
     <div className="grid gap-1.5">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium tracking-[0.1em] text-muted-foreground uppercase">
-          {label}
-        </span>
+        <span className="type-label text-muted-foreground">{label}</span>
         <TimingBadge tier={tier} />
       </div>
       <Input

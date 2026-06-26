@@ -23,6 +23,7 @@ import type {
 } from "../types"
 import {
   Badge,
+  Disclosure,
   EmptyState,
   Field,
   Input,
@@ -432,11 +433,8 @@ function ManualInspect({
   }
 
   return (
-    <details className="rounded-lg border border-border bg-muted/10">
-      <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-muted-foreground">
-        Check another chat
-      </summary>
-      <div className="space-y-3 border-t border-border p-3">
+    <Disclosure label="Check another chat">
+      <div className="space-y-3">
         <p className="text-xs text-muted-foreground">
           Look up a specific chat that your schedules don't already target (Telegram
           has no way to list every scheduled chat automatically).
@@ -504,7 +502,7 @@ function ManualInspect({
           />
         ) : null}
       </div>
-    </details>
+    </Disclosure>
   )
 }
 

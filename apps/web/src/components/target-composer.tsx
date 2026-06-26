@@ -15,7 +15,7 @@ import { splitTargets } from "../lib/helpers"
 import { analyzeTarget } from "../lib/targeting"
 import type { Account, ActionType, Flash } from "../types"
 import { DialogPicker } from "./dialog-picker"
-import { Input } from "./ui"
+import { Callout, Input } from "./ui"
 
 // The canonical target store stays a newline-joined string (what the backend
 // already parses); this component just presents it as an editable chip list.
@@ -121,14 +121,11 @@ export function TargetComposer({
             </div>
           </div>
           {invalidCount ? (
-            <p className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs leading-5 text-amber-700 dark:text-amber-300">
-              <IconAlertTriangle className="mt-px size-3.5 shrink-0" />
-              <span>
-                Struck-through targets aren&apos;t compatible with “{meta.label}”
-                and will be skipped when this runs. Remove them or switch the
-                action. Hover a target to see why.
-              </span>
-            </p>
+            <Callout tone="warning" icon={IconAlertTriangle} className="mt-2">
+              Struck-through targets aren&apos;t compatible with “{meta.label}”
+              and will be skipped when this runs. Remove them or switch the
+              action. Hover a target to see why.
+            </Callout>
           ) : null}
           <div className="mt-2 flex items-center justify-between gap-2 border-t border-border pt-2 text-xs text-muted-foreground">
             <span>

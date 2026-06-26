@@ -48,13 +48,11 @@ export function SectionTitle({
   return (
     <div className="space-y-1">
       {kicker ? (
-        <p className="font-mono text-[0.65rem] tracking-[0.1em] text-muted-foreground uppercase">
+        <p className="type-eyebrow text-muted-foreground">
           <span className="text-primary">›</span> {kicker}
         </p>
       ) : null}
-      <h2 className="font-heading text-lg tracking-tight text-foreground">
-        {title}
-      </h2>
+      <h2 className="type-heading text-foreground">{title}</h2>
       {detail ? (
         <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
           {detail}
@@ -149,7 +147,7 @@ export function StepHeading({
           </span>
         ) : null}
         <div className="space-y-0.5">
-          <h2 className="font-heading text-lg text-foreground">{title}</h2>
+          <h2 className="type-heading text-foreground">{title}</h2>
           {detail ? (
             <p className="max-w-2xl text-xs leading-5 text-muted-foreground">
               {detail}
@@ -179,7 +177,7 @@ export function Field({
 }>) {
   return (
     <div data-slot="field" className={cn("grid gap-1.5", className)}>
-      <span className="text-xs font-medium tracking-[0.1em] text-muted-foreground uppercase">
+      <span className="type-label text-muted-foreground">
         {htmlFor ? <label htmlFor={htmlFor}>{label}</label> : label}
       </span>
       {children}
@@ -385,12 +383,10 @@ export function StatCard({
   )
   const body = (
     <>
-      <span className="font-mono text-[0.62rem] tracking-[0.08em] text-muted-foreground uppercase">
-        {label}
-      </span>
+      <span className="type-meta text-muted-foreground">{label}</span>
       <strong
         className={cn(
-          "mt-1 block font-mono text-2xl",
+          "mt-1 block type-stat",
           (primary || active) && "text-primary"
         )}
       >
@@ -512,7 +508,7 @@ export function ReadoutItem({
       <span className="font-mono text-base leading-none tabular-nums text-foreground">
         {value}
       </span>
-      <span className="font-mono text-[0.62rem] leading-none tracking-[0.08em] whitespace-nowrap text-muted-foreground uppercase">
+      <span className="type-meta whitespace-nowrap text-muted-foreground">
         {label}
       </span>
     </>
@@ -697,7 +693,7 @@ export function TimingBadge({
     <span
       title={TIER_BLURB[tier]}
       className={cn(
-        "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-mono text-[0.6rem] tracking-[0.08em] whitespace-nowrap uppercase [&_svg]:size-3",
+        "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 type-meta whitespace-nowrap [&_svg]:size-3",
         TIER_BADGE_CLASS[tier],
         className
       )}
@@ -706,5 +702,152 @@ export function TimingBadge({
       {TIER_LABEL[tier]}
       {seconds != null ? <span className="opacity-80">· ~{formatDuration(seconds)}</span> : null}
     </span>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Disclosure — the one collapsible
+//
+// Replaces the grab-bag of hand-rolled toggles and native <details> the app had
+// grown (each with its own "Hide"/"Change"/"Show" microcopy and no affordance).
+// One header row: optional icon · label · muted hint · count · a chevron that
+// rotates on open. Works uncontrolled (`defaultOpen`) or controlled (`open` +
+// `onOpenChange`) so a parent can force it open — e.g. revealing the field
+// section when a submit fails validation.
+// ---------------------------------------------------------------------------
+export function Disclosure({
+  label,
+  hint,
+  count,
+  icon: Icon,
+  defaultOpen = false,
+  open: controlledOpen,
+  onOpenChange,
+  flush = false,
+  children,
+  className,
+}: React.PropsWithChildren<{
+  label: React.ReactNode
+  hint?: React.ReactNode
+  count?: React.ReactNode
+  icon?: React.ElementType
+  defaultOpen?: boolean
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  flush?: boolean
+  className?: string
+}>) {
+  const [internalOpen, setInternalOpen] = React.useState(defaultOpen)
+  const open = controlledOpen ?? internalOpen
+
+  function toggle() {
+    const next = !open
+    if (controlledOpen === undefined) setInternalOpen(next)
+    onOpenChange?.(next)
+  }
+
+  return (
+    <div
+      className={cn(
+        flush
+          ? "border-t border-border"
+          : "overflow-hidden rounded-lg border border-border bg-background/40",
+        className
+      )}
+    >
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={toggle}
+        className={cn(
+          "flex w-full items-center gap-2 text-left text-xs transition-colors",
+          flush
+            ? "py-2.5 text-muted-foreground hover:text-foreground"
+            : "px-3 py-2 hover:bg-muted/40"
+        )}
+      >
+        {Icon ? (
+          <Icon className="size-3.5 shrink-0 text-muted-foreground" />
+        ) : null}
+        <span className="font-medium text-foreground">{label}</span>
+        {hint ? (
+          <span className="min-w-0 truncate text-muted-foreground">{hint}</span>
+        ) : null}
+        <span className="ml-auto flex items-center gap-2 pl-2">
+          {count != null ? (
+            <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.625rem] tabular-nums text-muted-foreground">
+              {count}
+            </span>
+          ) : null}
+          <IconChevronDown
+            className={cn(
+              "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
+              open && "rotate-180"
+            )}
+          />
+        </span>
+      </button>
+      {open ? (
+        <div className={cn(flush ? "pb-3" : "border-t border-border p-3")}>
+          {children}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Callout — the one inline notice
+//
+// A bordered tinted box for inline warnings/notices. `tone` carries the colour
+// language (info/primary/warning/danger), an optional leading icon, an optional
+// emphasised `title` row (which may hold badges), and body children. Danger and
+// warning announce themselves to assistive tech via role="alert"; info/primary
+// are passive context.
+// ---------------------------------------------------------------------------
+export type CalloutTone = "info" | "primary" | "warning" | "danger"
+
+const calloutToneClass: Record<CalloutTone, string> = {
+  info: "border-border bg-muted/30 text-muted-foreground",
+  primary: "border-primary/30 bg-primary/10 text-foreground",
+  warning:
+    "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+  danger: "border-destructive/40 bg-destructive/10 text-destructive",
+}
+
+export function Callout({
+  tone = "info",
+  icon: Icon,
+  title,
+  trailing,
+  children,
+  className,
+}: React.PropsWithChildren<{
+  tone?: CalloutTone
+  icon?: React.ElementType
+  title?: React.ReactNode
+  trailing?: React.ReactNode
+  className?: string
+}>) {
+  return (
+    <div
+      role={tone === "danger" || tone === "warning" ? "alert" : undefined}
+      className={cn(
+        "flex gap-2 rounded-lg border p-2.5 text-xs",
+        calloutToneClass[tone],
+        className
+      )}
+    >
+      {Icon ? <Icon className="mt-px size-3.5 shrink-0" /> : null}
+      <div className="min-w-0 flex-1 space-y-1">
+        {title ? (
+          <div className="flex flex-wrap items-center gap-2 font-medium">
+            {title}
+          </div>
+        ) : null}
+        {children ? <div className="leading-5">{children}</div> : null}
+      </div>
+      {trailing}
+    </div>
   )
 }

@@ -217,7 +217,7 @@ function AppearancePanel() {
       </div>
 
       <div className="space-y-2">
-        <p className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
+        <p className="type-label text-muted-foreground">
           Mode
         </p>
         <div className="flex gap-1 rounded-md border border-border p-1">
@@ -246,7 +246,7 @@ function AppearancePanel() {
       </div>
 
       <div className="space-y-2">
-        <p className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
+        <p className="type-label text-muted-foreground">
           Accent
         </p>
         <div className="grid gap-2 sm:grid-cols-2">
@@ -279,9 +279,7 @@ function AppearancePanel() {
                   </span>
                 </span>
                 {active ? (
-                  <span className="text-[0.65rem] font-semibold tracking-[0.16em] text-primary uppercase">
-                    Active
-                  </span>
+                  <span className="type-label text-primary">Active</span>
                 ) : null}
               </button>
             )
