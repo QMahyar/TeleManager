@@ -14,7 +14,7 @@ import {
 import { Button } from "../ui/button"
 
 import { BrandLockup } from "../components/brand-mark"
-import { Badge, Panel, StepHeading } from "../components/ui"
+import { Badge, Callout, Panel, StepHeading } from "../components/ui"
 import { api } from "../lib/api"
 import { humanTime } from "../lib/helpers"
 import type { Flash } from "../types"
@@ -171,7 +171,7 @@ export function AboutScreen({ flash }: { flash: Flash }) {
           title="Author"
           detail="Built and maintained by Mahyar. Reach out or follow for updates."
         />
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="divide-y divide-border">
           {SOCIAL_LINKS.map((social) => (
             <SocialRow key={social.label} social={social} flash={flash} />
           ))}
@@ -183,7 +183,7 @@ export function AboutScreen({ flash }: { flash: Flash }) {
           title="Support development"
           detail="If this tool saved you time, a small crypto tip helps keep it maintained. USDT on TRON (TRC-20) has the lowest fees and is the easiest to send."
         />
-        <div className="space-y-2">
+        <div className="divide-y divide-border">
           {CRYPTO_WALLETS.map((wallet) => (
             <WalletRow key={wallet.chain} wallet={wallet} flash={flash} />
           ))}
@@ -199,11 +199,7 @@ function UpdateStatus({ state }: { state: UpdateState }) {
   }
 
   if (state.status === "error") {
-    return (
-      <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-        {state.message}
-      </div>
-    )
+    return <Callout tone="danger">{state.message}</Callout>
   }
 
   const { info } = state
@@ -215,20 +211,24 @@ function UpdateStatus({ state }: { state: UpdateState }) {
   if (info.update_available) {
     return (
       <div>
-        <div className="flex flex-col gap-3 rounded-lg border border-primary/40 bg-primary/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-0.5">
-            <strong className="block text-sm text-foreground">
+        <Callout
+          tone="primary"
+          title={
+            <strong className="text-sm text-foreground">
               Update available — v{info.latest}
             </strong>
-            <span className="text-xs text-muted-foreground">
-              You are running v{info.current}. Download the latest release from
-              GitHub.
-            </span>
-          </div>
-          <Button onClick={() => openExternal(info.html_url)}>
-            <IconExternalLink /> Get v{info.latest}
-          </Button>
-        </div>
+          }
+          trailing={
+            <Button onClick={() => openExternal(info.html_url)}>
+              <IconExternalLink /> Get v{info.latest}
+            </Button>
+          }
+        >
+          <span className="text-muted-foreground">
+            You are running v{info.current}. Download the latest release from
+            GitHub.
+          </span>
+        </Callout>
         {checkedAt}
       </div>
     )
@@ -236,10 +236,9 @@ function UpdateStatus({ state }: { state: UpdateState }) {
 
   return (
     <div>
-      <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-foreground">
-        <IconCheck className="size-4 text-primary" />
+      <Callout tone="info" icon={IconCheck}>
         You are on the latest version (v{info.current}).
-      </div>
+      </Callout>
       {checkedAt}
     </div>
   )
@@ -273,7 +272,7 @@ function SocialRow({
   )
 
   const className =
-    "flex items-center gap-3 rounded-lg border border-border px-3 py-2 text-left transition hover:border-primary/40 hover:bg-muted/40"
+    "flex w-full items-center gap-3 py-2.5 text-left transition-colors hover:bg-muted/40"
 
   if (social.href) {
     return (
@@ -323,7 +322,7 @@ function WalletRow({
   }, [flash, wallet.address, wallet.chain])
 
   return (
-    <div className="space-y-2 rounded-lg border border-border p-3">
+    <div className="space-y-2 py-3">
       <div className="flex items-center justify-between gap-2">
         <strong className="text-sm text-foreground">{wallet.chain}</strong>
         {wallet.recommended ? (
@@ -334,7 +333,7 @@ function WalletRow({
       </div>
       <p className="text-xs leading-5 text-muted-foreground">{wallet.note}</p>
       <div className="flex items-center gap-2">
-        <code className="min-w-0 flex-1 truncate rounded-md border border-border bg-muted/40 px-2 py-1.5 font-mono text-xs text-foreground">
+        <code className="min-w-0 flex-1 truncate rounded-md bg-muted/40 px-2 py-1.5 font-mono text-xs text-foreground">
           {wallet.address}
         </code>
         <Button variant="outline" size="sm" onClick={handleCopy}>

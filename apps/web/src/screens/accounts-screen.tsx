@@ -19,6 +19,7 @@ import { Button } from "../ui/button"
 import { AccountsTable } from "../components/accounts-table"
 import {
   Badge,
+  Callout,
   EmptyState,
   Field,
   Input,
@@ -236,11 +237,11 @@ function FleetTab({ props }: { props: AccountsScreenProps }) {
               Run Action <IconArrowRight />
             </Button>
           </div>
-          <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs leading-5 text-muted-foreground">
+          <Callout tone="info">
             {readySelectedIds.length
               ? `${readySelectedIds.length} selected ready session(s) will be carried forward.`
               : "No ready sessions selected. Actions will ask you to choose accounts."}
-          </div>
+          </Callout>
         </Panel>
       </SidePane>
     </PageGrid>
@@ -661,21 +662,25 @@ function FinishLoginPanel({
 
 function LoginChecklist() {
   return (
-    <div className="grid gap-2 rounded-lg border border-border bg-background/60 p-3 text-xs leading-5 text-muted-foreground">
-      <strong className="text-foreground">If no code arrives:</strong>
-      <span>
-        Open Telegram on this phone number and check the “Telegram” service chat
-        — the login code is sent there, not by SMS.
-      </span>
-      <span>
-        Re-check the number above: it must start with “+” and the country code,
-        e.g. +15551234567.
-      </span>
-      <span>
-        If Telegram says you’re requesting codes too often, wait a few minutes,
-        then press “Send Login Code” again.
-      </span>
-    </div>
+    <Callout
+      tone="info"
+      title={<span className="text-foreground">If no code arrives:</span>}
+    >
+      <div className="grid gap-2">
+        <span>
+          Open Telegram on this phone number and check the “Telegram” service chat
+          — the login code is sent there, not by SMS.
+        </span>
+        <span>
+          Re-check the number above: it must start with “+” and the country code,
+          e.g. +15551234567.
+        </span>
+        <span>
+          If Telegram says you’re requesting codes too often, wait a few minutes,
+          then press “Send Login Code” again.
+        </span>
+      </div>
+    </Callout>
   )
 }
 

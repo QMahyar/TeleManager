@@ -100,7 +100,7 @@ export function ActivityScreen({ activity }: { activity: ActivityEvent[] }) {
         </Select>
       </div>
 
-      <div className="space-y-2">
+      <div className="divide-y divide-border">
         {filtered.length ? (
           <>
             {filtered.slice(0, visible).map((entry, index) => (
@@ -131,7 +131,7 @@ export function ActivityScreen({ activity }: { activity: ActivityEvent[] }) {
 
 function ActivityRow({ entry }: { entry: ActivityEvent }) {
   return (
-    <div className="flex items-start justify-between gap-3 rounded-lg border border-border p-3">
+    <div className="flex items-start justify-between gap-3 py-3">
       <div className="min-w-0">
         <strong className="block text-sm">
           {entry.title || formatEventType(entry.event_type || "event")}
