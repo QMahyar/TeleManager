@@ -8,8 +8,9 @@
 
 **Current snapshot**
 - Backend suite: **151 passing** (`py -3.12 -m pytest -q`); `ruff check src tests` clean.
-- Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ · Phase 3 ✅ · Phases 4–9 ⬜
-- Phases 0–3 committed on `improvements/full-sweep` (off `main`).
+- Frontend: `npm --prefix apps/web run typecheck && lint && build` all green.
+- Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ · Phase 3 ✅ · Phase 4 ✅ · Phases 5–9 ⬜
+- Phases 0–4 committed on `improvements/full-sweep` (off `main`).
 
 ---
 
@@ -122,13 +123,16 @@ files — the risk is *lost updates*), and returning `phone` to the local UI is 
   - `test_persistence_migration.py` *(Phase 2)* concurrent saves don't lose updates;
     `test_audit_trim.py` — trim bounds the JSONL and keeps every line valid JSON (atomic).
 
-## Phase 4 — Frontend state split (foundation for react-query) ⬜
+## Phase 4 — Frontend state split (foundation for react-query) ✅
 
-Extract the domain hooks already defined inside `hooks/use-app-state.ts` into their own
-files, keeping `useAppState` a thin aggregator (screens untouched):
-- [ ] `use-view-state.ts`, `use-account-state.ts`, `use-dialog-state.ts`,
-  `use-resource-state.ts` (owns the 10s activity + 5s schedules polls), `use-queue-state.ts`,
-  `use-run-polling.ts`, `use-version.ts`.
+- [x] Extracted all seven domain hooks from `hooks/use-app-state.ts` (587 → ~95 lines) into
+  their own files, each carrying its private helpers: `use-view-state.ts`,
+  `use-account-state.ts` (+ `sessionMetrics`/`configStatusLabel`/`filterKnownIds`),
+  `use-dialog-state.ts` (+ `filterDialogs`), `use-resource-state.ts` (owns the 10s activity +
+  5s schedules visibility-aware polls + `defaultAppSettings`), `use-queue-state.ts`
+  (+ `actionDraftBlocker`/`queueStepFromDraft`), `use-run-polling.ts`, `use-version.ts`.
+- [x] `useAppState` stays a thin aggregator flattening the slices into the single object
+  `App.tsx` spreads — screens untouched. typecheck + lint + build all green.
 
 ## Phase 5 — Frontend screen decomposition + perf ⬜
 
