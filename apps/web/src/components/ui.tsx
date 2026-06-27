@@ -17,6 +17,7 @@ import {
 import { Badge as UiBadge } from "../ui/badge"
 import { Button } from "../ui/button"
 import { Card } from "../ui/card"
+import { InfoHint } from "../ui/info-hint"
 import { Menu } from "../ui/menu"
 import {
   Input as UiInput,
@@ -168,22 +169,32 @@ export function StepHeading({
 export function Field({
   label,
   htmlFor,
+  hint,
   className,
   children,
 }: React.PropsWithChildren<{
   label: string
   htmlFor?: string
+  // Optional richer explanation, surfaced behind an "ⓘ" next to the label (on
+  // hover or click). Keep any short, always-on caption as a sibling under the
+  // control — the hint is the second layer, not a substitute for it.
+  hint?: React.ReactNode
   className?: string
 }>) {
   return (
     <div data-slot="field" className={cn("grid gap-1.5", className)}>
-      <span className="type-label text-muted-foreground">
+      <span className="type-label flex items-center gap-1.5 text-muted-foreground">
         {htmlFor ? <label htmlFor={htmlFor}>{label}</label> : label}
+        {hint ? <InfoHint label={`About ${label}`}>{hint}</InfoHint> : null}
       </span>
       {children}
     </div>
   )
 }
+
+// Re-exported so screens pull the help affordance from the same `ui` module as
+// Field/Input rather than reaching into ../ui/* directly.
+export { InfoHint }
 
 export function Input(props: React.ComponentProps<typeof UiInput>) {
   return <UiInput {...props} />

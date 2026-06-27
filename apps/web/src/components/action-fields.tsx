@@ -7,7 +7,7 @@ import {
   type FieldValues,
 } from "../lib/action-schema"
 import type { ActionType, Flash } from "../types"
-import { Badge, Field, Input, PathInput, Select, Textarea } from "./ui"
+import { Badge, Field, InfoHint, Input, PathInput, Select, Textarea } from "./ui"
 
 const SCHEDULE_PRESETS = [
   { label: "+15m", value: "+15m" },
@@ -105,21 +105,30 @@ function ActionFieldRow({
   flash?: Flash
 }) {
   if (field.kind === "checkbox") {
+    // The hint's "ⓘ" button is a sibling of the <label>, not a child: nested
+    // inside it, clicking to read the hint would also toggle the checkbox.
     return (
-      <label className="flex items-start gap-3 rounded-md border border-border bg-background/70 p-3 text-sm">
-        <input
-          type="checkbox"
-          className="mt-0.5"
-          checked={value === true}
-          onChange={(event) => onChange(event.target.checked)}
-        />
-        <span className="min-w-0 space-y-1">
-          <span className="block font-medium text-foreground">{field.label}</span>
-          {field.help ? (
-            <span className="block text-xs text-muted-foreground">{field.help}</span>
-          ) : null}
-        </span>
-      </label>
+      <div className="flex items-start gap-3 rounded-md border border-border bg-background/70 p-3 text-sm">
+        <label className="flex min-w-0 flex-1 items-start gap-3">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={value === true}
+            onChange={(event) => onChange(event.target.checked)}
+          />
+          <span className="min-w-0 space-y-1">
+            <span className="block font-medium text-foreground">{field.label}</span>
+            {field.help ? (
+              <span className="block text-xs text-muted-foreground">{field.help}</span>
+            ) : null}
+          </span>
+        </label>
+        {field.hint ? (
+          <InfoHint label={`About ${field.label}`} className="mt-0.5">
+            {field.hint}
+          </InfoHint>
+        ) : null}
+      </div>
     )
   }
 
@@ -127,7 +136,7 @@ function ActionFieldRow({
   const label = field.required ? `${field.label} *` : field.label
 
   return (
-    <Field label={label}>
+    <Field label={label} hint={field.hint}>
       {field.kind === "textarea" ? (
         <Textarea
           value={stringValue}

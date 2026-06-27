@@ -22,7 +22,11 @@ export type ActionField = {
   kind: ActionFieldKind
   required?: boolean
   placeholder?: string
+  // `help` is the short, always-visible caption under the field. `hint` is the
+  // richer explanation surfaced behind the label's "ⓘ" (what it does · why it
+  // matters · an example) — kept separate so the form stays uncluttered.
   help?: string
+  hint?: string
   options?: ActionFieldOption[]
   default?: string | boolean
   validate?: (value: string, all: FieldValues) => string | null
@@ -203,6 +207,7 @@ const SCHEMAS: Partial<Record<ActionType, ActionFormSchema>> = {
         required: true,
         placeholder: "E:/path/photo.jpg",
         help: "Absolute path to a local file on this machine.",
+        hint: "TeleManager uploads this file from your computer to the target chat. Give the full path (e.g. E:/media/clip.mp4) or click Browse to pick it. Telegram caps a single upload at 2 GB.",
         browse: "file",
       },
       {
@@ -211,6 +216,7 @@ const SCHEMAS: Partial<Record<ActionType, ActionFormSchema>> = {
         kind: "select",
         options: PARSE_MODE_OPTIONS,
         default: "none",
+        hint: "How the caption text is interpreted. Markdown or HTML let you add bold, italics, and links; Plain text sends the caption exactly as typed.",
       },
       {
         name: "caption",
@@ -245,6 +251,7 @@ const SCHEMAS: Partial<Record<ActionType, ActionFormSchema>> = {
         required: true,
         validate: validateSchedule,
         help: "Pick a time or use a quick offset.",
+        hint: "When Telegram delivers the message. Choose an exact date/time, or type a relative offset like +15m, +2h, or +1d from now. Exact times use this computer's local timezone.",
       },
       {
         name: "text",
@@ -269,6 +276,7 @@ const SCHEMAS: Partial<Record<ActionType, ActionFormSchema>> = {
         required: true,
         placeholder: "@channel:12345  ·  @channel:101,102  ·  https://t.me/channel/123",
         help: "Where to copy the message(s) from. Destination is the Target above.",
+        hint: "Identifies the original message(s) to forward. Use @chat:id for a public chat, a full t.me message link, or several ids at once like @news:101,102. The destination is the Target set above this form.",
         validate: validateForwardSource,
       },
     ],
@@ -285,6 +293,7 @@ const SCHEMAS: Partial<Record<ActionType, ActionFormSchema>> = {
         placeholder: "12345",
         validate: validateMessageId,
         help: "Id of one of your own messages in the target chat.",
+        hint: "Telegram's numeric id for the message to rewrite — find it in the message's t.me link or the dialog inspector. You can only edit messages your own account sent.",
       },
       {
         name: "text",
@@ -310,12 +319,14 @@ const SCHEMAS: Partial<Record<ActionType, ActionFormSchema>> = {
         placeholder: "101, 102, 103",
         validate: validateMessageIds,
         help: "One or more numeric ids, separated by commas or spaces.",
+        hint: "The messages to delete, by numeric id (e.g. 101, 102) — find each id in its t.me link. Deletion is permanent and cannot be undone.",
       },
       {
         name: "revoke",
         label: "Delete for everyone (where allowed)",
         kind: "checkbox",
         default: true,
+        hint: "On removes the message for everyone in the chat, where Telegram permits it. Off deletes it only from your side. Telegram limits how far back you can revoke for others.",
       },
     ],
     serialize: (v) => `ids=${str(v.ids).trim()}\nrevoke=${v.revoke === false ? "false" : "true"}`,
@@ -333,12 +344,15 @@ const SCHEMAS: Partial<Record<ActionType, ActionFormSchema>> = {
         required: true,
         placeholder: "12345",
         validate: validateMessageId,
+        help: "Numeric id of the message to pin.",
+        hint: "Pins a message to the top of the target chat. Use its numeric id, found in the message's t.me link.",
       },
       {
         name: "notify",
         label: "Notify members",
         kind: "checkbox",
         default: false,
+        hint: "On sends every member a “pinned a message” notification. Off pins quietly without alerting anyone.",
       },
     ],
     serialize: (v) => `id=${str(v.id).trim()}\nnotify=${v.notify === true ? "true" : "false"}`,
@@ -356,6 +370,7 @@ const SCHEMAS: Partial<Record<ActionType, ActionFormSchema>> = {
         placeholder: "Leave empty to unpin all",
         validate: validateOptionalMessageId,
         help: "Leave empty to unpin every pinned message in the chat.",
+        hint: "Unpins one pinned message by its numeric id. Leave the field empty to clear every pinned message in the chat at once.",
       },
     ],
     // Always emit id= so the step has a non-empty message; an empty value tells
@@ -373,6 +388,7 @@ const SCHEMAS: Partial<Record<ActionType, ActionFormSchema>> = {
         placeholder: "12345",
         validate: validateMessageId,
         help: "Id of the message that contains the media to download.",
+        hint: "Saves the photo or file attached to this message onto your computer. Use the numeric id of a message that actually carries media.",
       },
     ],
     serialize: (v) => `id=${str(v.id).trim()}`,
@@ -387,6 +403,7 @@ const SCHEMAS: Partial<Record<ActionType, ActionFormSchema>> = {
         options: REFERRAL_MODE_OPTIONS,
         default: "start",
         help: "Mini app opens the bot web app so tap-to-earn / Stars referrals are credited.",
+        hint: "Classic sends /start?ref=… to the bot chat. Mini app opens the bot's web app instead (?startapp=…), which some bots require before a tap-to-earn or Stars referral is credited.",
       },
       {
         name: "referral_value",
@@ -395,6 +412,7 @@ const SCHEMAS: Partial<Record<ActionType, ActionFormSchema>> = {
         placeholder: "ref123",
         validate: validateReferralValue,
         help: "Leave empty to just send /start, or if the parameter is already in the link.",
+        hint: "The deep-link parameter after a bot's start link — e.g. ref123 from t.me/somebot?start=ref123. Leave empty to send a plain /start, or when the link you used already carries the code.",
       },
     ],
     serialize: (v) => {

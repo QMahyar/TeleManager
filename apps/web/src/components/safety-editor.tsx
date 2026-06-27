@@ -3,7 +3,7 @@ import * as React from "react"
 import { cn } from "../ui/utils"
 
 import type { ActionTier, SafetySettings } from "../types"
-import { Field, Input, TimingBadge } from "./ui"
+import { Field, InfoHint, Input, TimingBadge } from "./ui"
 
 // One numeric safety knob. Kept local so the rows stay terse and consistent.
 function SafetyNumber({
@@ -13,6 +13,7 @@ function SafetyNumber({
   max,
   onChange,
   help,
+  hint,
 }: {
   label: string
   value: number
@@ -20,9 +21,10 @@ function SafetyNumber({
   max: number
   onChange: (value: number) => void
   help: string
+  hint?: string
 }) {
   return (
-    <Field label={label}>
+    <Field label={label} hint={hint}>
       <Input
         type="number"
         min={min}
@@ -46,6 +48,7 @@ function TierField({
   min,
   onChange,
   help,
+  hint,
 }: {
   tier: ActionTier
   label: string
@@ -53,11 +56,15 @@ function TierField({
   min: number
   onChange: (value: number) => void
   help: string
+  hint?: string
 }) {
   return (
     <div className="grid gap-1.5">
       <div className="flex items-center justify-between gap-2">
-        <span className="type-label text-muted-foreground">{label}</span>
+        <span className="type-label flex items-center gap-1.5 text-muted-foreground">
+          {label}
+          {hint ? <InfoHint label={`About ${label} cooldown`}>{hint}</InfoHint> : null}
+        </span>
         <TimingBadge tier={tier} />
       </div>
       <Input
@@ -103,6 +110,7 @@ export function SafetyEditor({
           max={60}
           onChange={(value) => patch({ delay_between_accounts: value })}
           help="Wait when switching to a different account (1–60)."
+          hint="Pause inserted whenever a run moves from one account to the next. Spacing accounts apart avoids hammering Telegram from several sessions at once and makes the fleet look less coordinated."
         />
         <SafetyNumber
           label="Max operations"
@@ -111,6 +119,7 @@ export function SafetyEditor({
           max={250}
           onChange={(value) => patch({ max_operations: value })}
           help="Hard cap on total queued operations per run (1–250)."
+          hint="A safety stop: a single run never executes more than this many steps, however large the queue. Keep it low to make runs small and reviewable; raise it only when you trust the queue."
         />
       </div>
 
@@ -132,6 +141,7 @@ export function SafetyEditor({
             min={0}
             onChange={(value) => patch({ delay_instant: value })}
             help="Mark read, mute, archive, local delete (0–120)."
+            hint="Cooldown between low-risk actions Telegram barely rate-limits — marking read, muting, archiving, deleting on your side. Safe to keep short so reads fly through."
           />
           <TierField
             tier="standard"
@@ -140,6 +150,7 @@ export function SafetyEditor({
             min={1}
             onChange={(value) => patch({ delay_between_actions: value })}
             help="Leave, block, edit, pin, report (1–120)."
+            hint="Cooldown between everyday actions that change state but aren't spam-prone — leaving chats, blocking, editing, pinning, reporting. A few seconds keeps them from looking automated."
           />
           <TierField
             tier="sensitive"
@@ -148,6 +159,7 @@ export function SafetyEditor({
             min={1}
             onChange={(value) => patch({ delay_sensitive: value })}
             help="Send, media, forward, join, start bot — plus jitter (1–120)."
+            hint="Cooldown before the spam-prone actions Telegram watches hardest — sending, media, forwarding, joining, starting bots. A small random jitter is added on top so the timing isn't robotic. Keep this the longest of the three."
           />
         </div>
       </div>

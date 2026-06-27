@@ -106,7 +106,10 @@ function ApiPanel({
         detail="Use your own API ID and API hash from my.telegram.org. The hash stays local and is not rendered back into the UI."
       />
       <form className="grid gap-3" onSubmit={saveApiSettings}>
-        <Field label="API ID">
+        <Field
+          label="API ID"
+          hint="Your app's numeric API ID from my.telegram.org → API development tools. Paired with the API hash, it authorizes Telethon; the same ID is reused for every session on this machine."
+        >
           <Input
             name="api_id"
             type="number"
@@ -118,7 +121,10 @@ function ApiPanel({
             key={configApiId || "empty"}
           />
         </Field>
-        <Field label="API Hash">
+        <Field
+          label="API Hash"
+          hint="The secret string paired with your API ID, also from my.telegram.org. It's stored locally and never rendered back into this screen. To rotate it, paste a new hash and save; leave it blank to keep the saved one."
+        >
           <div className="flex gap-2">
             <Input
               name="api_hash"
