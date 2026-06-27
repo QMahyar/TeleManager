@@ -8,9 +8,12 @@
 
 **Current snapshot**
 - Backend suite: **151 passing** (`py -3.12 -m pytest -q`); `ruff check src tests` clean.
-- Frontend: `npm --prefix apps/web run typecheck && lint && build` all green.
-- Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ · Phase 3 ✅ · Phase 4 ✅ · Phases 5–9 ⬜
-- Phases 0–4 committed on `improvements/full-sweep` (off `main`).
+- Frontend: **23 Vitest tests** + `typecheck`/`lint`/`build` all green (`npm --prefix apps/web run ...`).
+- Phase 0 ✅ · 1 ✅ · 2 ✅ · 3 ✅ · 4 ✅ · 5 🟡 (resolver done; memo + decomposition deferred) · 6 ✅ · 7–9 ⬜
+- All committed on `improvements/full-sweep` (off `main`).
+- **Note:** Phase 6 (Vitest) was pulled ahead of Phase 5's risky remainder so the
+  memoization/decomposition land on top of a test net (the resolver Phase 5 extracted is
+  already covered).
 
 ---
 
@@ -134,8 +137,12 @@ files — the risk is *lost updates*), and returning `phone` to the local UI is 
 - [x] `useAppState` stays a thin aggregator flattening the slices into the single object
   `App.tsx` spreads — screens untouched. typecheck + lint + build all green.
 
-## Phase 5 — Frontend screen decomposition + perf ⬜
+## Phase 5 — Frontend screen decomposition + perf 🟡
 
+- [x] **Dedupe resolver** — `dialogTarget`/`dialogKind` moved to `lib/dialog-resolver.ts`
+  with documented fallback chains; 4 import sites updated; covered by Vitest (Phase 6).
+  *(Backend "converge to a canonical target field" intentionally skipped — semantic change
+  to action target resolution, deferred to a dedicated change.)*
 - [ ] **dialogs-screen.tsx (~1540)** → source/table/messages panels +
   `use-dialogs-controller.ts` + `use-cached-dialogs.ts`.
 - [ ] **accounts-screen.tsx (~1220)** → `fleet-tab` / `login-tab` (+ `use-account-login-flow.ts`)
@@ -147,13 +154,16 @@ files — the risk is *lost updates*), and returning `phone` to the local UI is 
 - [ ] **Dedupe resolver** — move `dialogTarget`/`dialogKind` into `lib/dialog-resolver.ts`,
   document field priority, converge backend to emit one canonical `target` field.
 
-## Phase 6 — Frontend tests (Vitest) ⬜
+## Phase 6 — Frontend tests (Vitest) ✅
 
-- [ ] devDeps: `vitest`, `@testing-library/react`, `@testing-library/jest-dom`, `jsdom`;
-  `vitest.config.ts` reusing the React plugin + `@/*` alias; `"test": "vitest run"`; wire
-  into the CI `web` job (the step deferred in Phase 0).
-- [ ] Cover logic-heavy units: `lib/dialog-resolver.ts`, `lib/targeting.ts`,
-  `lib/scheduling.ts`, queue-builder validation, recurrence UI in `schedule-parts.tsx`.
+- [x] devDeps `vitest` + `jsdom` + `@testing-library/{react,jest-dom,user-event}`;
+  `vitest.config.ts` (react plugin, jsdom env, `@/*` alias, `src/**/*.test.*` include);
+  `"test": "vitest run"`; wired into the CI `web` job (the step deferred in Phase 0).
+  `tsconfig.app.json` excludes `*.test.*` so production build/typecheck skip them.
+- [x] 23 tests over the logic-heavy units: `lib/dialog-resolver.ts`, `lib/targeting.ts`
+  (classify + analyze), `lib/scheduling.ts` (native/runner), `actionDraftBlocker` (the
+  queue-builder validation gate). *(Component test of `schedule-parts.tsx` recurrence UI
+  deferred — needs the render path; lower value than the pure logic now covered.)*
 
 ## Phase 7 — Big swing: typed API contract ⬜
 
