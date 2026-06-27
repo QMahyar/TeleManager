@@ -7,9 +7,9 @@
 **Status legend:** ✅ done · 🟡 in progress · ⬜ not started
 
 **Current snapshot**
-- Backend suite: **135 passing** (`py -3.12 -m pytest -q`); `ruff check src tests` clean.
-- Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ · Phases 3–9 ⬜
-- Phases 0–2 committed on `improvements/full-sweep` (off `main`).
+- Backend suite: **151 passing** (`py -3.12 -m pytest -q`); `ruff check src tests` clean.
+- Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ · Phase 3 ✅ · Phases 4–9 ⬜
+- Phases 0–3 committed on `improvements/full-sweep` (off `main`).
 
 ---
 
@@ -102,19 +102,25 @@ files — the risk is *lost updates*), and returning `phone` to the local UI is 
   all survive (proves the `mutate()` wiring, not just the class); delete-missing raises and
   writes nothing; `set_config` merges over the stored hash instead of wiping it.
 
-## Phase 3 — Backend refactor + irreversible-path tests ⬜
+## Phase 3 — Backend refactor + irreversible-path tests ✅
 
-- [ ] **Split `main.py` (~717 lines)** into `routes/` APIRouter modules (accounts, dialogs,
-  queue, schedules, config, audit, static) wired via `app.include_router(...)`. Mechanical.
-- [ ] **Extract `recurrence.py`** — pure functions from `schedules_service.py`
-  (`interval_delta`, `compute_anchor`, `upcoming_fire_times`, `fires_elapsed`,
-  `native_horizon`) for focused testing.
-- [ ] **High-value tests** (reuse `app_context` + `asyncio.run()`):
-  - Queue: continues after a single non-FloodWait op failure; honors cancel during
-    inter-op delay; **regression guard** that a failed run releases session locks.
-  - Recurrence: past anchor skips elapsed slots; `start == until` → empty; stagger >
-    interval doesn't overlap; runaway interval is capped.
-  - Persistence: concurrent `mutate()` doesn't lose updates *(covered)*; audit trim atomic.
+- [x] **Split `main.py` (739 → ~90 lines)** into `routes/` APIRouter modules (static,
+  config, settings, accounts+sessions, dialogs, actions, schedules, activity, system) wired
+  via `app.include_router(...)`. Shared live state (`manager`/`queue_runs`/`scheduler`) moved
+  to `runtime.py`; `main` re-exports test-facing names via `__all__`. All 50 API routes
+  verified registered (listed `app.routes`); only `test_file_picker`'s monkeypatch target
+  moved with `pick_path` into `routes.system`.
+- [x] **Extracted `recurrence.py` + `timeutil.py`** — pure fire-time math and UTC helpers,
+  re-exported from `schedules_service` so `ss.<name>` callers/tests are unchanged. Breaks
+  the would-be circular import.
+- [x] **High-value tests**:
+  - `test_queue_worker.py` — run continues after a single ok=False op (only FloodWait
+    breaks); **regression guard**: a crashing run releases session locks (`is_account_busy`
+    False). *(Cancel-during-inter-op-delay already covered by existing cancellation tests.)*
+  - `test_recurrence.py` (13) — past anchor skips elapsed slots; zero-length window empty;
+    runaway interval caps at limit; count/until bounds; native_horizon clamps.
+  - `test_persistence_migration.py` *(Phase 2)* concurrent saves don't lose updates;
+    `test_audit_trim.py` — trim bounds the JSONL and keeps every line valid JSON (atomic).
 
 ## Phase 4 — Frontend state split (foundation for react-query) ⬜
 
