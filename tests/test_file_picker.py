@@ -1,9 +1,16 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import sys
 
 from telemanager import file_picker
+
+
+def _system_routes():
+    # The /api/system/pick-path handler lives in routes.system and resolves pick_path
+    # in that module's namespace, so patch it there (not on telemanager.main).
+    return importlib.import_module("telemanager.routes.system")
 
 
 def test_pick_path_returns_selected_path(app_context: dict, client, monkeypatch) -> None:
@@ -11,7 +18,7 @@ def test_pick_path_returns_selected_path(app_context: dict, client, monkeypatch)
         assert kind == "file"
         return "E:/photos/wolf.jpg"
 
-    monkeypatch.setattr(app_context["main"], "pick_path", fake_pick)
+    monkeypatch.setattr(_system_routes(), "pick_path", fake_pick)
     response = client.post("/api/system/pick-path", json={"kind": "file"})
     assert response.status_code == 200
     assert response.json() == {"path": "E:/photos/wolf.jpg", "supported": True}
@@ -21,7 +28,7 @@ def test_pick_path_null_on_cancel(app_context: dict, client, monkeypatch) -> Non
     async def fake_pick(kind, title):
         return None
 
-    monkeypatch.setattr(app_context["main"], "pick_path", fake_pick)
+    monkeypatch.setattr(_system_routes(), "pick_path", fake_pick)
     response = client.post("/api/system/pick-path", json={"kind": "directory"})
     assert response.status_code == 200
     assert response.json()["path"] is None
@@ -33,7 +40,7 @@ def test_pick_path_unsupported_returns_501(app_context: dict, client, monkeypatc
     async def fake_pick(kind, title):
         raise main.PickerUnavailable("No native file picker is available on this system.")
 
-    monkeypatch.setattr(main, "pick_path", fake_pick)
+    monkeypatch.setattr(_system_routes(), "pick_path", fake_pick)
     response = client.post("/api/system/pick-path", json={"kind": "file"})
     assert response.status_code == 501
     assert "picker" in response.json()["detail"].lower()
@@ -45,7 +52,7 @@ def test_pick_path_busy_returns_409(app_context: dict, client, monkeypatch) -> N
     async def fake_pick(kind, title):
         raise main.PickerBusy("A file dialog is already open. Close it first.")
 
-    monkeypatch.setattr(main, "pick_path", fake_pick)
+    monkeypatch.setattr(_system_routes(), "pick_path", fake_pick)
     response = client.post("/api/system/pick-path", json={"kind": "file"})
     assert response.status_code == 409
 
