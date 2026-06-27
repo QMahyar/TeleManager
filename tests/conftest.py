@@ -36,7 +36,9 @@ def app_context(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[dic
     accounts = importlib.import_module("telemanager.accounts")
     main = importlib.import_module("telemanager.main")
 
-    client = TestClient(main.app)
+    # base_url uses an allowed host so requests pass the TrustedHostMiddleware
+    # (default TestClient host "testserver" would be rejected by the local-only guard).
+    client = TestClient(main.app, base_url="http://127.0.0.1")
     yield {
         "accounts": accounts,
         "client": client,

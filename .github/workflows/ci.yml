@@ -37,3 +37,27 @@ jobs:
 
       - name: Tests
         run: pytest -q
+
+  web:
+    name: Frontend lint, typecheck, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm --prefix apps/web ci
+
+      - name: Lint
+        run: npm --prefix apps/web run lint
+
+      - name: Typecheck
+        run: npm --prefix apps/web run typecheck
+
+      - name: Build
+        run: npm --prefix apps/web run build

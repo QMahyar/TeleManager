@@ -5,7 +5,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from .config import DATA_DIR, ensure_dirs, now_iso
+from .config import DATA_DIR, atomic_write_text, ensure_dirs, now_iso
 
 ACTIVITY_DIR = DATA_DIR / "activity"
 EVENTS_FILE = ACTIVITY_DIR / "events.jsonl"
@@ -52,7 +52,9 @@ def _maybe_trim_events() -> None:
     lines = EVENTS_FILE.read_text(encoding="utf-8").splitlines()
     if len(lines) <= MAX_EVENTS:
         return
-    EVENTS_FILE.write_text("\n".join(lines[-MAX_EVENTS:]) + "\n", encoding="utf-8")
+    # Atomic rewrite: the trim replaces the whole file, so a crash mid-write must
+    # not truncate the audit trail (the security-of-record log).
+    atomic_write_text(EVENTS_FILE, "\n".join(lines[-MAX_EVENTS:]) + "\n")
 
 
 def list_events(limit: int = 200) -> list[dict[str, Any]]:

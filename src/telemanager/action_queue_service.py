@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import random
 import time
 import uuid
@@ -15,11 +16,14 @@ from .config import SAFETY_SETTINGS_FILE, now_iso, read_json, write_json
 from .telegram_actions import (
     MESSAGE_REQUIRED_ACTIONS,
     TelegramAction,
+    TelegramActionResult,
     TelegramActionType,
     action_tier,
     safe_delay,
     validate_target_for_action,
 )
+
+logger = logging.getLogger("telemanager.queue")
 
 # Fraction of the sensitive-tier delay added as random jitter, so identical
 # back-to-back sensitive ops (and any synchronized retries across accounts) don't
@@ -27,6 +31,10 @@ from .telegram_actions import (
 SENSITIVE_JITTER_FRACTION = 0.25
 
 QUEUE_SAVE_INTERVAL_SECONDS = 2.0
+# Per-operation ceiling so a single hung Telethon call (dead socket, unresponsive
+# Telegram) can't stall the whole queue indefinitely. Generous enough for large
+# media uploads; a hang beyond this fails just that operation and the queue continues.
+QUEUE_OPERATION_TIMEOUT_SECONDS = 180.0
 TERMINAL_RUN_STATUSES = {"completed", "failed", "interrupted", "canceled", "flood_wait"}
 ACTIVE_RUN_STATUSES = {"queued", "running", "canceling"}
 
@@ -216,11 +224,30 @@ async def process_action_queue(
                     delay_seconds=delays["accounts"],
                 )
                 try:
-                    result = await manager.run_warm_action(action)
+                    result = await asyncio.wait_for(
+                        manager.run_warm_action(action), timeout=QUEUE_OPERATION_TIMEOUT_SECONDS
+                    )
                     result_payload = result.to_dict()
                 except FloodWaitError as flood:
                     handle_queue_flood_wait(run, operation, expanded[index:], flood)
                     break
+                except TimeoutError:
+                    # Fail just this operation and continue — a single stuck call must
+                    # not take the whole run down. Shape matches TelegramActionResult.
+                    logger.warning(
+                        "Queue %s: %s on %s timed out after %ss",
+                        run_id,
+                        operation["action_type"],
+                        operation["account_id"],
+                        QUEUE_OPERATION_TIMEOUT_SECONDS,
+                    )
+                    result_payload = TelegramActionResult(
+                        operation["account_id"],
+                        operation["account_label"],
+                        False,
+                        operation["action_type"],
+                        f"Operation timed out after {int(QUEUE_OPERATION_TIMEOUT_SECONDS)}s.",
+                    ).to_dict()
                 result_payload["target"] = operation["target"]
                 result_payload["step_index"] = operation["step_index"]
                 operation["status"] = "ok" if result_payload["ok"] else "failed"
@@ -236,6 +263,9 @@ async def process_action_queue(
                 run["status"] = "completed"
             save_action_runs(queue_runs)
         except Exception as exc:
+            # Log the traceback so an operator can diagnose from the logfile, not just
+            # see "failed" with a one-line message in the audit UI.
+            logger.exception("Action queue run %s failed", run_id)
             run["status"] = "failed"
             run["error"] = str(exc)
         finally:

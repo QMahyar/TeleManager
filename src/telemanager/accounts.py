@@ -70,6 +70,33 @@ class AccountRecord:
     # field with a default so existing accounts.json records load unchanged.
     photos_mode: str = "default"
 
+    def to_public_dict(self) -> dict[str, Any]:
+        """Explicit serialization for API responses.
+
+        Enumerated on purpose (not asdict/__dict__): a newly added internal field
+        is NOT exposed to the client unless deliberately listed here. The local
+        operator owns these accounts, so phone and profile fields are intentionally
+        included — the Host-header guard, not field omission, is what keeps them local.
+        """
+        return {
+            "id": self.id,
+            "label": self.label,
+            "phone": self.phone,
+            "session_name": self.session_name,
+            "authorized": self.authorized,
+            "status": self.status,
+            "username": self.username,
+            "first_name": self.first_name,
+            "last_name": self.last_name,
+            "last_error": self.last_error,
+            "source": self.source,
+            "created_at": self.created_at,
+            "last_validated_at": self.last_validated_at,
+            "last_dialog_fetch_at": self.last_dialog_fetch_at,
+            "dialog_count": self.dialog_count,
+            "photos_mode": self.photos_mode,
+        }
+
 
 @dataclass
 class LoginState:

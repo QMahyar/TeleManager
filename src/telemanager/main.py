@@ -14,6 +14,7 @@ from typing import Literal
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from . import __version__
 from .accounts import AccountManager
@@ -117,6 +118,21 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="TeleManager", lifespan=lifespan)
+
+# Local-only guard. With no auth layer, the browser is a confused deputy: any
+# page the operator visits can POST to http://127.0.0.1:8000, and DNS rebinding
+# can make an attacker's page same-origin with us. Validating the Host header
+# defeats rebinding (the request still carries the attacker's hostname). The
+# matcher strips the port, so bare hostnames cover ":8000" and the Vite dev
+# proxy (which forwards the browser's localhost host). Override only if you have
+# added auth/TLS and understand the AGENTS.md "local only" non-negotiable.
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.getenv("TELEMANAGER_ALLOWED_HOSTS", "127.0.0.1,localhost,::1").split(",")
+    if host.strip()
+]
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
+
 if (FRONTEND_DIST_DIR / "assets").exists():
     from fastapi.staticfiles import StaticFiles
 
@@ -257,7 +273,7 @@ async def login_account(phone: str = Form(...), label: str = Form(default="")) -
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     log_event("login_started", "Login code requested", account.label, {"account_id": account.id})
-    return {"account": account.__dict__}
+    return {"account": account.to_public_dict()}
 
 
 @app.post("/api/accounts/confirm-code")
@@ -265,7 +281,7 @@ async def confirm_code(account_id: str = Form(...), code: str = Form(...)) -> di
     try:
         account = await manager.confirm_code(account_id, code)
         log_event("login_completed", "Account login completed", account.label, {"account_id": account.id})
-        return {"account": account.__dict__}
+        return {"account": account.to_public_dict()}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -275,7 +291,7 @@ async def confirm_password(account_id: str = Form(...), password: str = Form(...
     try:
         account = await manager.confirm_password(account_id, password)
         log_event("login_completed", "Account login completed", account.label, {"account_id": account.id})
-        return {"account": account.__dict__}
+        return {"account": account.to_public_dict()}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -285,7 +301,7 @@ async def logout_account(account_id: str = Form(...)) -> dict:
     try:
         account = await manager.logout_account(account_id)
         log_event("account_logout", "Account logged out", account.label, {"account_id": account.id})
-        return {"account": account.__dict__}
+        return {"account": account.to_public_dict()}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -295,7 +311,7 @@ def update_account(account_id: str, request: AccountUpdateRequest) -> dict:
     try:
         account = rename_account(manager, account_id, request.label)
         log_event("account_renamed", "Account renamed", account.label, {"account_id": account.id})
-        return {"account": account.__dict__}
+        return {"account": account.to_public_dict()}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -304,7 +320,7 @@ def update_account(account_id: str, request: AccountUpdateRequest) -> dict:
 def set_account_photos(account_id: str, request: AccountPhotosModeRequest) -> dict:
     try:
         account = set_account_photos_mode(manager, account_id, request.photos_mode)
-        return {"account": account.__dict__}
+        return {"account": account.to_public_dict()}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -314,7 +330,7 @@ async def validate_account(account_id: str) -> dict:
     try:
         account = await manager.validate_account(account_id)
         log_event("session_validated", "Session validated", account.label, {"account_id": account.id})
-        return {"account": account.__dict__}
+        return {"account": account.to_public_dict()}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -342,7 +358,7 @@ async def import_sessions_batch(files: list[UploadFile] = FILES_BODY) -> dict:
         {"imported": len(imported), "failed": len(result["failed"])},
     )
     return {
-        "imported": [account.__dict__ for account in imported],
+        "imported": [account.to_public_dict() for account in imported],
         "failed": result["failed"],
     }
 
@@ -367,7 +383,7 @@ def rename_session(account_id: str, request: SessionRenameRequest) -> dict:
     try:
         account = rename_session_file(manager, account_id, request.session_name)
         log_event("session_file_renamed", "Session file renamed", account.label, {"account_id": account.id})
-        return {"account": account.__dict__}
+        return {"account": account.to_public_dict()}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

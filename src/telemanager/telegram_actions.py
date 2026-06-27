@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 import struct
 from dataclasses import asdict, dataclass
@@ -189,6 +190,11 @@ async def send_media(client: TelegramClient, target: str, message: str | None) -
     file_path = (payload.get("file") or payload.get("path") or "").strip()
     if not file_path:
         raise ValueError("Media action requires file=PATH in the message/options field.")
+    # Validate before handing to Telethon so a typo surfaces as a clear, actionable
+    # error instead of an opaque send_file failure mid-run. Not confined to a single
+    # directory on purpose: this is a local single-operator tool that owns the host.
+    if not os.path.isfile(file_path):
+        raise ValueError(f"Media file not found: {file_path}")
     caption = payload.get("caption") or payload.get("message") or ""
     parse_mode = payload.get("parse_mode")
     peer = await resolve_input_peer(client, target)

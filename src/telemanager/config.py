@@ -46,9 +46,19 @@ def read_json(path: Path, default: Any) -> Any:
         return default
 
 
+def atomic_write_text(path: Path, text: str) -> None:
+    """Write text via a temp file + atomic replace so readers never see a
+    half-written or truncated file (a crash leaves the prior version intact).
+
+    Shared by write_json and any other store that overwrites a file in place
+    (e.g. the audit-log trim) so every full-file rewrite gets the same guarantee.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_suffix(f"{path.suffix}.tmp")
+    tmp_path.write_text(text, encoding="utf-8")
+    tmp_path.replace(path)
+
+
 def write_json(path: Path, value: Any) -> None:
     ensure_dirs()
-    payload = json.dumps(value, indent=2, sort_keys=True)
-    tmp_path = path.with_suffix(f"{path.suffix}.tmp")
-    tmp_path.write_text(payload, encoding="utf-8")
-    tmp_path.replace(path)
+    atomic_write_text(path, json.dumps(value, indent=2, sort_keys=True))

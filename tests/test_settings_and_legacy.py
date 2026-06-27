@@ -27,7 +27,7 @@ def test_general_exception_handler_hides_internal_detail(app_context: dict):
     def _test_unhandled_error():
         raise RuntimeError("secret internal detail")
 
-    client = TestClient(main.app, raise_server_exceptions=False)
+    client = TestClient(main.app, base_url="http://127.0.0.1", raise_server_exceptions=False)
     response = client.get("/api/test-unhandled-error")
 
     assert response.status_code == 500
