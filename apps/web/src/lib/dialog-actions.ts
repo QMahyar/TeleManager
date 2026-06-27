@@ -2,7 +2,7 @@ import type { ActionType, TelegramDialog } from "../types"
 
 import { getActionSchema } from "./action-schema"
 import { actionMeta } from "./constants"
-import { dialogKind, dialogTarget } from "./helpers"
+import { dialogKind, dialogTarget } from "./dialog-resolver"
 import { analyzeTarget } from "./targeting"
 
 // A quick action needs an inline mini-prompt when it has a structured form

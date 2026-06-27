@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import { dialogKind, dialogTarget } from "../lib/helpers"
+import { dialogKind, dialogTarget } from "../lib/dialog-resolver"
 import type { TelegramDialog } from "../types"
 
 export function useDialogState() {

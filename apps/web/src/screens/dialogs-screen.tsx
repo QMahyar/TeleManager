@@ -48,12 +48,8 @@ import {
   selectionKindCounts,
 } from "../lib/dialog-actions"
 import { actionMeta } from "../lib/constants"
-import {
-  dialogKind,
-  dialogTarget,
-  humanTime,
-  resolvePhotosEnabled,
-} from "../lib/helpers"
+import { dialogKind, dialogTarget } from "../lib/dialog-resolver"
+import { humanTime, resolvePhotosEnabled } from "../lib/helpers"
 import { awaitQueueRun, startQueueRun } from "../lib/queue-run"
 import type {
   ActionType,

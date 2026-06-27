@@ -9,7 +9,7 @@ import {
   normalizeKind,
   type DialogKind,
 } from "../lib/dialog-actions"
-import { dialogKind, dialogTarget } from "../lib/helpers"
+import { dialogKind, dialogTarget } from "../lib/dialog-resolver"
 import { actionMeta } from "../lib/constants"
 import type { Account, ActionType, Flash, TelegramDialog } from "../types"
 import {

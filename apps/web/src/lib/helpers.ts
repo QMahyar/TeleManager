@@ -1,4 +1,4 @@
-import type { Account, PhotosMode, QueueRun, TelegramDialog } from "../types"
+import type { Account, PhotosMode, QueueRun } from "../types"
 
 // Effective dialog-photo state for an account. Mirrors the backend resolver: a
 // per-account "on"/"off" override wins, "default" (or unset) defers to the global
@@ -67,20 +67,6 @@ export function relTime(value?: string) {
   const days = Math.round(hours / 24)
   if (days < 7) return `${days}d ago`
   return new Date(value).toLocaleDateString()
-}
-
-export function dialogKind(dialog: TelegramDialog) {
-  return (
-    dialog.dialog_type ||
-    dialog.kind ||
-    dialog.type ||
-    dialog.entity_type ||
-    "unknown"
-  )
-}
-
-export function dialogTarget(dialog: TelegramDialog) {
-  return dialog.username ? `@${dialog.username}` : String(dialog.id)
 }
 
 export function queueRunProgress(run: QueueRun) {
