@@ -39,7 +39,7 @@ jobs:
         run: pytest -q
 
   web:
-    name: Frontend lint, typecheck, build
+    name: Frontend lint, typecheck, test, build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -58,6 +58,9 @@ jobs:
 
       - name: Typecheck
         run: npm --prefix apps/web run typecheck
+
+      - name: Test
+        run: npm --prefix apps/web run test
 
       - name: Build
         run: npm --prefix apps/web run build
