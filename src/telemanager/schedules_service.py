@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -12,6 +12,16 @@ from .accounts import AccountManager
 from .action_queue_service import ActionQueueRequest, start_action_queue
 from .audit_service import log_event
 from .documents import schedules_doc
+from .recurrence import (
+    NATIVE_HORIZON,
+    compute_anchor,
+    fires_elapsed,
+    interval_delta,
+    native_horizon,
+    next_future_slot,
+    total_planned,
+    upcoming_fire_times,
+)
 from .telegram_actions import (
     NATIVELY_SCHEDULABLE_ACTIONS,
     TELEGRAM_SCHEDULED_PER_CHAT_LIMIT,
@@ -23,6 +33,7 @@ from .telegram_actions import (
     parse_options,
     safe_delay,
 )
+from .timeutil import iso, parse_iso, utcnow
 
 logger = logging.getLogger("telemanager.scheduler")
 
@@ -30,8 +41,7 @@ logger = logging.getLogger("telemanager.scheduler")
 # schedule made only of these can fire while TeleManager is closed — sourced from
 # the unified ACTION_META registry (send_message/send_media unconditionally, and
 # start_bot only without a referral param, handled in _step_is_native).
-# Telegram only schedules messages 365 days out; keep a small safety margin.
-NATIVE_HORIZON = timedelta(days=364)
+# NATIVE_HORIZON (how far ahead Telegram can pre-schedule) now lives in recurrence.py.
 # How often a running app refills the per-chat native buffer. With a 100-message
 # buffer this comfortably covers any interval down to the 1-minute minimum.
 NATIVE_RECONCILE_INTERVAL = timedelta(hours=1)
@@ -50,26 +60,6 @@ NATIVE_SEND_DELAY = 0.2
 
 TERMINAL_SCHEDULE_STATUSES = {"completed", "canceled"}
 ACTIVE_SCHEDULE_STATUSES = {"active", "paused", "error"}
-
-UNIT_SECONDS = {"minutes": 60, "hours": 3600, "days": 86400}
-
-
-def utcnow() -> datetime:
-    return datetime.now(UTC)
-
-
-def iso(value: datetime) -> str:
-    return value.astimezone(UTC).isoformat()
-
-
-def parse_iso(value: str | None) -> datetime | None:
-    if not value:
-        return None
-    try:
-        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
 # ---------------------------------------------------------------------------
@@ -205,81 +195,9 @@ def prune_local_native_ids(account_id: str, target: str, ids: list[int]) -> None
         save_schedules(schedules)
 
 
-# ---------------------------------------------------------------------------
-# Recurrence math (pure, unit-tested)
-# ---------------------------------------------------------------------------
-
-
-def interval_delta(recurrence: dict[str, Any]) -> timedelta:
-    seconds = UNIT_SECONDS[recurrence["interval_unit"]] * int(recurrence["interval_value"])
-    return timedelta(seconds=seconds)
-
-
-def total_planned(recurrence: dict[str, Any]) -> int | None:
-    return int(recurrence["end_count"]) if recurrence.get("end_mode") == "count" else None
-
-
-def compute_anchor(recurrence: dict[str, Any], created_at: datetime) -> datetime:
-    start = parse_iso(recurrence.get("start_at"))
-    if start:
-        return start
-    return created_at + interval_delta(recurrence)
-
-
-def upcoming_fire_times(
-    anchor: datetime,
-    recurrence: dict[str, Any],
-    after: datetime,
-    horizon: datetime,
-    limit: int,
-) -> list[datetime]:
-    """Fire times strictly after `after`, up to and including `horizon`, honoring
-    the end condition (count/until), capped at `limit` items."""
-    delta = interval_delta(recurrence)
-    if delta.total_seconds() <= 0 or limit <= 0:
-        return []
-    delta_seconds = delta.total_seconds()
-    diff = (after - anchor).total_seconds()
-    k = 0 if diff < 0 else int(diff // delta_seconds) + 1
-    count = total_planned(recurrence)
-    until = parse_iso(recurrence.get("end_until"))
-    times: list[datetime] = []
-    while len(times) < limit:
-        if count is not None and k >= count:
-            break
-        fire = anchor + k * delta
-        if fire > horizon:
-            break
-        if until and fire > until:
-            break
-        if fire > after:
-            times.append(fire)
-        k += 1
-    return times
-
-
-def next_future_slot(anchor: datetime, recurrence: dict[str, Any], after: datetime) -> datetime | None:
-    horizon = after + NATIVE_HORIZON + timedelta(days=2)
-    times = upcoming_fire_times(anchor, recurrence, after, horizon, limit=1)
-    return times[0] if times else None
-
-
-def fires_elapsed(anchor: datetime, recurrence: dict[str, Any], instant: datetime) -> int:
-    """How many fire slots have already passed at `instant` (bounded by the plan)."""
-    delta = interval_delta(recurrence)
-    until = parse_iso(recurrence.get("end_until"))
-    effective = min(instant, until) if until else instant
-    if effective < anchor:
-        return 0
-    elapsed = int((effective - anchor).total_seconds() // delta.total_seconds()) + 1
-    count = total_planned(recurrence)
-    return min(elapsed, count) if count is not None else elapsed
-
-
-def native_horizon(recurrence: dict[str, Any], now: datetime) -> datetime:
-    horizon = now + NATIVE_HORIZON
-    until = parse_iso(recurrence.get("end_until"))
-    return min(horizon, until) if until else horizon
+# Recurrence math (interval_delta, total_planned, compute_anchor, upcoming_fire_times,
+# next_future_slot, fires_elapsed, native_horizon) now lives in recurrence.py and is
+# re-exported via the import above, so schedules_service.<fn> keeps resolving.
 
 
 # ---------------------------------------------------------------------------
