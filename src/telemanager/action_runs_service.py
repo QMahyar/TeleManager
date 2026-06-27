@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from .config import ACTION_RUNS_FILE, read_json, write_json
+from .documents import runs_doc
 
 TERMINAL_STATUSES = {"completed", "failed", "interrupted", "canceled", "flood_wait"}
 
 
 def load_action_runs() -> dict[str, dict[str, Any]]:
-    raw_runs = read_json(ACTION_RUNS_FILE, {})
+    raw_runs = runs_doc.read({})
     if not isinstance(raw_runs, dict):
         return {}
     runs: dict[str, dict[str, Any]] = {}
@@ -27,7 +27,7 @@ def load_action_runs() -> dict[str, dict[str, Any]]:
 
 def save_action_runs(runs: dict[str, dict[str, Any]]) -> None:
     trimmed = dict(sorted(runs.items(), key=lambda item: item[1].get("created_at", ""), reverse=True)[:100])
-    write_json(ACTION_RUNS_FILE, trimmed)
+    runs_doc.write(trimmed)
 
 
 def list_action_runs(runs: dict[str, dict[str, Any]], limit: int = 25) -> list[dict[str, Any]]:

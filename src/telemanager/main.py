@@ -33,8 +33,9 @@ from .action_queue_service import (
 from .action_runs_service import list_action_runs, load_action_runs, save_action_runs
 from .app_settings import AppSettingsRequest, app_settings, save_app_settings
 from .audit_service import export_events_path, list_events, log_event
-from .config import AVATARS_DIR, CONFIG_FILE, read_json, write_json
+from .config import AVATARS_DIR
 from .dialogs_service import avatar_path, fetch_dialogs, fetch_messages, list_cached_dialogs
+from .documents import config_doc
 from .file_picker import PickerBusy, PickerUnavailable, pick_path
 from .presets_service import delete_action_preset, list_action_presets, save_action_preset
 from .schedules_service import (
@@ -196,19 +197,23 @@ def first_existing(*paths: Path) -> Path:
 
 @app.get("/api/config")
 def get_config() -> dict:
-    config = read_json(CONFIG_FILE, {})
+    config = config_doc.read({})
     return {"api_id": config.get("api_id"), "api_hash_configured": bool(config.get("api_hash"))}
 
 
 @app.post("/api/config")
 async def set_config(request: Request) -> dict:
     payload = await config_payload(request)
-    existing = read_json(CONFIG_FILE, {})
-    api_id = parse_api_id(payload.get("api_id", existing.get("api_id")))
-    api_hash = str(payload.get("api_hash") or "").strip() or existing.get("api_hash")
-    if not api_hash:
-        raise HTTPException(status_code=400, detail="Telegram API hash is required.")
-    write_json(CONFIG_FILE, {"api_id": api_id, "api_hash": str(api_hash).strip()})
+    # Merge payload over existing under the file lock so a concurrent write can't be
+    # lost. A bad/missing hash raises inside mutate(), so nothing is persisted.
+    with config_doc.mutate({}) as config:
+        api_id = parse_api_id(payload.get("api_id", config.get("api_id")))
+        api_hash = str(payload.get("api_hash") or "").strip() or config.get("api_hash")
+        if not api_hash:
+            raise HTTPException(status_code=400, detail="Telegram API hash is required.")
+        config.clear()
+        config["api_id"] = api_id
+        config["api_hash"] = str(api_hash).strip()
     return {"ok": True, "api_id": api_id, "api_hash_configured": True}
 
 

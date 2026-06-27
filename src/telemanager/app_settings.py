@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
 
-from .config import APP_SETTINGS_FILE, read_json, write_json
+from .documents import app_settings_doc
 
 if TYPE_CHECKING:
     from .accounts import AccountRecord
@@ -23,13 +23,13 @@ class AppSettingsRequest(BaseModel):
 
 def app_settings() -> dict:
     """Current app settings, with any missing keys filled by the model defaults."""
-    settings = read_json(APP_SETTINGS_FILE, {})
+    settings = app_settings_doc.read({})
     return AppSettingsRequest(**settings).model_dump()
 
 
 def save_app_settings(request: AppSettingsRequest) -> dict:
     settings = request.model_dump()
-    write_json(APP_SETTINGS_FILE, settings)
+    app_settings_doc.write(settings)
     return settings
 
 

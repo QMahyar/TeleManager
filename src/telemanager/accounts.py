@@ -19,7 +19,8 @@ from telethon.errors import (
     SessionPasswordNeededError,
 )
 
-from .config import ACCOUNTS_FILE, CONFIG_FILE, SESSIONS_DIR, now_iso, read_json, write_json
+from .config import SESSIONS_DIR, now_iso
+from .documents import accounts_doc, config_doc
 from .telegram_actions import TelegramAction, TelegramActionResult, run_telegram_action
 
 CONNECT_TIMEOUT_SECONDS = 25
@@ -120,7 +121,7 @@ class AccountManager:
         self._load_accounts()
 
     def _load_accounts(self) -> None:
-        raw_accounts = read_json(ACCOUNTS_FILE, [])
+        raw_accounts = accounts_doc.read([])
         self.accounts = {}
         for raw_account in raw_accounts:
             account = AccountRecord(**raw_account)
@@ -128,14 +129,16 @@ class AccountManager:
             self.accounts[account.id] = account
 
     def _save_accounts(self) -> None:
-        write_json(ACCOUNTS_FILE, [asdict(account) for account in self.accounts.values()])
+        # Snapshot of the in-memory fleet (the source of truth, guarded by self.lock);
+        # routed through accounts_doc so the write shares the unified store layer.
+        accounts_doc.write([asdict(account) for account in self.accounts.values()])
 
     def api_configured(self) -> bool:
-        config = read_json(CONFIG_FILE, {})
+        config = config_doc.read({})
         return bool(config.get("api_id") and config.get("api_hash"))
 
     def get_api_credentials(self) -> tuple[int, str]:
-        config = read_json(CONFIG_FILE, {})
+        config = config_doc.read({})
         api_id = config.get("api_id")
         api_hash = config.get("api_hash")
         if not api_id or not api_hash:

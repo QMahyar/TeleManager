@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, model_validator
 from .accounts import AccountManager
 from .action_queue_service import ActionQueueRequest, start_action_queue
 from .audit_service import log_event
-from .config import SCHEDULES_FILE, read_json, write_json
+from .documents import schedules_doc
 from .telegram_actions import (
     NATIVELY_SCHEDULABLE_ACTIONS,
     TELEGRAM_SCHEDULED_PER_CHAT_LIMIT,
@@ -127,14 +127,17 @@ class ScheduleUpdateRequest(BaseModel):
 
 
 def load_schedules() -> dict[str, dict[str, Any]]:
-    raw = read_json(SCHEDULES_FILE, {})
+    raw = schedules_doc.read({})
     if not isinstance(raw, dict):
         return {}
     return {str(key): value for key, value in raw.items() if isinstance(value, dict)}
 
 
 def save_schedules(schedules: dict[str, dict[str, Any]]) -> None:
-    write_json(SCHEDULES_FILE, schedules)
+    # Callers (scheduler create/update/delete, schedule routes) perform the
+    # read -> modify -> save under the scheduler's asyncio lock, so this stays a
+    # plain write; schedules_doc keeps it on the unified store layer.
+    schedules_doc.write(schedules)
 
 
 def list_schedules(schedules: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:

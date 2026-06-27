@@ -12,7 +12,8 @@ from telethon.errors import FloodWaitError
 from .accounts import AccountManager
 from .action_runs_service import save_action_runs
 from .audit_service import log_event
-from .config import SAFETY_SETTINGS_FILE, now_iso, read_json, write_json
+from .config import now_iso
+from .documents import safety_doc
 from .telegram_actions import (
     MESSAGE_REQUIRED_ACTIONS,
     TelegramAction,
@@ -109,13 +110,13 @@ class SafetySettingsRequest(BaseModel):
 
 
 def safety_defaults() -> dict:
-    settings = read_json(SAFETY_SETTINGS_FILE, {})
+    settings = safety_doc.read({})
     return SafetySettingsRequest(**settings).model_dump()
 
 
 def save_safety_settings(request: SafetySettingsRequest) -> dict:
     settings = request.model_dump()
-    write_json(SAFETY_SETTINGS_FILE, settings)
+    safety_doc.write(settings)
     return settings
 
 

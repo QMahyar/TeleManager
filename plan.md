@@ -7,9 +7,9 @@
 **Status legend:** ✅ done · 🟡 in progress · ⬜ not started
 
 **Current snapshot**
-- Backend suite: **132 passing** (`py -3.12 -m pytest -q`).
-- Phase 0 ✅ · Phase 1 ✅ · Phase 2 🟡 (keystone + tests in; call-site migration pending) · Phases 3–9 ⬜
-- Nothing committed yet (cadence: "keep going, commit later"). All work is uncommitted on `main`.
+- Backend suite: **135 passing** (`py -3.12 -m pytest -q`); `ruff check src tests` clean.
+- Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ · Phases 3–9 ⬜
+- Phases 0–2 committed on `improvements/full-sweep` (off `main`).
 
 ---
 
@@ -73,7 +73,7 @@ files — the risk is *lost updates*), and returning `phone` to the local UI is 
 - [x] **New tests** — `tests/test_backend_hardening.py` (`to_public_dict` doesn't leak an
   injected attribute but does keep `phone`; `send_media` rejects a missing file).
 
-## Phase 2 — Persistence unification (foundation for SQLite) 🟡
+## Phase 2 — Persistence unification (foundation for SQLite) ✅
 
 - [x] **`src/telemanager/store.py`** — `Document` abstraction per JSON file:
   `threading.Lock` (not `asyncio.Lock`, since persistence is touched from both the anyio
@@ -82,15 +82,25 @@ files — the risk is *lost updates*), and returning `phone` to the local UI is 
   unchanged.
 - [x] **`tests/test_store.py`** — `mutate` persists in-place edits; `mutate` writes nothing
   on exception; 20 threads × 25 increments = 500 with no lost updates.
-- [ ] **Migrate read-modify-write call-sites** to `Document.mutate()`:
-  `accounts.py` (`_save_accounts`/`_load_accounts`), `presets_service.py`,
-  `schedules_service.py` (all save sites), `main.py` config merge, `app_settings`, safety
-  settings. *(Grep confirms no service imports `Document` yet — this is the remaining bulk.)*
-- [ ] **`queue_runs` → `RunsStore`** — fold the shared run dict (mutated across `main.py`
-  and `action_queue_service.py`) behind internal locking; inject into manager + scheduler.
-  Removes the last last-write-wins window on concurrent run mutations. *(Decision: route
-  `queue_runs` persistence through a `Document`/`RunsStore` rather than a full object
-  refactor across scheduler signatures — same integrity guarantee, lower blast radius.)*
+- [x] **`src/telemanager/documents.py`** — process-wide `Document` singletons, one per file
+  (one lock per file). Services import the shared instance instead of constructing their
+  own, so every writer of a file serializes through the same gate. `config_doc` is shared
+  between `set_config` (write) and the account manager (reads). This is the single seam
+  Phase 9 swaps for SQLite.
+- [x] **Migrated read-modify-write call-sites.** Genuine *unguarded* RMW → `mutate()`:
+  `presets_service.py` (upsert/delete) and `main.py` `set_config` (config merge — a missing
+  hash raises inside `mutate()`, so nothing persists). Already-serialized or snapshot writes
+  → routed through `read`/`write` for unification: `schedules_service.py` (under the
+  scheduler's `asyncio.Lock`), `accounts.py` (`_load`/`_save`, fleet held in memory under
+  `self.lock`), `app_settings.py` + safety settings (full-replace writes).
+- [x] **`queue_runs` persistence via `runs_doc`.** `load_action_runs`/`save_action_runs`
+  now write through the shared `Document`, giving the run dict a single locked, atomic write
+  gate. *(Chose this over a full `RunsStore` signature refactor across `main.py`/scheduler —
+  same persistence-integrity guarantee, far lower blast radius. The in-memory dict stays
+  shared by reference as before.)*
+- [x] **`tests/test_persistence_migration.py`** — 16 concurrent `save_action_preset` calls
+  all survive (proves the `mutate()` wiring, not just the class); delete-missing raises and
+  writes nothing; `set_config` merges over the stored hash instead of wiping it.
 
 ## Phase 3 — Backend refactor + irreversible-path tests ⬜
 
