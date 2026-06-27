@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { api } from "../lib/api"
+import { accountsResponseSchema, configResponseSchema } from "../lib/schemas"
 import type { Account } from "../types"
 
 export function useAccountState() {
@@ -21,8 +22,8 @@ export function useAccountState() {
 
   const refresh = React.useCallback(async () => {
     const [config, accountPayload] = await Promise.all([
-      api<{ api_id?: number; api_hash_configured: boolean }>("/api/config"),
-      api<{ accounts: Account[] }>("/api/accounts"),
+      api("/api/config", {}, configResponseSchema),
+      api("/api/accounts", {}, accountsResponseSchema),
     ])
     const nextAccounts = accountPayload.accounts || []
     const known = new Set(nextAccounts.map((account) => account.id))
@@ -63,7 +64,7 @@ function filterKnownIds(current: Set<string>, known: Set<string>) {
 }
 
 function configStatusLabel(config: {
-  api_id?: number
+  api_id?: number | null
   api_hash_configured: boolean
 }) {
   return config.api_hash_configured

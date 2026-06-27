@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { api } from "../lib/api"
+import { versionResponseSchema } from "../lib/schemas"
 
 // One-shot fetch of the backend version for the status bar. Stays in lockstep
 // with the backend (same source the About screen reads), so no build-time
@@ -10,7 +11,7 @@ export function useVersion() {
 
   React.useEffect(() => {
     let active = true
-    api<{ version: string }>("/api/version")
+    api("/api/version", {}, versionResponseSchema)
       .then((info) => {
         if (active) setVersion(info.version)
       })

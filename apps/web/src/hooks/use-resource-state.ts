@@ -1,6 +1,14 @@
 import * as React from "react"
 
 import { api } from "../lib/api"
+import {
+  activityResponseSchema,
+  appSettingsResponseSchema,
+  presetsResponseSchema,
+  runsResponseSchema,
+  safetyResponseSchema,
+  schedulesResponseSchema,
+} from "../lib/schemas"
 import { emptySafety } from "../lib/constants"
 import type {
   ActionsMeta,
@@ -37,39 +45,41 @@ export function useResourceState(flash: (message: string) => void, view: View) {
   }, [])
 
   const loadActivity = React.useCallback(async () => {
-    const payload = await api<{ events: ActivityEvent[] }>(
-      "/api/activity?limit=100"
+    const payload = await api(
+      "/api/activity?limit=100",
+      {},
+      activityResponseSchema
     )
     setActivity(payload.events || [])
   }, [])
 
   const loadRuns = React.useCallback(async () => {
-    const payload = await api<{ runs: QueueRun[] }>(
-      "/api/actions/queue/runs?limit=10"
+    const payload = await api(
+      "/api/actions/queue/runs?limit=10",
+      {},
+      runsResponseSchema
     )
     setRuns(payload.runs || [])
   }, [])
 
   const loadPresets = React.useCallback(async () => {
-    const payload = await api<{ presets: Preset[] }>("/api/actions/presets")
+    const payload = await api("/api/actions/presets", {}, presetsResponseSchema)
     setPresets(payload.presets || [])
   }, [])
 
   const loadSchedules = React.useCallback(async () => {
-    const payload = await api<{ schedules: Schedule[] }>("/api/schedules")
+    const payload = await api("/api/schedules", {}, schedulesResponseSchema)
     setSchedules(payload.schedules || [])
   }, [])
 
   const loadSafety = React.useCallback(async () => {
-    const payload = await api<{ settings: SafetySettings }>(
-      "/api/settings/safety"
-    )
+    const payload = await api("/api/settings/safety", {}, safetyResponseSchema)
     setSafety(payload.settings || emptySafety)
     safetyLoaded.current = true
   }, [])
 
   const loadAppSettings = React.useCallback(async () => {
-    const payload = await api<{ settings: AppSettings }>("/api/settings/app")
+    const payload = await api("/api/settings/app", {}, appSettingsResponseSchema)
     setAppSettings(payload.settings || defaultAppSettings)
   }, [])
 

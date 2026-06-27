@@ -8,8 +8,9 @@
 
 **Current snapshot**
 - Backend suite: **151 passing** (`py -3.12 -m pytest -q`); `ruff check src tests` clean.
-- Frontend: **23 Vitest tests** + `typecheck`/`lint`/`build` all green (`npm --prefix apps/web run ...`).
-- Phase 0 ✅ · 1 ✅ · 2 ✅ · 3 ✅ · 4 ✅ · 5 🟡 (resolver done; memo + decomposition deferred) · 6 ✅ · 7–9 ⬜
+- Frontend: **26 Vitest tests** + `typecheck`/`lint`/`build` all green (`npm --prefix apps/web run ...`).
+- Phase 0 ✅ · 1 ✅ · 2 ✅ · 3 ✅ · 4 ✅ · 5 🟡 (resolver done; memo + decomposition deferred) · 6 ✅ ·
+  7 ✅ (boundary validation + all polled-into-state reads covered; local reads/acks out of scope) · 8–9 ⬜
 - All committed on `improvements/full-sweep` (off `main`).
 - **Note:** Phase 6 (Vitest) was pulled ahead of Phase 5's risky remainder so the
   memoization/decomposition land on top of a test net (the resolver Phase 5 extracted is
@@ -165,11 +166,32 @@ files — the risk is *lost updates*), and returning `phone` to the local UI is 
   queue-builder validation gate). *(Component test of `schedule-parts.tsx` recurrence UI
   deferred — needs the render path; lower value than the pure logic now covered.)*
 
-## Phase 7 — Big swing: typed API contract ⬜
+## Phase 7 — Big swing: typed API contract ✅
 
-- [ ] Zod schemas for the ~20 response shapes; validate inside `lib/api.ts`'s `api<T>()` at
-  the boundary (replaces the unchecked `as T`).
-- [ ] Optional drift-killer: generate types/schemas from FastAPI `/openapi.json`.
+- [x] **Boundary validation mechanism** — `api<T>()` (`lib/api.ts`) takes an optional
+  `schema?: ZodType<T>`; when passed it `safeParse`s the response, logs field-level detail
+  and throws a short message on drift instead of returning an unchecked `as T`. `zod ^4.4.3`
+  is a runtime dep (moved out of devDeps in the lockfile). Covered by `lib/api.test.ts`
+  (match → parsed; drift → throws; non-ok → backend detail).
+- [x] **Loader read-paths validated** — `lib/schemas.ts` defines 9 response-envelope schemas
+  wired into every loader that populates/polls core app state: accounts + config
+  (`use-account-state`), activity/runs/presets/schedules/safety/app
+  (`use-resource-state`), version (`use-version`). These are the dangerous case — the result
+  is stashed in state and read later deep in a render, so drift there is a silent
+  `undefined` crash far from its cause. *(Bug caught wiring this: `tsc -b` build is stricter
+  than the `typecheck` script and flagged a `number | null` drift the latter missed — run
+  `build` as the real type gate.)*
+- [x] **Out of scope, by design** — one-shot/local reads (dialog picker, messages,
+  run-history detail, scheduled-inspector, schedule preview, `actions/meta`, `updates/check`)
+  and mutation acks (`{account}`, `{run_id}`, `{path}`, `{removed}`, `{cleared}`) stay
+  unvalidated: each is consumed in its own `try/catch` right after the `await`, so a drift
+  throws loudly *at the call site* rather than silently corrupting shared state. Adding
+  schemas there is speculative safety; `dialogs-screen` is also about to be decomposed
+  (Phase 5), so schematizing it now would be churn. Schematize incrementally if a real drift
+  ever bites one of these.
+- [~] Optional drift-killer (generate from `/openapi.json`): **skipped (YAGNI)**. The
+  hand-written schemas already fail the `build` on drift via `tsc`; a codegen step is more
+  toolchain than the hand-maintenance currently costs.
 
 ## Phase 8 — Big swing: react-query ⬜
 

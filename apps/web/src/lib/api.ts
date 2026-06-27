@@ -1,6 +1,12 @@
+import type { ZodType } from "zod"
+
 export async function api<T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  // Optional runtime schema (see lib/schemas.ts). When passed, the response is
+  // validated at this boundary instead of being trusted via an unchecked cast — a
+  // backend/frontend shape drift then fails loudly here rather than crashing later.
+  schema?: ZodType<T>
 ): Promise<T> {
   try {
     const response = await fetch(path, options)
@@ -11,7 +17,17 @@ export async function api<T>(
     if (!response.ok) {
       throw new Error(payload?.detail || "Request failed")
     }
-    return (payload ?? response) as T
+    const data = payload ?? response
+    if (schema) {
+      const result = schema.safeParse(data)
+      if (!result.success) {
+        // Log the field-level detail for debugging; surface a short message to the UI.
+        console.error(`Response validation failed for ${path}:`, result.error)
+        throw new Error(`Unexpected response shape from ${path}.`)
+      }
+      return result.data
+    }
+    return data as T
   } catch (error) {
     throw error instanceof Error ? error : new Error("Request failed")
   }
