@@ -48,7 +48,12 @@ import {
   selectionKindCounts,
 } from "../lib/dialog-actions"
 import { actionMeta } from "../lib/constants"
-import { dialogKind, dialogTarget, humanTime } from "../lib/helpers"
+import {
+  dialogKind,
+  dialogTarget,
+  humanTime,
+  resolvePhotosEnabled,
+} from "../lib/helpers"
 import { awaitQueueRun, startQueueRun } from "../lib/queue-run"
 import type {
   ActionType,
@@ -158,6 +163,17 @@ export function DialogsScreen(props: DialogsScreenProps) {
     return loadMessages(dialog, MESSAGES_PAGE)
   }
 
+  // Whether to render real photos for the account currently in view — the global
+  // setting combined with that account's per-account override. Drives the avatar
+  // <img> vs gradient choice; flipping it hides photos without a re-fetch.
+  const activeAccount = props.accounts.find(
+    (account) => account.id === props.dialogAccountId
+  )
+  const showPhotos = resolvePhotosEnabled(
+    props.appSettings.show_dialog_photos,
+    activeAccount?.photos_mode
+  )
+
   return (
     <div className="grid gap-4 xl:grid-cols-[20rem_minmax(0,1fr)] 2xl:grid-cols-[21rem_minmax(0,1fr)]">
       <DialogsSourcePanel
@@ -181,6 +197,7 @@ export function DialogsScreen(props: DialogsScreenProps) {
         allFilteredSelected={allFilteredSelected}
         onQuickAction={runRowQuickAction}
         dialogAccountId={props.dialogAccountId}
+        showPhotos={showPhotos}
         dialogFilter={props.dialogFilter}
         dialogSearch={props.dialogSearch}
         dialogs={props.dialogs}
@@ -836,6 +853,7 @@ function DialogsTablePanel({
   allFilteredSelected,
   onQuickAction,
   dialogAccountId,
+  showPhotos,
   dialogFilter,
   dialogSearch,
   dialogs,
@@ -857,6 +875,7 @@ function DialogsTablePanel({
   allFilteredSelected: boolean
   onQuickAction: (actionType: ActionType, dialog: TelegramDialog) => void
   dialogAccountId: string
+  showPhotos: boolean
   dialogFilter: string
   dialogSearch: string
   dialogs: TelegramDialog[]
@@ -954,6 +973,8 @@ function DialogsTablePanel({
               <DialogCard
                 key={String(dialog.id)}
                 dialog={dialog}
+                accountId={dialogAccountId}
+                showPhotos={showPhotos}
                 onQuickAction={onQuickAction}
                 selectedDialogTargets={selectedDialogTargets}
                 setSelectedDialogTargets={setSelectedDialogTargets}
@@ -992,6 +1013,8 @@ function DialogsTablePanel({
                     <DialogRow
                       key={String(dialog.id)}
                       dialog={dialog}
+                      accountId={dialogAccountId}
+                      showPhotos={showPhotos}
                       onQuickAction={onQuickAction}
                       selectedDialogTargets={selectedDialogTargets}
                       setSelectedDialogTargets={setSelectedDialogTargets}
@@ -1118,14 +1141,38 @@ function DialogTargetLabel({
   )
 }
 
-// Native-style gradient avatar seeded by the chat's stable Telegram id, so the
-// colour stays consistent per peer across reloads. Sized to the row (~36px).
-function DialogAvatar({ title, seed }: { title: string; seed: string | number }) {
-  return <Avatar name={title} seed={seed} size={36} className="text-sm" />
+// The chat's avatar: its real Telegram photo when one was cached and photos are
+// enabled for this account, otherwise a gradient disc seeded by the stable id (so
+// the colour stays consistent per peer). The ?v=photoId busts the browser cache
+// when a chat swaps its picture; a missing/restricted photo falls back to the disc.
+function DialogAvatar({
+  title,
+  seed,
+  accountId,
+  hasPhoto,
+  photoId,
+  showPhotos,
+}: {
+  title: string
+  seed: string | number
+  accountId: string
+  hasPhoto?: boolean
+  photoId?: number | null
+  showPhotos: boolean
+}) {
+  const src =
+    showPhotos && hasPhoto && accountId
+      ? `/api/accounts/${accountId}/dialogs/${seed}/photo${photoId ? `?v=${photoId}` : ""}`
+      : undefined
+  return (
+    <Avatar name={title} seed={seed} src={src} size={36} className="text-sm" />
+  )
 }
 
 function DialogRow({
   dialog,
+  accountId,
+  showPhotos,
   onQuickAction,
   selectedDialogTargets,
   setSelectedDialogTargets,
@@ -1134,6 +1181,8 @@ function DialogRow({
   openMessages,
 }: {
   dialog: TelegramDialog
+  accountId: string
+  showPhotos: boolean
   onQuickAction: (actionType: ActionType, dialog: TelegramDialog) => void
   selectedDialogTargets: Set<string>
   setSelectedDialogTargets: DialogsScreenProps["setSelectedDialogTargets"]
@@ -1159,7 +1208,14 @@ function DialogRow({
       </TableCell>
       <TableCell>
         <div className="flex min-w-0 items-center gap-3">
-          <DialogAvatar title={dialog.title} seed={dialog.id} />
+          <DialogAvatar
+            title={dialog.title}
+            seed={dialog.id}
+            accountId={accountId}
+            hasPhoto={dialog.has_photo}
+            photoId={dialog.photo_id}
+            showPhotos={showPhotos}
+          />
           <div className="min-w-0">
             <strong className="block truncate text-sm">{dialog.title}</strong>
             <span className="block truncate text-xs text-muted-foreground">
@@ -1204,6 +1260,8 @@ function DialogRow({
 
 function DialogCard({
   dialog,
+  accountId,
+  showPhotos,
   onQuickAction,
   selectedDialogTargets,
   setSelectedDialogTargets,
@@ -1212,6 +1270,8 @@ function DialogCard({
   openMessages,
 }: {
   dialog: TelegramDialog
+  accountId: string
+  showPhotos: boolean
   onQuickAction: (actionType: ActionType, dialog: TelegramDialog) => void
   selectedDialogTargets: Set<string>
   setSelectedDialogTargets: DialogsScreenProps["setSelectedDialogTargets"]
@@ -1239,7 +1299,14 @@ function DialogCard({
           checked={isSelected}
           onChange={() => toggleSelected(target, setSelectedDialogTargets)}
         />
-        <DialogAvatar title={dialog.title} seed={dialog.id} />
+        <DialogAvatar
+          title={dialog.title}
+          seed={dialog.id}
+          accountId={accountId}
+          hasPhoto={dialog.has_photo}
+          photoId={dialog.photo_id}
+          showPhotos={showPhotos}
+        />
         <div className="min-w-0 flex-1">
           <strong className="block truncate text-sm">{dialog.title}</strong>
           <span className="block truncate text-xs text-muted-foreground">

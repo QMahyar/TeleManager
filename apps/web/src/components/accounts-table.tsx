@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import {
+  IconCheck,
   IconChevronDown,
   IconFileText,
   IconLogout,
@@ -26,9 +27,17 @@ import {
 
 import { api, toForm } from "../lib/api"
 import { accountStatus } from "../lib/helpers"
-import type { Account, AskDialog, Flash } from "../types"
+import type { Account, AskDialog, Flash, PhotosMode } from "../types"
 import { Avatar } from "./avatar"
 import { EmptyState, SignalDot, Skeleton, type SignalTone } from "./ui"
+
+// The per-account dialog-photo override, surfaced in the row's Manage menu.
+// "default" defers to the global Settings → Appearance toggle.
+const PHOTOS_MODE_OPTIONS: { mode: PhotosMode; label: string }[] = [
+  { mode: "default", label: "Use global default" },
+  { mode: "on", label: "Always show photos" },
+  { mode: "off", label: "Never show photos" },
+]
 
 type AccountsTableProps = {
   accounts: Account[]
@@ -375,6 +384,28 @@ function AccountActions({
           Rename file
         </MenuItem>
         <MenuSeparator />
+        <div className="px-2 pt-0.5 pb-1 font-mono text-[0.65rem] tracking-wider text-muted-foreground uppercase">
+          Dialog photos
+        </div>
+        {PHOTOS_MODE_OPTIONS.map(({ mode, label }) => {
+          const active = (account.photos_mode || "default") === mode
+          return (
+            <MenuItem
+              key={mode}
+              onClick={() =>
+                guarded(() =>
+                  setAccountPhotosMode(account, mode, refresh, flash)
+                )
+              }
+            >
+              <IconCheck
+                className={active ? "size-3.5 opacity-100" : "size-3.5 opacity-0"}
+              />
+              {label}
+            </MenuItem>
+          )
+        })}
+        <MenuSeparator />
         <MenuItem
           variant="destructive"
           onClick={() =>
@@ -429,6 +460,29 @@ async function fetchAccountDialogs(
     method: "POST",
   })
   flash("Dialogs fetched.", "success")
+  await refresh()
+}
+
+async function setAccountPhotosMode(
+  account: Account,
+  mode: PhotosMode,
+  refresh: () => Promise<void>,
+  flash: Flash
+) {
+  // No-op when already on this mode, so re-selecting it doesn't churn a save.
+  if ((account.photos_mode || "default") === mode) return
+  await api(`/api/accounts/${account.id}/photos-mode`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ photos_mode: mode }),
+  })
+  const name = account.label || account.session_name
+  flash(
+    mode === "default"
+      ? `Photos for ${name} now follow the global default.`
+      : `Photos ${mode === "on" ? "always shown" : "hidden"} for ${name}. Re-fetch dialogs to apply.`,
+    "success"
+  )
   await refresh()
 }
 

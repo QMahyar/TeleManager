@@ -65,6 +65,10 @@ class AccountRecord:
     last_validated_at: str | None = None
     last_dialog_fetch_at: str | None = None
     dialog_count: int = 0
+    # Per-account override for downloading/showing dialog profile photos. "default"
+    # defers to the global app setting; "on"/"off" force it for this account. New
+    # field with a default so existing accounts.json records load unchanged.
+    photos_mode: str = "default"
 
 
 @dataclass

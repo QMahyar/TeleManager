@@ -18,9 +18,14 @@ import {
   useTheme,
   type Accent,
 } from "../components/theme-provider"
-import { Field, Input, Panel, StepHeading, Tabs } from "../components/ui"
+import { Field, InfoHint, Input, Panel, StepHeading, Tabs } from "../components/ui"
 import { api } from "../lib/api"
-import type { ActivityEvent, Flash, SafetySettings } from "../types"
+import type {
+  ActivityEvent,
+  AppSettings,
+  Flash,
+  SafetySettings,
+} from "../types"
 import { ActivityScreen } from "./activity-screen"
 
 type SettingsTab = "api" | "appearance" | "safety" | "activity"
@@ -28,6 +33,8 @@ type SettingsTab = "api" | "appearance" | "safety" | "activity"
 type SettingsScreenProps = {
   safety: SafetySettings
   setSafety: React.Dispatch<React.SetStateAction<SafetySettings>>
+  appSettings: AppSettings
+  setAppSettings: React.Dispatch<React.SetStateAction<AppSettings>>
   apiConfigured: boolean
   configApiId: number | null
   configStatus: string
@@ -59,7 +66,7 @@ export function SettingsScreen(props: SettingsScreenProps) {
         ]}
       />
       {tab === "api" ? <ApiPanel {...props} /> : null}
-      {tab === "appearance" ? <AppearancePanel /> : null}
+      {tab === "appearance" ? <AppearancePanel {...props} /> : null}
       {tab === "safety" ? <SafetyPanel {...props} /> : null}
       {tab === "activity" ? <ActivityScreen activity={props.activity} /> : null}
     </div>
@@ -196,8 +203,40 @@ const THEME_MODES: Array<{ id: "system" | "light" | "dark"; label: string; icon:
   { id: "dark", label: "Dark", icon: IconMoon },
 ]
 
-function AppearancePanel() {
+function AppearancePanel({
+  appSettings,
+  setAppSettings,
+  guarded,
+  flash,
+}: SettingsScreenProps) {
   const { theme, setTheme, accent, setAccent } = useTheme()
+
+  // Persist the show-dialog-photos preference to the backend (it gates a server-
+  // side download, unlike theme/accent which are browser-local). Optimistic: flip
+  // the UI immediately, revert if the save fails.
+  function setDialogPhotos(next: boolean) {
+    const previous = appSettings
+    const updated: AppSettings = { ...appSettings, show_dialog_photos: next }
+    setAppSettings(updated)
+    guarded(async () => {
+      try {
+        await api("/api/settings/app", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updated),
+        })
+        flash(
+          next
+            ? "Dialog photos enabled. Re-fetch dialogs to download them."
+            : "Dialog photos hidden.",
+          "success"
+        )
+      } catch (error) {
+        setAppSettings(previous)
+        throw error
+      }
+    })
+  }
 
   return (
     <Panel className="max-w-2xl space-y-5">
@@ -290,6 +329,37 @@ function AppearancePanel() {
               </button>
             )
           })}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <p className="type-label text-muted-foreground">Dialogs</p>
+        <div className="flex items-start gap-3 rounded-md border border-border bg-background/70 p-3 text-sm">
+          <label className="flex min-w-0 flex-1 items-start gap-3">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={appSettings.show_dialog_photos}
+              onChange={(event) => setDialogPhotos(event.target.checked)}
+            />
+            <span className="min-w-0 space-y-1">
+              <span className="block font-medium text-foreground">
+                Show dialog photos
+              </span>
+              <span className="block text-xs text-muted-foreground">
+                Download each chat's real Telegram icon when fetching dialogs,
+                instead of the generated initials disc.
+              </span>
+            </span>
+          </label>
+          <InfoHint label="About dialog photos" className="mt-0.5">
+            When on, fetching an account's dialogs also downloads each chat's
+            profile-photo thumbnail and caches it locally (under{" "}
+            <code>data/avatars/</code>), so the first fetch takes a little longer.
+            This is the global default — override it per account from the Accounts
+            screen (Manage → Photos). Chats with no photo, or restricted ones, keep
+            the generated initials disc.
+          </InfoHint>
         </div>
       </div>
     </Panel>

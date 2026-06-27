@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any
 
+from telethon.errors import FloodWaitError
 from telethon.tl.types import Channel, Chat, Message, User
 
 from .accounts import AccountManager
-from .config import DIALOGS_DIR, ensure_dirs, now_iso, read_json, write_json
+from .app_settings import app_settings, resolve_photos_enabled
+from .config import AVATARS_DIR, DIALOGS_DIR, ensure_dirs, now_iso, read_json, write_json
 from .telegram_actions import resolve_input_peer
 from .telegram_ids import mark_chat_id, marked_dialog_record
 
@@ -26,6 +29,11 @@ class CachedDialog:
     is_channel: bool = False
     is_megagroup: bool = False
     is_broadcast: bool = False
+    # Locally-cached profile photo state. `photo_id` is the peer's current Telegram
+    # photo id (used to skip re-downloading unchanged avatars and to bust the
+    # browser cache); `has_photo` means a thumbnail file exists under AVATARS_DIR.
+    photo_id: int | None = None
+    has_photo: bool = False
 
 
 def dialogs_path(account_id: str):
@@ -33,12 +41,27 @@ def dialogs_path(account_id: str):
     return DIALOGS_DIR / f"{account_id}.json"
 
 
+def avatar_dir(account_id: str) -> Path:
+    return AVATARS_DIR / account_id
+
+
+def avatar_path(account_id: str, dialog_id: int) -> Path:
+    return avatar_dir(account_id) / f"{dialog_id}.jpg"
+
+
 async def fetch_dialogs(manager: AccountManager, account_id: str, limit: int = 500) -> dict:
     account = manager._get_account(account_id)
+    photos_enabled = resolve_photos_enabled(account, app_settings()["show_dialog_photos"])
+    # Snapshot the prior cache once so unchanged avatars can be skipped (no redundant
+    # Telegram traffic on a re-fetch). Only needed when photos are enabled.
+    prev_photos = _previous_photo_index(account.id) if photos_enabled else {}
     async with manager.temp_client(account.id) as client:
         cached_dialogs: list[CachedDialog] = []
         async for dialog in client.iter_dialogs(limit=limit):
-            cached_dialogs.append(classify_dialog(dialog))
+            cached = classify_dialog(dialog)
+            if photos_enabled:
+                await _ensure_dialog_photo(client, dialog.entity, account.id, cached, prev_photos)
+            cached_dialogs.append(cached)
 
         fetched_at = now_iso()
         payload = {
@@ -53,6 +76,49 @@ async def fetch_dialogs(manager: AccountManager, account_id: str, limit: int = 5
         account.last_error = None
         manager._save_accounts()
         return payload
+
+
+def _previous_photo_index(account_id: str) -> dict[Any, tuple[Any, bool]]:
+    """Map of dialog id -> (photo_id, had_file) from the last cached fetch.
+
+    Best-effort: a miss just means we re-download that avatar, never an error.
+    """
+    payload = read_json(dialogs_path(account_id), {})
+    index: dict[Any, tuple[Any, bool]] = {}
+    for item in payload.get("dialogs", []) or []:
+        if isinstance(item, dict) and "id" in item:
+            index[item["id"]] = (item.get("photo_id"), bool(item.get("has_photo")))
+    return index
+
+
+async def _ensure_dialog_photo(
+    client: Any,
+    entity: Any,
+    account_id: str,
+    cached: CachedDialog,
+    prev_photos: dict[Any, tuple[Any, bool]],
+) -> None:
+    """Download a small profile-photo thumbnail for `cached` into AVATARS_DIR.
+
+    Skips peers with no photo and avatars unchanged since the last fetch. A single
+    failed/restricted/rate-limited download degrades to no photo and never aborts
+    the surrounding fetch.
+    """
+    if cached.photo_id is None:
+        return  # peer has no profile photo
+    path = avatar_path(account_id, cached.id)
+    prev_photo_id, had_file = prev_photos.get(cached.id, (None, False))
+    if had_file and prev_photo_id == cached.photo_id and path.exists():
+        cached.has_photo = True
+        return
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        result = await client.download_profile_photo(entity, file=str(path), download_big=False)
+        cached.has_photo = result is not None
+    except FloodWaitError:
+        cached.has_photo = path.exists()  # keep any prior thumbnail; don't fail the fetch
+    except Exception:
+        cached.has_photo = path.exists()
 
 
 def list_cached_dialogs(manager: AccountManager, account_id: str) -> dict:
@@ -143,6 +209,12 @@ def classify_dialog(dialog: Any) -> CachedDialog:
     )
     title = dialog.name or username or str(marked_id)
 
+    # Current Telegram photo id, or None when the peer has no photo (the *Empty
+    # photo types carry no photo_id). Drives skip-unchanged + cache-busting; the
+    # bytes themselves are downloaded separately in fetch_dialogs.
+    photo = getattr(entity, "photo", None)
+    photo_id = getattr(photo, "photo_id", None)
+
     return CachedDialog(
         id=marked_id,
         title=title,
@@ -157,4 +229,5 @@ def classify_dialog(dialog: Any) -> CachedDialog:
         is_channel=is_channel,
         is_megagroup=is_megagroup,
         is_broadcast=is_broadcast,
+        photo_id=int(photo_id) if photo_id is not None else None,
     )

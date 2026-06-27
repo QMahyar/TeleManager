@@ -11,6 +11,34 @@ section below, with auto-generated commit/PR notes appended.
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-06-27
+
+Dialogs can now show real Telegram profile photos. The download is local-first
+and privacy-conscious — it rides the existing rate-limited fetch, caches under
+gitignored `data/`, and is yours to toggle globally or per account.
+
+### Added
+
+- **Dialog profile photos (toggleable).** Fetching an account's dialogs can now
+  also download each chat's profile-photo thumbnail and render it in the dialog
+  list, in place of the generated initials disc. Thumbnails are cached locally
+  under `data/avatars/` (gitignored) and served from there, so the list stays
+  fast after the first fetch. Chats with no photo — or restricted ones — keep the
+  gradient disc, which also remains the fallback if an image fails to load.
+- **Global default + per-account override.** A "Show dialog photos" switch in
+  Settings → Appearance sets the default; each account can override it
+  (Default / On / Off) from the Accounts row's **Manage → Dialog photos** menu —
+  e.g. show photos for a main account but never for a sensitive one.
+- **Help popovers on more option fields** via the InfoHint "ⓘ" affordance.
+
+### Notes
+
+- Photos download during the existing, rate-limited **Fetch dialogs** action and
+  reuse its already-authorized session — no new always-on Telegram traffic. A
+  re-fetch skips avatars whose photo hasn't changed, and a failed or restricted
+  download degrades to the gradient disc instead of aborting the fetch. Deleting
+  a session also clears its cached avatars.
+
 ## [1.12.0] - 2026-06-27
 
 A frontend flatten + polish pass. The "Console" theme is unchanged, but every

@@ -40,6 +40,10 @@ export type ActionType =
   | "read_chat"
   | "report_spam"
 
+// Per-account override for showing real dialog photos. "default" defers to the
+// global app setting; "on"/"off" force it for this account.
+export type PhotosMode = "default" | "on" | "off"
+
 export type Account = {
   id: string
   label: string
@@ -50,6 +54,7 @@ export type Account = {
   status?: string
   last_error?: string | null
   dialog_count?: number
+  photos_mode?: PhotosMode
 }
 
 export type TelegramDialog = {
@@ -61,6 +66,10 @@ export type TelegramDialog = {
   type?: string
   entity_type?: string
   unread_count?: number
+  // Whether a profile-photo thumbnail was cached for this dialog on the last
+  // fetch, and the Telegram photo id (used to cache-bust the served image).
+  has_photo?: boolean
+  photo_id?: number | null
 }
 
 export type TelegramMessage = {
@@ -152,6 +161,12 @@ export type SafetySettings = {
   delay_instant: number
   delay_sensitive: number
   max_operations: number
+}
+
+// Backend-persisted display/runtime preferences (global). Distinct from the
+// browser-local theme/accent — `show_dialog_photos` gates a server-side download.
+export type AppSettings = {
+  show_dialog_photos: boolean
 }
 
 // Risk tier an action falls into — drives the inter-operation cooldown and the

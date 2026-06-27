@@ -17,6 +17,7 @@ import type {
   ActionDraft,
   ActionsMeta,
   ActivityEvent,
+  AppSettings,
   Flash,
   Preset,
   QueueRun,
@@ -28,6 +29,10 @@ import type {
   TelegramDialog,
   View,
 } from "../types"
+
+// Photos default to on until the backend setting loads, matching the backend
+// default so dialogs don't flicker gradient→photo on first paint.
+const defaultAppSettings: AppSettings = { show_dialog_photos: true }
 
 export function useAppState(flash: (message: string) => void) {
   const viewState = useViewState()
@@ -51,6 +56,7 @@ export function useAppState(flash: (message: string) => void) {
   useInitialLoad({
     flash,
     loadActionsMeta: resourceState.loadActionsMeta,
+    loadAppSettings: resourceState.loadAppSettings,
     loadPresets: resourceState.loadPresets,
     loadRuns: resourceState.loadRuns,
     refresh: accountState.refresh,
@@ -278,6 +284,8 @@ function useResourceState(flash: (message: string) => void, view: View) {
   const [presets, setPresets] = React.useState<Preset[]>([])
   const [schedules, setSchedules] = React.useState<Schedule[]>([])
   const [safety, setSafety] = React.useState<SafetySettings>(emptySafety)
+  const [appSettings, setAppSettings] =
+    React.useState<AppSettings>(defaultAppSettings)
   const [actionsMeta, setActionsMeta] = React.useState<ActionsMeta | null>(null)
   const safetyLoaded = React.useRef(false)
 
@@ -319,6 +327,11 @@ function useResourceState(flash: (message: string) => void, view: View) {
     )
     setSafety(payload.settings || emptySafety)
     safetyLoaded.current = true
+  }, [])
+
+  const loadAppSettings = React.useCallback(async () => {
+    const payload = await api<{ settings: AppSettings }>("/api/settings/app")
+    setAppSettings(payload.settings || defaultAppSettings)
   }, [])
 
   React.useEffect(() => {
@@ -382,8 +395,10 @@ function useResourceState(flash: (message: string) => void, view: View) {
   return {
     actionsMeta,
     activity,
+    appSettings,
     loadActionsMeta,
     loadActivity,
+    loadAppSettings,
     loadPresets,
     loadRuns,
     loadSchedules,
@@ -391,6 +406,7 @@ function useResourceState(flash: (message: string) => void, view: View) {
     runs,
     safety,
     schedules,
+    setAppSettings,
     setPresets,
     setSafety,
     setSchedules,
@@ -467,12 +483,14 @@ function useQueueState(
 function useInitialLoad({
   flash,
   loadActionsMeta,
+  loadAppSettings,
   loadPresets,
   loadRuns,
   refresh,
 }: {
   flash: Flash
   loadActionsMeta: () => Promise<void>
+  loadAppSettings: () => Promise<void>
   loadPresets: () => Promise<void>
   loadRuns: () => Promise<void>
   refresh: () => Promise<void>
@@ -484,11 +502,12 @@ function useInitialLoad({
         loadRuns(),
         loadPresets(),
         loadActionsMeta(),
+        loadAppSettings(),
       ]).catch((error) => flash(error.message))
     }, 0)
 
     return () => window.clearTimeout(task)
-  }, [flash, loadActionsMeta, loadPresets, loadRuns, refresh])
+  }, [flash, loadActionsMeta, loadAppSettings, loadPresets, loadRuns, refresh])
 }
 
 function filterKnownIds(current: Set<string>, known: Set<string>) {

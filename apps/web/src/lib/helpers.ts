@@ -1,4 +1,16 @@
-import type { Account, QueueRun, TelegramDialog } from "../types"
+import type { Account, PhotosMode, QueueRun, TelegramDialog } from "../types"
+
+// Effective dialog-photo state for an account. Mirrors the backend resolver: a
+// per-account "on"/"off" override wins, "default" (or unset) defers to the global
+// app setting. Keep in lockstep with telemanager/app_settings.resolve_photos_enabled.
+export function resolvePhotosEnabled(
+  globalShow: boolean,
+  mode?: PhotosMode
+): boolean {
+  if (mode === "on") return true
+  if (mode === "off") return false
+  return globalShow
+}
 
 export function splitTargets(value: string) {
   return value

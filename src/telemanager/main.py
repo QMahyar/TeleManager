@@ -30,9 +30,10 @@ from .action_queue_service import (
     start_action_queue,
 )
 from .action_runs_service import list_action_runs, load_action_runs, save_action_runs
+from .app_settings import AppSettingsRequest, app_settings, save_app_settings
 from .audit_service import export_events_path, list_events, log_event
-from .config import CONFIG_FILE, read_json, write_json
-from .dialogs_service import fetch_dialogs, fetch_messages, list_cached_dialogs
+from .config import AVATARS_DIR, CONFIG_FILE, read_json, write_json
+from .dialogs_service import avatar_path, fetch_dialogs, fetch_messages, list_cached_dialogs
 from .file_picker import PickerBusy, PickerUnavailable, pick_path
 from .presets_service import delete_action_preset, list_action_presets, save_action_preset
 from .schedules_service import (
@@ -47,6 +48,7 @@ from .sessions_service import (
     import_session_files,
     rename_account,
     rename_session_file,
+    set_account_photos_mode,
 )
 
 
@@ -74,6 +76,10 @@ scheduler = SchedulerService(manager, queue_runs)
 
 class AccountUpdateRequest(BaseModel):
     label: str = Field(min_length=1, max_length=120)
+
+
+class AccountPhotosModeRequest(BaseModel):
+    photos_mode: Literal["default", "on", "off"]
 
 
 class SessionRenameRequest(BaseModel):
@@ -229,6 +235,16 @@ def set_safety_settings(request: SafetySettingsRequest) -> dict:
     return {"settings": save_safety_settings(request)}
 
 
+@app.get("/api/settings/app")
+def get_app_settings() -> dict:
+    return {"settings": app_settings()}
+
+
+@app.post("/api/settings/app")
+def set_app_settings(request: AppSettingsRequest) -> dict:
+    return {"settings": save_app_settings(request)}
+
+
 @app.get("/api/accounts")
 def list_accounts() -> dict:
     return {"accounts": manager.list_accounts()}
@@ -279,6 +295,15 @@ def update_account(account_id: str, request: AccountUpdateRequest) -> dict:
     try:
         account = rename_account(manager, account_id, request.label)
         log_event("account_renamed", "Account renamed", account.label, {"account_id": account.id})
+        return {"account": account.__dict__}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/accounts/{account_id}/photos-mode")
+def set_account_photos(account_id: str, request: AccountPhotosModeRequest) -> dict:
+    try:
+        account = set_account_photos_mode(manager, account_id, request.photos_mode)
         return {"account": account.__dict__}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -368,6 +393,28 @@ def get_account_dialogs(account_id: str) -> dict:
         return list_cached_dialogs(manager, account_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/accounts/{account_id}/dialogs/{dialog_id}/photo")
+def get_dialog_photo(account_id: str, dialog_id: str) -> FileResponse:
+    """Serve a locally-cached dialog avatar thumbnail (downloaded during fetch).
+
+    No Telethon client is opened here, so this never contends for the session lock.
+    The dialog id is parsed to an int and the resolved path is asserted to live
+    under AVATARS_DIR, so neither path segment can escape the cache directory.
+    """
+    try:
+        manager._get_account(account_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Account was not found.") from exc
+    try:
+        numeric_id = int(dialog_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Photo was not found.") from exc
+    resolved = avatar_path(account_id, numeric_id).resolve()
+    if AVATARS_DIR.resolve() not in resolved.parents or not resolved.is_file():
+        raise HTTPException(status_code=404, detail="Photo was not found.")
+    return FileResponse(resolved, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=300"})
 
 
 @app.get("/api/accounts/{account_id}/messages")

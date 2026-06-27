@@ -5,6 +5,7 @@ import type {
   AccountsTab,
   ActionDraft,
   ActionsMeta,
+  AppSettings,
   AskDialog,
   Flash,
   Preset,
@@ -53,6 +54,8 @@ export type AppScreenProps = {
   loadPresets: () => Promise<void>
   safety: SafetySettings
   setSafety: React.Dispatch<React.SetStateAction<SafetySettings>>
+  appSettings: AppSettings
+  setAppSettings: React.Dispatch<React.SetStateAction<AppSettings>>
   actionsMeta: ActionsMeta | null
   actionDraft: ActionDraft
   quickActionContext: import("../types").QuickActionContext | null
@@ -171,5 +174,6 @@ export type DialogsScreenProps = Pick<
   | "toggleSelected"
   | "actionsMeta"
   | "safety"
+  | "appSettings"
 >
 

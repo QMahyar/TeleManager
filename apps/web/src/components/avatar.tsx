@@ -1,22 +1,48 @@
+import * as React from "react"
+
 import { cn } from "../ui/utils"
 import { gradientFor, initialsFor } from "../lib/avatar"
 
-// A deterministic Telegram-style avatar: a vertical gradient disc (indexed off
-// `seed`) with mono initials. Pure CSS gradient — no <img>, no network, no deps.
-// `seed` should be the stable peer id where available and falls back to `name`,
-// so the same account/dialog always renders the same colour. Decorative: the
-// peer name is always rendered as text beside it, so the disc is aria-hidden.
+// A Telegram-style avatar. When `src` is given (a cached profile photo) it renders
+// that image; otherwise — or if the image fails to load — it falls back to a
+// deterministic gradient disc (indexed off `seed`) with mono initials. The
+// gradient is the universal fallback, so callers that pass no `src` (e.g. account
+// rows) are unaffected. `seed` should be the stable peer id where available and
+// falls back to `name`, so the same account/dialog always renders the same colour.
+// Decorative: the peer name is always rendered as text beside it, so it's aria-hidden.
 export function Avatar({
   name,
   seed,
   size = 36,
+  src,
   className,
 }: {
   name: string
   seed?: string | number
   size?: number
+  src?: string
   className?: string
 }) {
+  const [failedSrc, setFailedSrc] = React.useState<string | null>(null)
+
+  // Render the photo unless this exact URL has already errored. Tracking the
+  // failed src (instead of a boolean reset via an effect) means a *new* src — e.g.
+  // the cache-busting ?v= changed — is retried automatically on the next render.
+  if (src && src !== failedSrc) {
+    return (
+      <img
+        src={src}
+        alt=""
+        aria-hidden
+        loading="lazy"
+        decoding="async"
+        onError={() => setFailedSrc(src)}
+        className={cn("shrink-0 rounded-full object-cover select-none", className)}
+        style={{ width: size, height: size }}
+      />
+    )
+  }
+
   const [from, to] = gradientFor(seed ?? name)
   return (
     <span

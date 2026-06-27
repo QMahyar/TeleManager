@@ -12,7 +12,9 @@ from pathlib import Path
 from fastapi import UploadFile
 
 from .accounts import AccountManager, AccountRecord
-from .config import EXPORTS_DIR, SESSIONS_DIR, ensure_dirs, now_iso
+from .config import AVATARS_DIR, EXPORTS_DIR, SESSIONS_DIR, ensure_dirs, now_iso
+
+PHOTOS_MODES = frozenset({"default", "on", "off"})
 
 SESSION_SLUG_RE = re.compile(r"^[a-zA-Z0-9_-]{3,64}$")
 
@@ -135,6 +137,16 @@ def rename_account(manager: AccountManager, account_id: str, label: str) -> Acco
     return account
 
 
+def set_account_photos_mode(manager: AccountManager, account_id: str, photos_mode: str) -> AccountRecord:
+    """Set a per-account dialog-photo override ("default" | "on" | "off")."""
+    if photos_mode not in PHOTOS_MODES:
+        raise ValueError("photos_mode must be one of: default, on, off.")
+    account = manager._get_account(account_id)
+    account.photos_mode = photos_mode
+    manager._save_accounts()
+    return account
+
+
 def rename_session_file(manager: AccountManager, account_id: str, session_name: str) -> AccountRecord:
     validate_session_slug(session_name)
     account = manager._get_account(account_id)
@@ -166,5 +178,10 @@ def delete_local_session(manager: AccountManager, account_id: str) -> None:
         path.unlink()
     if journal.exists():
         journal.unlink()
+    # Drop the cached dialog avatars for this account so a deleted session leaves
+    # no orphaned local image cache behind.
+    avatar_cache = AVATARS_DIR / account.id
+    if avatar_cache.is_dir():
+        shutil.rmtree(avatar_cache, ignore_errors=True)
     manager.accounts.pop(account.id, None)
     manager._save_accounts()
