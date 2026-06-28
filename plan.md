@@ -144,16 +144,21 @@ files — the risk is *lost updates*), and returning `phone` to the local UI is 
   with documented fallback chains; 4 import sites updated; covered by Vitest (Phase 6).
   *(Backend "converge to a canonical target field" intentionally skipped — semantic change
   to action target resolution, deferred to a dedicated change.)*
-- [ ] **dialogs-screen.tsx (~1540)** → source/table/messages panels +
-  `use-dialogs-controller.ts` + `use-cached-dialogs.ts`.
+- [x] **dialogs-screen.tsx (1536 → ~190)** → orchestrator only. Extracted
+  `screens/dialogs/{source,table,messages}-panel.tsx` + `hooks/use-cached-dialogs.ts` +
+  `hooks/use-dialogs-controller.ts`. The file was already internally factored into these exact
+  units, so this was mechanical extraction (low risk) — the testable logic now lives in the
+  two hooks. Behavior identical; build/lint/test green.
 - [ ] **accounts-screen.tsx (~1220)** → `fleet-tab` / `login-tab` (+ `use-account-login-flow.ts`)
   / `transfer-tab`.
 - [ ] **actions-screen.tsx (~1059)** → `actions-builder` / `actions-queue` /
   `actions-run-banner` (+ `use-action-busy.ts`).
-- [ ] **Perf** — `React.memo(DialogRow)` + `useCallback` row handlers (search re-renders all
-  rows today); `react-window` only if lists routinely exceed a few hundred.
-- [ ] **Dedupe resolver** — move `dialogTarget`/`dialogKind` into `lib/dialog-resolver.ts`,
-  document field priority, converge backend to emit one canonical `target` field.
+- [x] **Perf** — `React.memo(DialogRow)` + `DialogCard`, each fed a boolean `isSelected` (not
+  the shared `Set`) + a stable `onToggle`. Made the handler chain referentially stable:
+  `guarded` is now `useCallback` in `App.tsx`, and the controller's row handlers
+  (`runRowQuickAction`/`stageTargetInActions`) + the screen's `openMessages` are `useCallback`
+  with destructured-prop deps. Without all three, memo is inert. `react-window` still deferred
+  (lists rarely exceed a few hundred).
 
 ## Phase 6 — Frontend tests (Vitest) ✅
 

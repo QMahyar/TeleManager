@@ -46,15 +46,23 @@ export function App() {
     }
   }, [flash])
 
-  async function guarded(work: () => Promise<void>) {
-    await run(async () => {
-      try {
-        await work()
-      } catch (error) {
-        flash(error instanceof Error ? error.message : "Request failed", "error")
-      }
-    })
-  }
+  // Stable identity so memoized children (e.g. DialogRow) whose handlers close
+  // over `guarded` aren't forced to re-render every time App re-renders.
+  const guarded = React.useCallback(
+    async (work: () => Promise<void>) => {
+      await run(async () => {
+        try {
+          await work()
+        } catch (error) {
+          flash(
+            error instanceof Error ? error.message : "Request failed",
+            "error"
+          )
+        }
+      })
+    },
+    [run, flash]
+  )
 
   const screenProps = {
     ...appState,
