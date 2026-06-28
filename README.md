@@ -398,7 +398,6 @@ The current codebase has been validated with:
 - `python -m pytest`
 - `npm --prefix apps/web run lint`
 - `npm --prefix apps/web run typecheck`
-- `pi-lens` warnings cleared for the touched codebase state
 
 ## Project structure
 
@@ -408,7 +407,7 @@ src/telemanager/       FastAPI app and backend services
 docs/                  Architecture, security, roadmap, and test docs
 data/                  Local config, dialog cache, exports, activity logs; gitignored
 sessions/              Telethon .session files; gitignored
-AGENTS.md              Local-only agent instructions; gitignored
+AGENTS.md              Project and agent conventions; committed
 ```
 
 ## Documentation

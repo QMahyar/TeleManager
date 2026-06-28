@@ -60,11 +60,23 @@ TeleManager is organized around stored Telegram sessions and guarded one-off wor
 - Preview, pause/resume, run-now, and delete schedules; deleting a native schedule removes the messages it pre-scheduled.
 - Persist schedules under `data/schedules.json`; tag queue runs created by a schedule with `schedule_id`.
 
+### Phase 7: Hardening and performance (v1.11.0–v1.14.0)
+
+- **Action-aware pacing.** Replaced flat inter-operation delay with tier-based cooldowns from a single `ACTION_META` registry: instant (maintenance reads), standard (joins/leaves), sensitive (sends/forwards). Each tier keeps its own jitter window.
+- **UI overhaul.** Flat hierarchy app-wide — panels are the containers, content lives on rhythm. Type system moved to Geist + Geist Mono (self-hosted), with a unified `type-*` scale in `globals.css` as the single source of truth.
+- **Dialog profile photos.** Optional per-account thumbnail download riding the existing rate-limited dialog fetch. Cached under `data/avatars/`, toggled globally via `data/app_settings.json` (new) with per-account override.
+- **Typed API contract.** Shared TypeScript types generated from backend schemas eliminate the hand-maintained duplication between FastAPI and React.
+- **React-query migration.** Resource and run polling moved to `@tanstack/react-query`; client state simplified by removing bespoke polling loops.
+- **SQLite store (opt-in).** `Document` interface backed by either JSON files (default) or a single SQLite database, switchable without API changes.
+- **Frontend decomposition.** The three 1000+ line screens (`actions`, `dialogs`, `accounts`) broken into focused components; 26 Vitest tests added.
+- **Backend test suite.** Backend split so irreversible Telegram-action paths are fully testable without a live client; 157 tests passing, CI gates on lint + typecheck + test.
+- **Security fix and CI hardening.** Addressed a localhost-exposure issue; CI now blocks merges on any failed check.
+
 ## Current hardening priorities
 
-- Add mocked Telethon tests for live dialog fetch, session validation, and Telegram action execution paths.
 - Improve Telegram error taxonomy for flood waits, revoked sessions, invalid invites, unauthorized sessions, and network timeouts.
-- Add optional local app password, CSRF protection, and stricter localhost-only enforcement before any non-local exposure.
+- Add mocked Telethon tests for live dialog fetch and session validation paths (Telegram-action paths covered as of v1.14.0).
+- Add optional local app password and CSRF protection before any non-local exposure.
 - Consider encrypted local config/session storage for machines shared with other users.
 
 ## Manual validation

@@ -59,6 +59,8 @@ React Browser UI
 
 `data/safety_settings.json` stores default queue delays and max operation limits.
 
+`data/app_settings.json` stores app-level display preferences — currently the global `show_dialog_photos` toggle and per-account `photos_mode` overrides. Managed by `src/telemanager/app_settings.py` and backed by the same Document layer as all other data files.
+
 All `data/` and `sessions/` files are gitignored.
 
 ## Session lifecycle
