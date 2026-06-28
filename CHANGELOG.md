@@ -11,6 +11,58 @@ section below, with auto-generated commit/PR notes appended.
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-06-28
+
+An end-to-end hardening and refactor sweep: a security fix and CI gates, a
+unified persistence layer, a backend split with tests on the irreversible
+Telegram-action paths, the three 1000+ line screens broken into focused
+components, frontend tests, and the three "big swings" — a typed API contract,
+react-query, and an optional SQLite store. Behavior is unchanged; this is
+structural debt paid down. Backend suite 157 passing; frontend 26 Vitest +
+lint/typecheck/build green.
+
+### Added
+
+- **Host-header allowlist** (`TrustedHostMiddleware`, `TELEMANAGER_ALLOWED_HOSTS`,
+  default `127.0.0.1,localhost,::1`) closing the DNS-rebinding hole against the
+  no-auth localhost API. CI gained a frontend lint/typecheck/build job and a
+  release test gate so artifacts can't publish on red.
+- **Typed API contract.** Response loaders are validated at the fetch boundary
+  with Zod (`lib/schemas.ts`), so a backend/frontend shape drift surfaces as a
+  clear logged error instead of an `undefined`-access crash deep in a render.
+- **Frontend tests (Vitest).** 26 tests over the logic-heavy units (dialog
+  resolver, targeting, scheduling, the queue-builder gate, the API boundary).
+- **Optional SQLite store** behind the persistence interface
+  (`TELEMANAGER_STORE=sqlite`), with one-time migration of `data/*.json`. JSON
+  remains the default.
+
+### Changed
+
+- **Persistence unified** behind a `Document` abstraction (one lock per file,
+  atomic writes, read-modify-write that can't lose updates); all services persist
+  through shared singletons.
+- **Backend `main.py` split** (739 → ~90 lines) into `routes/` APIRouter modules
+  with shared live state in `runtime.py`; pure fire-time/UTC helpers extracted.
+- **Frontend state and screens decomposed.** `use-app-state` split into per-domain
+  hooks; the dialogs (1536→~190), accounts (1221→~40), and actions (1059→~230)
+  screens are now thin orchestrators over panel/tab components and testable hooks.
+- **Data fetching on react-query.** Hand-rolled visibility-aware polling and the
+  run poller moved to react-query; hook public shapes are unchanged so screens
+  stay put.
+
+### Performance
+
+- **Dialog list** rows are memoized and fed a boolean `isSelected` plus stable
+  handlers, so a search keystroke or single-row toggle no longer re-renders every
+  row.
+
+### Fixed
+
+- **Backend hardening.** Explicit account serialization (no silent field leaks), a
+  per-operation timeout in the queue worker (one stuck op no longer stalls the
+  run), media-action input validation, and traceback logging on the queue path.
+  New tests cover the run-continues-after-failure and lock-release paths.
+
 ## [1.13.0] - 2026-06-27
 
 Dialogs can now show real Telegram profile photos. The download is local-first
