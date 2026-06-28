@@ -19,7 +19,7 @@ sessions, dialog discovery, guarded action queues, schedules, and a local audit 
 
 - `src/telemanager/` — FastAPI app + backend services (Telethon, schedules, audit).
 - `apps/web/` — React + Vite + Tailwind v4 frontend; FastAPI serves `apps/web/dist`.
-- `scripts/` — release + version tooling. `docs/` — architecture, security, roadmap.
+- `scripts/` — release + version tooling. `docs/` — architecture, security, roadmap, development guide.
 - `data/`, `sessions/` — local runtime state, gitignored.
 
 ## Commands
@@ -48,6 +48,6 @@ ruff check src
   builds all platforms and publishes a GitHub release whose body is the matching
   `## [X.Y.Z]` section of `CHANGELOG.md`. Update the CHANGELOG before tagging.
 - **Frontend theme** ("Console"): dark-first, warm-charcoal neutrals + dim-teal accent,
-  JetBrains Mono for headings/labels/machine data, Inter for prose. Keep type restrained.
+  Geist Mono for machine data, Geist for prose (both self-hosted). Keep type restrained.
   Design lives in the token layer (`src/ui/globals.css`) and shared primitives
   (`src/components/ui.tsx`) — restyle there, not per-screen.
