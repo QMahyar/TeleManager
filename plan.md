@@ -10,7 +10,8 @@
 - Backend suite: **151 passing** (`py -3.12 -m pytest -q`); `ruff check src tests` clean.
 - Frontend: **26 Vitest tests** + `typecheck`/`lint`/`build` all green (`npm --prefix apps/web run ...`).
 - Phase 0 ✅ · 1 ✅ · 2 ✅ · 3 ✅ · 4 ✅ · 5 ✅ (all three 1000+ line screens decomposed; DialogRow memo) ·
-  6 ✅ · 7 ✅ (boundary validation + all polled-into-state reads covered; local reads/acks out of scope) · 8–9 ⬜
+  6 ✅ · 7 ✅ (boundary validation + all polled-into-state reads covered; local reads/acks out of scope) ·
+  8 ✅ (resource polling + run polling on react-query; hook shapes unchanged) · 9 ⬜
 - All committed on `improvements/full-sweep` (off `main`).
 - **Note:** Phase 6 (Vitest) was pulled ahead of Phase 5's risky remainder so the
   memoization/decomposition land on top of a test net (the resolver Phase 5 extracted is
@@ -201,11 +202,31 @@ files — the risk is *lost updates*), and returning `phone` to the local UI is 
   hand-written schemas already fail the `build` on drift via `tsc`; a codegen step is more
   toolchain than the hand-maintenance currently costs.
 
-## Phase 8 — Big swing: react-query ⬜
+## Phase 8 — Big swing: react-query ✅
 
-- [ ] Add `@tanstack/react-query`; replace hand-rolled polling + manual fetches inside
-  `use-resource-state.ts` / `use-run-polling.ts` with queries/mutations. Keep each hook's
-  public shape stable so screens barely change.
+- [x] **`@tanstack/react-query` added** + `QueryClientProvider` at the root (`main.tsx`),
+  client tuned for localhost (retry 2, no reconnect refetch).
+- [x] **`use-resource-state.ts` → react-query.** Seven `useQuery`s replace the hand-rolled
+  loaders + polling effects. The view-gated visibility polls map directly onto declarative
+  config: `enabled: view === 'settings'` + `refetchInterval: 10000` (activity), same at 5000
+  for schedules; `refetchIntervalInBackground` (default false) *is* the old `if (!hidden)`
+  guard and `refetchOnWindowFocus` (default) *is* the old `visibilitychange` refetch. Safety's
+  load-once ref guard became `enabled` + `staleTime: Infinity`. **Public shape unchanged** —
+  `loadX` reloaders are `fetchQuery` (force-fresh, throws so `guarded()` still flashes), `setX`
+  are `setQueryData` wrappers preserving `SetStateAction` (value-or-updater) semantics, so the
+  aggregator + screens are untouched. *(One deliberate change: background poll failures now
+  retry silently instead of toasting; mutation-triggered reloads still surface errors.)*
+- [x] **`use-run-polling.ts` → react-query.** The `awaitQueueRun` loop became a query keyed on
+  the active run id, `enabled` while one is running, with a `refetchInterval` function that
+  returns `false` at a terminal status. The completion workflow (summary toast, fleet refresh,
+  clear) stays imperative in ref-guarded effects — react-query owns the *interval*, not the
+  side-effects, because forcing a poll-until-done workflow into a cache entry adds complexity
+  rather than removing it. Public shape (`activeRunId`/`activeRun`/`pollQueueRun`/
+  `cancelActiveRun`) unchanged. Bonus: failed polls now retry (react-query default) instead of
+  aborting the banner on the first network blip.
+- [ ] **Manual E2E smoke still recommended** (see Verification) — this changes runtime polling
+  + run lifecycle; automated gates (build/lint/26 tests) are green but can't exercise the live
+  poll. Bundle grew ~34 KB gz for react-query — the accepted cost.
 
 ## Phase 9 — Big swing: SQLite store ⬜
 

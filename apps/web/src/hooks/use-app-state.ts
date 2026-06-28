@@ -19,7 +19,7 @@ export function useAppState(flash: (message: string) => void) {
   const viewState = useViewState()
   const accountState = useAccountState()
   const dialogState = useDialogState()
-  const resourceState = useResourceState(flash, viewState.view)
+  const resourceState = useResourceState(viewState.view)
   const queueState = useQueueState(
     accountState.actionAccountIds,
     flash,
