@@ -149,8 +149,9 @@ files — the risk is *lost updates*), and returning `phone` to the local UI is 
   `hooks/use-dialogs-controller.ts`. The file was already internally factored into these exact
   units, so this was mechanical extraction (low risk) — the testable logic now lives in the
   two hooks. Behavior identical; build/lint/test green.
-- [ ] **accounts-screen.tsx (~1220)** → `fleet-tab` / `login-tab` (+ `use-account-login-flow.ts`)
-  / `transfer-tab`.
+- [x] **accounts-screen.tsx (1221 → ~40)** → orchestrator (tabs) only. Extracted
+  `screens/accounts/{fleet,login,transfer}-tab.tsx` + `hooks/use-account-login-flow.ts` (the
+  multi-step Telegram login state + its API helpers). Behavior identical; build/lint/test green.
 - [ ] **actions-screen.tsx (~1059)** → `actions-builder` / `actions-queue` /
   `actions-run-banner` (+ `use-action-busy.ts`).
 - [x] **Perf** — `React.memo(DialogRow)` + `DialogCard`, each fed a boolean `isSelected` (not
