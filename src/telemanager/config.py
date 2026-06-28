@@ -21,6 +21,15 @@ SCHEDULES_FILE = DATA_DIR / "schedules.json"
 SAFETY_SETTINGS_FILE = DATA_DIR / "safety_settings.json"
 APP_SETTINGS_FILE = DATA_DIR / "app_settings.json"
 
+# Persistence backend for the shared documents (config/accounts/presets/runs/
+# schedules/safety/app settings). "json" (default) keeps the human-readable,
+# git-diffable per-file Document store; "sqlite" swaps in the transactional
+# SQLite store behind the same interface (documents.py), auto-migrating the JSON
+# files on first boot. JSON stays the default because this is a single-user
+# localhost app where readable files beat SQLite's (here marginal) wins.
+STORE_BACKEND = os.getenv("TELEMANAGER_STORE", "json").strip().lower()
+STORE_DB_FILE = DATA_DIR / "telemanager.db"
+
 
 def now_iso() -> str:
     """UTC timestamp in ISO 8601 — the single source of truth for stored times."""

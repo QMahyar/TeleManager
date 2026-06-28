@@ -7,11 +7,15 @@
 **Status legend:** ✅ done · 🟡 in progress · ⬜ not started
 
 **Current snapshot**
-- Backend suite: **151 passing** (`py -3.12 -m pytest -q`); `ruff check src tests` clean.
+- Backend suite: **157 passing** (`py -3.12 -m pytest -q`); `ruff check src tests` clean.
 - Frontend: **26 Vitest tests** + `typecheck`/`lint`/`build` all green (`npm --prefix apps/web run ...`).
 - Phase 0 ✅ · 1 ✅ · 2 ✅ · 3 ✅ · 4 ✅ · 5 ✅ (all three 1000+ line screens decomposed; DialogRow memo) ·
   6 ✅ · 7 ✅ (boundary validation + all polled-into-state reads covered; local reads/acks out of scope) ·
-  8 ✅ (resource polling + run polling on react-query; hook shapes unchanged) · 9 ⬜
+  8 ✅ (resource polling + run polling on react-query; hook shapes unchanged) ·
+  9 ✅ (SQLite store behind the Document interface + JSON migration; opt-in, JSON default)
+- **All 10 phases complete.** Refactor/hardening phases shipped; the three big swings (typed
+  API contract, react-query, SQLite) are in. Remaining optional follow-ups are documented
+  inline (OpenAPI codegen, full mutation-shape schemas, SQLite-as-default + indexed pagination).
 - All committed on `improvements/full-sweep` (off `main`).
 - **Note:** Phase 6 (Vitest) was pulled ahead of Phase 5's risky remainder so the
   memoization/decomposition land on top of a test net (the resolver Phase 5 extracted is
@@ -228,10 +232,30 @@ files — the risk is *lost updates*), and returning `phone` to the local UI is 
   + run lifecycle; automated gates (build/lint/26 tests) are green but can't exercise the live
   poll. Bundle grew ~34 KB gz for react-query — the accepted cost.
 
-## Phase 9 — Big swing: SQLite store ⬜
+## Phase 9 — Big swing: SQLite store ✅ (opt-in)
 
-- [ ] SQLite-backed store behind the Phase 2 `Document` interface; one-time migration of
-  `data/*.json`. Transactions replace the lock dance; indexed queries give free pagination.
+- [x] **`store_sqlite.py`** — `SqliteStore` + `SqliteDocument` implement the exact
+  `read`/`write`/`mutate`/`update` contract behind one `documents(name, data)` table (one JSON
+  blob per logical document). `documents.py` selects the backend via `TELEMANAGER_STORE`
+  (`config.py`) and hands out the matching singletons — **call sites unchanged**, exactly the
+  seam Phase 2 was built for.
+- [x] **One-time migration** — `migrate_from_json()` imports the legacy `data/*.json` into the
+  DB on first boot (idempotent: never overwrites an existing row). WAL + `synchronous=NORMAL`
+  for fast, crash-safe commits.
+- [x] **Tests** (`tests/test_sqlite_store.py`, 6) — contract parity (mutate persists / rolls
+  back on exception / default is copied), 20×25 concurrent mutate loses no updates, migration
+  imports once and stays idempotent, and `presets_service` runs end-to-end on the SQLite
+  backend. Full suite **157 passing**, ruff clean.
+- [~] **Default stays JSON, by choice.** SQLite is implemented and selectable
+  (`TELEMANAGER_STORE=sqlite`) but not the default: for a single-user *localhost* app,
+  human-readable, git-diffable JSON files are worth more than SQLite's here-marginal wins, and
+  Phase 2's `Document` already closed the lost-update bug. Flipping the default is a one-line
+  change (`config.STORE_BACKEND`) when a real need appears (concurrent processes, large
+  collections). **Concurrency note:** the store uses one connection + a lock (SQLite
+  connections aren't cross-thread safe); transactions add atomic rollback over the JSON store.
+  Per-record **indexed pagination** is *not* delivered — that needs modelling each collection
+  as real rows/columns (a much larger, per-service change), deferred until a collection
+  actually grows (runs are already capped; the audit log is separate JSONL).
 
 ---
 
