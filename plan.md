@@ -9,8 +9,8 @@
 **Current snapshot**
 - Backend suite: **151 passing** (`py -3.12 -m pytest -q`); `ruff check src tests` clean.
 - Frontend: **26 Vitest tests** + `typecheck`/`lint`/`build` all green (`npm --prefix apps/web run ...`).
-- Phase 0 ✅ · 1 ✅ · 2 ✅ · 3 ✅ · 4 ✅ · 5 🟡 (resolver done; memo + decomposition deferred) · 6 ✅ ·
-  7 ✅ (boundary validation + all polled-into-state reads covered; local reads/acks out of scope) · 8–9 ⬜
+- Phase 0 ✅ · 1 ✅ · 2 ✅ · 3 ✅ · 4 ✅ · 5 ✅ (all three 1000+ line screens decomposed; DialogRow memo) ·
+  6 ✅ · 7 ✅ (boundary validation + all polled-into-state reads covered; local reads/acks out of scope) · 8–9 ⬜
 - All committed on `improvements/full-sweep` (off `main`).
 - **Note:** Phase 6 (Vitest) was pulled ahead of Phase 5's risky remainder so the
   memoization/decomposition land on top of a test net (the resolver Phase 5 extracted is
@@ -138,7 +138,7 @@ files — the risk is *lost updates*), and returning `phone` to the local UI is 
 - [x] `useAppState` stays a thin aggregator flattening the slices into the single object
   `App.tsx` spreads — screens untouched. typecheck + lint + build all green.
 
-## Phase 5 — Frontend screen decomposition + perf 🟡
+## Phase 5 — Frontend screen decomposition + perf ✅
 
 - [x] **Dedupe resolver** — `dialogTarget`/`dialogKind` moved to `lib/dialog-resolver.ts`
   with documented fallback chains; 4 import sites updated; covered by Vitest (Phase 6).
@@ -152,8 +152,10 @@ files — the risk is *lost updates*), and returning `phone` to the local UI is 
 - [x] **accounts-screen.tsx (1221 → ~40)** → orchestrator (tabs) only. Extracted
   `screens/accounts/{fleet,login,transfer}-tab.tsx` + `hooks/use-account-login-flow.ts` (the
   multi-step Telegram login state + its API helpers). Behavior identical; build/lint/test green.
-- [ ] **actions-screen.tsx (~1059)** → `actions-builder` / `actions-queue` /
-  `actions-run-banner` (+ `use-action-busy.ts`).
+- [x] **actions-screen.tsx (1059 → ~230)** → orchestrator (run-now/schedule wiring +
+  bottom tabs + `useScheduleComposer`) only. Extracted `screens/actions/builder.tsx`,
+  `queue.tsx`, `run-banner.tsx`, a shared `section-label.tsx`, and `hooks/use-action-busy.ts`.
+  Behavior identical; build/lint/test green.
 - [x] **Perf** — `React.memo(DialogRow)` + `DialogCard`, each fed a boolean `isSelected` (not
   the shared `Set`) + a stable `onToggle`. Made the handler chain referentially stable:
   `guarded` is now `useCallback` in `App.tsx`, and the controller's row handlers
