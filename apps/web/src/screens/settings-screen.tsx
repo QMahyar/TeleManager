@@ -10,7 +10,6 @@ import {
 import * as React from "react"
 
 import { Button } from "../ui/button"
-import { cn } from "../ui/utils"
 
 import { SafetyEditor } from "../components/safety-editor"
 import {
@@ -275,12 +274,12 @@ function AppearancePanel({
                 type="button"
                 aria-pressed={active}
                 onClick={() => setTheme(mode.id)}
-                className={cn(
+                className={[
                   "flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors [&_svg]:size-4",
                   active
                     ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
-                )}
+                ].filter(Boolean).join(" ")}
               >
                 <Icon />
                 {mode.label}
@@ -304,12 +303,12 @@ function AppearancePanel({
                 type="button"
                 aria-pressed={active}
                 onClick={() => setAccent(option)}
-                className={cn(
+                className={[
                   "flex items-center gap-3 rounded-lg border p-3 text-left transition-colors",
                   active
                     ? "border-primary/50 bg-primary/5"
                     : "border-border hover:bg-muted/30"
-                )}
+                ].filter(Boolean).join(" ")}
               >
                 <span
                   className="size-6 shrink-0 rounded-full border border-black/10"

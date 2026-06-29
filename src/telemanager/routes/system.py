@@ -12,7 +12,6 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from .. import __version__
-from ..file_picker import PickerBusy, PickerUnavailable, pick_path
 
 router = APIRouter()
 
@@ -73,19 +72,8 @@ def check_for_updates() -> dict:
 
 @router.post("/api/system/pick-path")
 async def pick_system_path(request: PickPathRequest) -> dict:
-    """Open a native OS file/folder dialog on this machine and return the chosen path.
-
-    Safe because the server is bound to 127.0.0.1 for a single local operator and the
-    dialog requires a human at the keyboard to make a selection — it cannot be driven
-    by a remote caller. ``path`` is null when the user cancels the dialog.
-    """
-    try:
-        path = await pick_path(request.kind, request.title)
-    except PickerBusy as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except PickerUnavailable as exc:
-        raise HTTPException(status_code=501, detail=str(exc)) from exc
-    return {"path": path, "supported": True}
+    """Native file picker removed. Use <input type="file"> in the frontend instead."""
+    return {"path": None, "supported": False}
 
 
 @router.post("/api/app/shutdown")

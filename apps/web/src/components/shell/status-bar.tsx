@@ -1,7 +1,7 @@
 import { IconMoon, IconRefresh, IconSun } from "@tabler/icons-react"
 
 import { Button } from "../../ui/button"
-import { cn } from "../../ui/utils"
+
 import { queueRunProgress } from "../../lib/helpers"
 import type { QueueRun } from "../../types"
 
@@ -75,10 +75,10 @@ function RunPulse({ activeRun }: { activeRun: QueueRun | null }) {
 
   return (
     <div
-      className={cn(
+      className={[
         "flex min-w-0 flex-1 items-center justify-center gap-2",
         "text-sky-600 dark:text-sky-400"
-      )}
+      ].filter(Boolean).join(" ")}
       role="status"
     >
       <span className="relative flex size-2 shrink-0">

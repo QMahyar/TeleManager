@@ -2,8 +2,6 @@ import * as React from "react"
 import { Dialog } from "@base-ui/react/dialog"
 import { IconAlertTriangle, IconX } from "@tabler/icons-react"
 
-import { cn } from "./utils"
-
 type ModalAlign = "center" | "start" | "end"
 export type ModalSize = "sm" | "md" | "lg" | "xl"
 
@@ -62,16 +60,16 @@ export function Modal({
     >
       <Dialog.Portal>
         <Dialog.Backdrop
-          className={cn(
+          className={[
             "fixed inset-0 z-50 bg-background/70 backdrop-blur-sm",
             "transition-opacity duration-200 ease-out motion-reduce:transition-none",
             "data-[starting-style]:opacity-0 data-[ending-style]:opacity-0"
-          )}
+          ].join(" ")}
         />
         <Dialog.Popup
           aria-labelledby={labelledBy}
           aria-describedby={describedBy}
-          className={cn(
+          className={[
             "fixed left-1/2 z-50 -translate-x-1/2",
             positionClass[align],
             "w-[calc(100%-2rem)]",
@@ -82,7 +80,7 @@ export function Modal({
             "data-[starting-style]:scale-[0.97] data-[starting-style]:opacity-0",
             "data-[ending-style]:scale-[0.97] data-[ending-style]:opacity-0",
             className
-          )}
+          ].filter(Boolean).join(" ")}
         >
           {children}
         </Dialog.Popup>
@@ -145,10 +143,10 @@ export function ModalShell({
         <div className="min-w-0 flex-1 space-y-1">
           {kicker ? (
             <p
-              className={cn(
+              className={[
                 "type-eyebrow",
                 danger ? "text-destructive" : "text-primary"
-              )}
+              ].filter(Boolean).join(" ")}
             >
               {kicker}
             </p>
@@ -179,7 +177,7 @@ export function ModalShell({
         </button>
       </div>
       {children != null ? (
-        <div className={cn("min-h-0 flex-1 overflow-y-auto px-5 py-4", bodyClassName)}>
+        <div className={["min-h-0 flex-1 overflow-y-auto px-5 py-4", bodyClassName].filter(Boolean).join(" ")}>
           {children}
         </div>
       ) : null}

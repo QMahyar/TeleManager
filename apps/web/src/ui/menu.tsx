@@ -2,7 +2,6 @@ import * as React from "react"
 import { Menu as BaseMenu } from "@base-ui/react/menu"
 
 import { Button } from "./button"
-import { cn } from "./utils"
 
 // Dropdown menu built on Base UI Menu: it brings keyboard navigation (arrow
 // keys, Home/End, typeahead), focus management, collision-aware positioning
@@ -53,10 +52,10 @@ export function Menu({
         >
           <BaseMenu.Popup
             aria-label={label}
-            className={cn(
+            className={[
               "grid min-w-44 gap-1 rounded-lg border border-border bg-card p-2 text-card-foreground shadow-lg outline-none",
               panelClassName
-            )}
+            ].filter(Boolean).join(" ")}
           >
             {children}
           </BaseMenu.Popup>
@@ -97,7 +96,7 @@ export function MenuItem({
     <BaseMenu.Item
       disabled={disabled}
       onClick={onClick}
-      className={cn(menuItemClass, menuItemVariant[variant], className)}
+      className={[menuItemClass, menuItemVariant[variant], className].filter(Boolean).join(" ")}
     >
       {children}
     </BaseMenu.Item>

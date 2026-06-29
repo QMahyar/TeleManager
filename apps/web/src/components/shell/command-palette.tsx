@@ -1,7 +1,7 @@
 import { IconSearch } from "@tabler/icons-react"
 
 import { ModalShell } from "../../ui/modal"
-import { cn } from "../../ui/utils"
+
 import { Input } from "../ui"
 import type { PaletteCommand } from "./types"
 
@@ -83,12 +83,12 @@ function PaletteItem({
   return (
     <button
       onClick={() => onRun(item)}
-      className={cn(
+      className={[
         "flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors",
         active
           ? "border-border bg-muted/40"
           : "border-transparent hover:border-border hover:bg-muted/40"
-      )}
+      ].filter(Boolean).join(" ")}
     >
       <Icon className="size-4" />
       <span className="flex-1">{item.label}</span>

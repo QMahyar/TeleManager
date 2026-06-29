@@ -4,7 +4,15 @@ Implementation roadmap for priority improvements identified 2026-06-29.
 
 ## ✅ Implemented
 
-_(None yet — tracking begins here)_
+### **#6 — Telegram Error Taxonomy + Retry Logic** ✅
+**Completed**: 2026-06-29  
+**Details**:
+- Created `telegram_errors.py` with `classify_telegram_error()` parsing 10+ error categories
+- Auto-retry for short flood waits (≤60s) and network errors
+- Clear user messages: "Session revoked. Log in again." vs "Rate limited for 45s, retrying..."
+- Integrated into queue worker (`action_queue_service.py`) and account manager (`accounts.py`)
+- 12 passing tests covering all error categories and retry logic
+- Session invalid errors now mark account as unauthorized automatically
 
 ---
 
@@ -18,14 +26,9 @@ _(Current work tracked here)_
 
 ### 🔒 Must-Have (Security & Stability)
 
-#### **#6 — Telegram Error Taxonomy + Retry Logic**
-**Status**: Not started  
-**Goal**: Parse Telegram error codes properly, auto-retry transient errors, show clear user guidance  
-**Details**:
-- Parse common error types: `FLOOD_WAIT_X`, `SESSION_REVOKED`, `PEER_FLOOD`, `CHAT_WRITE_FORBIDDEN`, `CHAT_ADMIN_REQUIRED`, `USER_PRIVACY_RESTRICTED`
-- Auto-retry logic for transient errors (network timeout, `FLOOD_WAIT` < 60s)
-- Clear error messages: "Session revoked. Log in again." vs "Rate limited for 45s, retrying..."
-- Add to `telegram_actions.py` and queue worker
+#### ~~**#6 — Telegram Error Taxonomy + Retry Logic**~~ ✅
+**Status**: Complete (2026-06-29)  
+See "Implemented" section above.
 
 #### **#7 — Session Health Monitoring**
 **Status**: Not started  

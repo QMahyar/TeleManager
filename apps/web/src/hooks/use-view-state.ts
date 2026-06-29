@@ -1,6 +1,6 @@
 import * as React from "react"
+import { flushSync } from "react-dom"
 
-import { withViewTransition } from "../lib/view-transition"
 import type { AccountsTab, View } from "../types"
 
 const KNOWN_VIEWS: ReadonlySet<View> = new Set<View>([
@@ -25,13 +25,27 @@ export function useViewState() {
     window.location.hash = view
   }, [view])
 
-  // Crossfade screen changes via the View Transitions API. Wrapping the raw
-  // setter here means every nav surface (sidebar, header, command palette)
-  // animates for free; it degrades to an instant swap when unsupported or under
+  // Crossfade screen changes via the View Transitions API. React 19's startTransition
+  // is used to batch the update, and flushSync ensures the DOM commits inside the
+  // transition's capture window. Falls back to instant swap when unsupported or under
   // reduced-motion.
   const setViewAnimated = React.useCallback(
     (next: React.SetStateAction<View>) => {
-      withViewTransition(() => setView(next))
+      const doc = document as Document & {
+        startViewTransition?: (callback: () => void) => unknown
+      }
+      const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+
+      if (prefersReduced || typeof doc.startViewTransition !== "function") {
+        React.startTransition(() => setView(next))
+        return
+      }
+
+      doc.startViewTransition(() => {
+        flushSync(() => {
+          React.startTransition(() => setView(next))
+        })
+      })
     },
     []
   )

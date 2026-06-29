@@ -7,8 +7,6 @@ import time
 import uuid
 
 from pydantic import BaseModel, Field, model_validator
-from telethon.errors import FloodWaitError
-
 from .accounts import AccountManager
 from .action_runs_service import save_action_runs
 from .audit_service import log_event
@@ -23,6 +21,7 @@ from .telegram_actions import (
     safe_delay,
     validate_target_for_action,
 )
+from .telegram_errors import classify_telegram_error, should_auto_retry
 
 logger = logging.getLogger("telemanager.queue")
 
@@ -229,9 +228,54 @@ async def process_action_queue(
                         manager.run_warm_action(action), timeout=QUEUE_OPERATION_TIMEOUT_SECONDS
                     )
                     result_payload = result.to_dict()
-                except FloodWaitError as flood:
-                    handle_queue_flood_wait(run, operation, expanded[index:], flood)
-                    break
+                except Exception as exc:
+                    # Classify and handle Telegram errors with retry logic
+                    error_info = classify_telegram_error(exc)
+
+                    # Short flood waits: retry once after delay
+                    if should_auto_retry(error_info) and error_info.retry_after_seconds:
+                        logger.info(
+                            "Queue %s: retrying %s after %ss flood wait",
+                            run_id, operation["action_type"], error_info.retry_after_seconds
+                        )
+                        await asyncio.sleep(error_info.retry_after_seconds)
+                        try:
+                            result = await asyncio.wait_for(
+                                manager.run_warm_action(action), timeout=QUEUE_OPERATION_TIMEOUT_SECONDS
+                            )
+                            result_payload = result.to_dict()
+                        except Exception as retry_exc:
+                            # Retry failed — classify again and fail the operation
+                            retry_error_info = classify_telegram_error(retry_exc)
+                            result_payload = TelegramActionResult(
+                                operation["account_id"],
+                                operation["account_label"],
+                                False,
+                                operation["action_type"],
+                                f"{retry_error_info.user_message} (retry failed)",
+                            ).to_dict()
+                    # Long flood waits or non-retryable errors: fail and stop queue
+                    elif error_info.category.startswith("flood_wait"):
+                        handle_queue_flood_wait(run, operation, expanded[index:], error_info)
+                        break
+                    # Session invalid: fail operation and continue (operator can fix and retry run)
+                    elif error_info.category == "session_invalid":
+                        result_payload = TelegramActionResult(
+                            operation["account_id"],
+                            operation["account_label"],
+                            False,
+                            operation["action_type"],
+                            error_info.user_message,
+                        ).to_dict()
+                    # Other errors: fail operation and continue
+                    else:
+                        result_payload = TelegramActionResult(
+                            operation["account_id"],
+                            operation["account_label"],
+                            False,
+                            operation["action_type"],
+                            error_info.user_message,
+                        ).to_dict()
                 except TimeoutError:
                     # Fail just this operation and continue — a single stuck call must
                     # not take the whole run down. Shape matches TelegramActionResult.
@@ -284,8 +328,9 @@ async def process_action_queue(
             save_action_runs(queue_runs)
 
 
-def handle_queue_flood_wait(run: dict, operation: dict, remaining: list[dict], flood: FloodWaitError) -> None:
-    seconds = getattr(flood, "seconds", 0) or 0
+def handle_queue_flood_wait(run: dict, operation: dict, remaining: list[dict], error_info: Any) -> None:
+    """Handle long flood waits that stop the queue."""
+    seconds = error_info.retry_after_seconds or 0
     timestamp = now_iso()
     operation["status"] = "failed"
     operation["completed_at"] = timestamp
@@ -294,7 +339,7 @@ def handle_queue_flood_wait(run: dict, operation: dict, remaining: list[dict], f
         "label": operation.get("account_label") or operation["account_id"],
         "ok": False,
         "action_type": operation["action_type"],
-        "detail": f"Telegram flood wait: pause {seconds}s before retrying.",
+        "detail": error_info.user_message,
         "target": operation["target"],
         "step_index": operation["step_index"],
     }
@@ -304,7 +349,7 @@ def handle_queue_flood_wait(run: dict, operation: dict, remaining: list[dict], f
     run["failed_count"] = run["completed_count"] - run["ok_count"]
     mark_remaining_operations(remaining[1:])
     run["status"] = "flood_wait"
-    run["error"] = f"Telegram rate-limited this run. Wait {seconds}s before retrying the remaining operations."
+    run["error"] = f"Rate limited by Telegram. Wait {seconds}s ({seconds // 60}m) before retrying."
 
 
 def mark_remaining_operations(operations: list[dict]) -> None:

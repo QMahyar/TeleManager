@@ -2,8 +2,6 @@ import * as React from "react"
 import { Popover } from "@base-ui/react/popover"
 import { IconInfoCircle } from "@tabler/icons-react"
 
-import { cn } from "./utils"
-
 // An inline "ⓘ" help affordance. Built on Base UI Popover so it opens on hover
 // AND on click/keyboard from one accessible, portal-rendered, collision-aware
 // component — the same foundation as ui/menu.tsx and ui/dialog.tsx. Native HTML
@@ -38,12 +36,12 @@ export function InfoHint({
           <button
             type="button"
             aria-label={label}
-            className={cn(
+            className={[
               "inline-flex size-4 shrink-0 cursor-help items-center justify-center rounded-full text-muted-foreground/70 outline-none transition-colors",
               "hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
               "data-[popup-open]:text-primary",
               className
-            )}
+            ].filter(Boolean).join(" ")}
           >
             <IconInfoCircle className="size-3.5" />
           </button>
@@ -52,12 +50,12 @@ export function InfoHint({
       <Popover.Portal>
         <Popover.Positioner side="top" align="start" sideOffset={6} className="z-50">
           <Popover.Popup
-            className={cn(
+            className={[
               "max-w-xs rounded-lg border border-border bg-popover px-3 py-2 text-popover-foreground shadow-lg outline-none",
               // Normal-case so it reads as prose even when the trigger sits next
               // to an uppercase `type-label`.
               "text-xs leading-5 font-normal normal-case tracking-normal"
-            )}
+            ].join(" ")}
           >
             {children}
           </Popover.Popup>

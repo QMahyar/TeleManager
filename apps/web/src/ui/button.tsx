@@ -1,8 +1,6 @@
 import { IconLoader2 } from "@tabler/icons-react"
 import * as React from "react"
 
-import { cn } from "./utils"
-
 type ButtonVariant = "default" | "outline" | "secondary" | "ghost" | "destructive" | "link"
 type ButtonSize =
   | "default"
@@ -66,7 +64,7 @@ export function Button({
   return (
     <button
       data-slot="button"
-      className={cn(baseClass, variants[variant], sizes[size], className)}
+      className={[baseClass, variants[variant], sizes[size], className].filter(Boolean).join(" ")}
       disabled={disabled || loading}
       {...props}
     >

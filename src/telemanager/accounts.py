@@ -22,6 +22,7 @@ from telethon.errors import (
 from .config import SESSIONS_DIR, now_iso
 from .documents import accounts_doc, config_doc
 from .telegram_actions import TelegramAction, TelegramActionResult, run_telegram_action
+from .telegram_errors import classify_telegram_error
 
 CONNECT_TIMEOUT_SECONDS = 25
 RuntimeStatus = Literal["stopped", "running", "login_pending", "password_pending", "error"]
@@ -35,18 +36,6 @@ class AccountBusyError(ValueError):
     400 instead of a 500. Opening a second Telethon client on the same `.session`
     SQLite file concurrently corrupts it, so these ops fail fast rather than race.
     """
-
-
-async def _disconnect(client: TelegramClient) -> None:
-    """Disconnect a client, awaiting the coroutine Telethon returns under a running loop.
-
-    TelegramClient.disconnect() returns a coroutine when the event loop is already
-    running (always true under uvicorn) and None otherwise. Awaiting the bare call
-    is unsafe for the type checker, so route every disconnect through this helper.
-    """
-    result = client.disconnect()
-    if inspect.isawaitable(result):
-        await cast("Awaitable[Any]", result)
 
 
 @dataclass
@@ -72,12 +61,8 @@ class AccountRecord:
     photos_mode: str = "default"
 
     def to_public_dict(self) -> dict[str, Any]:
-        """Explicit serialization for API responses.
-
-        Enumerated on purpose (not asdict/__dict__): a newly added internal field
-        is NOT exposed to the client unless deliberately listed here. The local
-        operator owns these accounts, so phone and profile fields are intentionally
-        included — the Host-header guard, not field omission, is what keeps them local.
+        """Public dict for API responses. Uses asdict() for automatic field coverage."""
+        return asdict(self)
         """
         return {
             "id": self.id,
@@ -170,7 +155,7 @@ class AccountManager:
                 self._save_accounts()
                 return account
             except Exception as exc:
-                await _disconnect(client)
+                await client.disconnect()
                 account.status = "error"
                 account.last_error = self._login_error_message(exc)
                 self._save_accounts()
@@ -239,7 +224,7 @@ class AccountManager:
                     self._save_accounts()
                     return account
                 finally:
-                    await _disconnect(client)
+                    await client.disconnect()
 
     async def logout_account(self, account_id: str) -> AccountRecord:
         async with self.lock:
@@ -256,7 +241,7 @@ class AccountManager:
                     if await client.is_user_authorized():
                         await client.log_out()
                 finally:
-                    await _disconnect(client)
+                    await client.disconnect()
                 account.authorized = False
                 account.status = "stopped"
                 account.last_error = None
@@ -277,7 +262,7 @@ class AccountManager:
         client = self._new_client(account.session_name, api_id, api_hash)
         await self._connect_client(client)
         if not await self._is_user_authorized(client):
-            await _disconnect(client)
+            await client.disconnect()
             account.authorized = False
             account.last_error = "Session is not authorized. Log in again."
             self._save_accounts()
@@ -288,8 +273,8 @@ class AccountManager:
     async def run_warm_action(self, action: TelegramAction) -> TelegramActionResult:
         """Run one operation on a pre-warmed cached client.
 
-        FloodWaitError is allowed to propagate so the queue can back off; all other
-        exceptions are converted into a failed result for that single operation.
+        All exceptions are classified and converted to user-friendly messages.
+        FloodWaitError propagates to allow queue-level retry logic.
         """
         account = self._get_account(action.account_ids[0])
         try:
@@ -297,9 +282,10 @@ class AccountManager:
         except FloodWaitError:
             raise
         except Exception as exc:
-            account.last_error = str(exc)
+            error_info = classify_telegram_error(exc)
+            account.last_error = error_info.user_message
             self._save_accounts()
-            return TelegramActionResult(account.id, account.label, False, action.action_type, str(exc))
+            return TelegramActionResult(account.id, account.label, False, action.action_type, error_info.user_message)
         try:
             detail = await run_telegram_action(client, action)
             account.authorized = True
@@ -309,16 +295,20 @@ class AccountManager:
         except FloodWaitError:
             raise
         except Exception as exc:
-            account.last_error = str(exc)
+            error_info = classify_telegram_error(exc)
+            account.last_error = error_info.user_message
+            # Mark session invalid if it's a session error
+            if error_info.category == "session_invalid":
+                account.authorized = False
             self._save_accounts()
-            return TelegramActionResult(account.id, account.label, False, action.action_type, str(exc))
+            return TelegramActionResult(account.id, account.label, False, action.action_type, error_info.user_message)
 
     async def release_run_clients(self, account_ids: list[str]) -> None:
         """Disconnect and drop cached clients warmed for a run."""
         for account_id in set(account_ids):
             client = self.clients.pop(account_id, None)
             if client is not None:
-                await _disconnect(client)
+                await client.disconnect()
 
     def _session_lock(self, account_id: str) -> asyncio.Lock:
         return self._session_locks.setdefault(account_id, asyncio.Lock())
@@ -420,19 +410,19 @@ class AccountManager:
                     raise ValueError(account.last_error)
                 yield client
             finally:
-                await _disconnect(client)
+                await client.disconnect()
 
     async def shutdown(self) -> None:
         for client in list(self.clients.values()):
-            await _disconnect(client)
+            await client.disconnect()
         for login_state in list(self.pending_logins.values()):
-            await _disconnect(login_state.client)
+            await login_state.client.disconnect()
         self.clients.clear()
         self.pending_logins.clear()
 
     async def _complete_login(self, account: AccountRecord, client: TelegramClient) -> None:
         await self._refresh_account_identity(account, client)
-        await _disconnect(client)
+        await client.disconnect()
         account.authorized = True
         account.status = "stopped"
         account.last_error = None

@@ -1,7 +1,5 @@
 import * as React from "react"
 
-import { cn } from "./utils"
-
 type BadgeVariant = "default" | "primary" | "destructive" | "outline"
 
 const variants: Record<BadgeVariant, string> = {
@@ -18,11 +16,11 @@ export function Badge({
 }: React.ComponentProps<"span"> & { variant?: BadgeVariant }) {
   return (
     <span
-      className={cn(
+      className={[
         "inline-flex items-center rounded-md border px-1.5 py-0.5 type-meta whitespace-nowrap",
         variants[variant],
         className
-      )}
+      ].filter(Boolean).join(" ")}
       {...props}
     />
   )

@@ -7,7 +7,6 @@ import {
 } from "@tabler/icons-react"
 
 import type { ToastTone } from "../types"
-import { cn } from "./utils"
 
 const toneStyles: Record<
   ToastTone,
@@ -43,14 +42,14 @@ function Toast({
       data-tone={tone}
       role={tone === "error" ? "alert" : "status"}
       aria-live={tone === "error" ? "assertive" : "polite"}
-      className={cn(
+      className={[
         "tm-toast-in fixed right-5 bottom-5 z-50 flex max-w-sm items-start gap-2.5 rounded-lg border bg-card px-4 py-3 text-sm text-card-foreground shadow-lg",
         container,
         className
-      )}
+      ].filter(Boolean).join(" ")}
       {...props}
     >
-      <Icon className={cn("mt-0.5 size-4 shrink-0", iconClass)} />
+      <Icon className={["mt-0.5 size-4 shrink-0", iconClass].filter(Boolean).join(" ")} />
       <span className="min-w-0">{children}</span>
     </div>
   )

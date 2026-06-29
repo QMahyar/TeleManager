@@ -1,4 +1,3 @@
-import { cn } from "../ui/utils"
 import { BEACON_VIEWBOX } from "../lib/beacon"
 
 // Brand mark — "signal beacon": a solid core with concentric signal rings (the
@@ -19,10 +18,10 @@ export function BrandMark({
   return (
     <span
       aria-hidden
-      className={cn(
+      className={[
         "grid shrink-0 place-items-center rounded-md border border-sidebar-border bg-sidebar-accent",
         className
-      )}
+      ].filter(Boolean).join(" ")}
       style={{ width: size, height: size }}
     >
       <svg
@@ -70,7 +69,7 @@ export function BrandLockup({
   className?: string
 }) {
   return (
-    <div className={cn("flex items-center gap-3", className)}>
+    <div className={["flex items-center gap-3", className].filter(Boolean).join(" ")}>
       <BrandMark size={size} />
       <div className="leading-tight">
         <span className="block font-mono text-lg font-semibold tracking-tight text-foreground lowercase">

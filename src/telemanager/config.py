@@ -21,15 +21,6 @@ SCHEDULES_FILE = DATA_DIR / "schedules.json"
 SAFETY_SETTINGS_FILE = DATA_DIR / "safety_settings.json"
 APP_SETTINGS_FILE = DATA_DIR / "app_settings.json"
 
-# Persistence backend for the shared documents (config/accounts/presets/runs/
-# schedules/safety/app settings). "json" (default) keeps the human-readable,
-# git-diffable per-file Document store; "sqlite" swaps in the transactional
-# SQLite store behind the same interface (documents.py), auto-migrating the JSON
-# files on first boot. JSON stays the default because this is a single-user
-# localhost app where readable files beat SQLite's (here marginal) wins.
-STORE_BACKEND = os.getenv("TELEMANAGER_STORE", "json").strip().lower()
-STORE_DB_FILE = DATA_DIR / "telemanager.db"
-
 
 def now_iso() -> str:
     """UTC timestamp in ISO 8601 — the single source of truth for stored times."""
@@ -55,19 +46,9 @@ def read_json(path: Path, default: Any) -> Any:
         return default
 
 
-def atomic_write_text(path: Path, text: str) -> None:
-    """Write text via a temp file + atomic replace so readers never see a
-    half-written or truncated file (a crash leaves the prior version intact).
-
-    Shared by write_json and any other store that overwrites a file in place
-    (e.g. the audit-log trim) so every full-file rewrite gets the same guarantee.
-    """
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_suffix(f"{path.suffix}.tmp")
-    tmp_path.write_text(text, encoding="utf-8")
-    tmp_path.replace(path)
-
-
 def write_json(path: Path, value: Any) -> None:
     ensure_dirs()
-    atomic_write_text(path, json.dumps(value, indent=2, sort_keys=True))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_suffix(f"{path.suffix}.tmp")
+    tmp_path.write_text(json.dumps(value, indent=2, sort_keys=True), encoding="utf-8")
+    tmp_path.replace(path)

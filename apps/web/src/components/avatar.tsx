@@ -1,6 +1,5 @@
 import * as React from "react"
 
-import { cn } from "../ui/utils"
 import { gradientFor, initialsFor } from "../lib/avatar"
 
 // A Telegram-style avatar. When `src` is given (a cached profile photo) it renders
@@ -37,7 +36,7 @@ export function Avatar({
         loading="lazy"
         decoding="async"
         onError={() => setFailedSrc(src)}
-        className={cn("shrink-0 rounded-full object-cover select-none", className)}
+        className={["shrink-0 rounded-full object-cover select-none", className].filter(Boolean).join(" ")}
         style={{ width: size, height: size }}
       />
     )
@@ -47,10 +46,10 @@ export function Avatar({
   return (
     <span
       aria-hidden
-      className={cn(
+      className={[
         "grid shrink-0 place-items-center rounded-full font-mono font-semibold tracking-tight text-white select-none",
         className
-      )}
+      ].filter(Boolean).join(" ")}
       style={{
         width: size,
         height: size,

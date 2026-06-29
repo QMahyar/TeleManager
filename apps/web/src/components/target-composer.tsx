@@ -9,7 +9,6 @@ import {
 } from "@tabler/icons-react"
 
 import { Button } from "../ui/button"
-import { cn } from "../ui/utils"
 import { actionMeta } from "../lib/constants"
 import { splitTargets } from "../lib/helpers"
 import { analyzeTarget } from "../lib/targeting"
@@ -189,14 +188,14 @@ function TargetChip({
   return (
     <span
       title={reason}
-      className={cn(
+      className={[
         "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs",
         invalid
           ? "border-border/60 bg-muted/40 text-muted-foreground line-through opacity-60"
           : warning
             ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
             : "border-primary/30 bg-primary/5 text-foreground"
-      )}
+      ].filter(Boolean).join(" ")}
     >
       {invalid || warning ? (
         <IconAlertTriangle className="size-3 shrink-0 no-underline" />

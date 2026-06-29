@@ -24,7 +24,6 @@ import {
   Select as UiSelect,
   Textarea as UiTextarea,
 } from "../ui/form"
-import { cn } from "../ui/utils"
 import { api } from "../lib/api"
 import {
   TIER_BADGE_CLASS,
@@ -73,11 +72,11 @@ export function Panel({
 }: React.PropsWithChildren<{ className?: string; tone?: "base" | "raised" }>) {
   return (
     <Card
-      className={cn(
+      className={[
         "p-4",
         tone === "raised" && "border-primary/20 shadow-md",
         className
-      )}
+      ].filter(Boolean).join(" ")}
     >
       {children}
     </Card>
@@ -90,10 +89,10 @@ export function PageGrid({
 }: React.PropsWithChildren<{ className?: string }>) {
   return (
     <div
-      className={cn(
+      className={[
         "grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem] 2xl:grid-cols-[minmax(0,1fr)_22rem]",
         className
-      )}
+      ].filter(Boolean).join(" ")}
     >
       {children}
     </div>
@@ -104,7 +103,7 @@ export function PrimaryPane({
   children,
   className,
 }: React.PropsWithChildren<{ className?: string }>) {
-  return <div className={cn("min-w-0 space-y-4", className)}>{children}</div>
+  return <div className={["min-w-0 space-y-4", className].filter(Boolean).join(" ")}>{children}</div>
 }
 
 export function SidePane({
@@ -113,12 +112,12 @@ export function SidePane({
 }: React.PropsWithChildren<{ className?: string }>) {
   return (
     <div
-      className={cn(
+      className={[
         // svh minus the sticky top offset, footer height, and a bottom gap, so
         // the pinned pane never runs under the footer status bar (~2.25rem).
         "min-w-0 space-y-4 xl:sticky xl:top-4 xl:max-h-[calc(100svh-4.5rem)] xl:overflow-auto",
         className
-      )}
+      ].filter(Boolean).join(" ")}
     >
       {children}
     </div>
@@ -182,7 +181,7 @@ export function Field({
   className?: string
 }>) {
   return (
-    <div data-slot="field" className={cn("grid gap-1.5", className)}>
+    <div data-slot="field" className={["grid gap-1.5", className].filter(Boolean).join(" ")}>
       <span className="type-label flex items-center gap-1.5 text-muted-foreground">
         {htmlFor ? <label htmlFor={htmlFor}>{label}</label> : label}
         {hint ? <InfoHint label={`About ${label}`}>{hint}</InfoHint> : null}
@@ -256,7 +255,7 @@ export function PathInput({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         {...inputProps}
-        className={cn("min-w-0 flex-1", inputProps.className)}
+        className={["min-w-0 flex-1", inputProps.className].filter(Boolean).join(" ")}
       />
       <Menu
         label="Browse for a file or folder"
@@ -326,10 +325,10 @@ export function Tabs<T extends string>({
   return (
     <BaseTabs.Root value={value} onValueChange={(next) => onChange(next as T)}>
       <BaseTabs.List
-        className={cn(
+        className={[
           "flex flex-wrap gap-1 border-b border-border pb-2",
           className
-        )}
+        ].filter(Boolean).join(" ")}
       >
         {items.map((item) => {
           const Icon = item.icon
@@ -337,12 +336,12 @@ export function Tabs<T extends string>({
             <BaseTabs.Tab
               key={item.id}
               value={item.id}
-              className={cn(
+              className={[
                 "flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors outline-none [&_svg]:size-3.5",
                 "border-transparent text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground",
                 "focus-visible:ring-2 focus-visible:ring-ring/40",
                 "data-[selected]:border-primary/40 data-[selected]:bg-primary/10 data-[selected]:text-primary"
-              )}
+              ].filter(Boolean).join(" ")}
             >
               {Icon ? <Icon /> : null}
               {item.label}
@@ -365,7 +364,7 @@ export function Skeleton({ className }: { className?: string }) {
   return (
     <div
       aria-hidden
-      className={cn("animate-pulse rounded-md bg-muted/60", className)}
+      className={["animate-pulse rounded-md bg-muted/60", className].filter(Boolean).join(" ")}
     />
   )
 }
@@ -387,19 +386,19 @@ export function StatCard({
   active?: boolean
   onClick?: () => void
 }) {
-  const className = cn(
+  const className = [
     "rounded-lg border border-l-2 border-border bg-card p-3 text-left transition-colors",
     primary || active ? "border-l-primary" : "border-l-border",
     onClick && "hover:border-l-primary hover:bg-muted/30"
-  )
+  ].filter(Boolean).join(" ")
   const body = (
     <>
       <span className="type-meta text-muted-foreground">{label}</span>
       <strong
-        className={cn(
+        className={[
           "mt-1 block type-stat",
           (primary || active) && "text-primary"
-        )}
+        ].filter(Boolean).join(" ")}
       >
         {value}
       </strong>
@@ -459,11 +458,11 @@ export function SignalDot({
   return (
     <span
       aria-hidden
-      className={cn(
+      className={[
         "relative flex size-2 shrink-0 items-center justify-center",
         signalToneClass[tone],
         className
-      )}
+      ].filter(Boolean).join(" ")}
     >
       {tone === "live" ? (
         <span className="absolute inline-flex size-full animate-ping rounded-full bg-current opacity-60 motion-reduce:hidden" />
@@ -483,10 +482,10 @@ export function Readout({
 }: React.PropsWithChildren<{ className?: string }>) {
   return (
     <div
-      className={cn(
+      className={[
         "flex w-full flex-wrap items-stretch border-y border-border",
         className
-      )}
+      ].filter(Boolean).join(" ")}
     >
       {children}
     </div>
@@ -524,13 +523,13 @@ export function ReadoutItem({
       </span>
     </>
   )
-  const classes = cn(
+  const classes = [
     "flex flex-1 items-center gap-2 border-l border-border px-3 py-2.5 first:border-l-0",
     onClick &&
       "text-left transition-colors hover:bg-muted/30 focus-visible:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-inset",
     active && "bg-primary/10",
     className
-  )
+  ].filter(Boolean).join(" ")
   if (onClick) {
     return (
       <button
@@ -566,10 +565,10 @@ export function EmptyState({
 }) {
   return (
     <div
-      className={cn(
+      className={[
         "flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-muted/20 px-6 py-10 text-center",
         className
-      )}
+      ].filter(Boolean).join(" ")}
     >
       {illustration ? (
         <div className="text-muted-foreground/70">{illustration}</div>
@@ -605,10 +604,10 @@ export function ErrorState({
   return (
     <div
       role="alert"
-      className={cn(
+      className={[
         "flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-destructive/40 bg-destructive/5 px-6 py-10 text-center",
         className
-      )}
+      ].filter(Boolean).join(" ")}
     >
       <IconAlertTriangle className="size-7 text-destructive" />
       <div className="space-y-1">
@@ -636,10 +635,10 @@ export function SectionLoader({
 }) {
   return (
     <div
-      className={cn(
+      className={[
         "flex flex-col items-center justify-center gap-2 px-6 py-10 text-center text-muted-foreground",
         className
-      )}
+      ].filter(Boolean).join(" ")}
     >
       <IconLoader2 className="size-6 animate-spin" />
       <p className="text-xs">{label}</p>
@@ -664,10 +663,10 @@ export function ShowMore({
 }) {
   return (
     <div
-      className={cn(
+      className={[
         "flex items-center justify-between gap-3 px-1 pt-2 text-xs text-muted-foreground",
         className
-      )}
+      ].filter(Boolean).join(" ")}
     >
       <span className="font-mono tabular-nums">
         Showing {shown} of {total}
@@ -703,11 +702,11 @@ export function TimingBadge({
   return (
     <span
       title={TIER_BLURB[tier]}
-      className={cn(
+      className={[
         "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 type-meta whitespace-nowrap [&_svg]:size-3",
         TIER_BADGE_CLASS[tier],
         className
-      )}
+      ].filter(Boolean).join(" ")}
     >
       <Icon />
       {TIER_LABEL[tier]}
@@ -759,23 +758,23 @@ export function Disclosure({
 
   return (
     <div
-      className={cn(
+      className={[
         flush
           ? "border-t border-border"
           : "overflow-hidden rounded-lg border border-border bg-background/40",
         className
-      )}
+      ].filter(Boolean).join(" ")}
     >
       <button
         type="button"
         aria-expanded={open}
         onClick={toggle}
-        className={cn(
+        className={[
           "flex w-full items-center gap-2 text-left text-xs transition-colors",
           flush
             ? "py-2.5 text-muted-foreground hover:text-foreground"
             : "px-3 py-2 hover:bg-muted/40"
-        )}
+        ].filter(Boolean).join(" ")}
       >
         {Icon ? (
           <Icon className="size-3.5 shrink-0 text-muted-foreground" />
@@ -791,15 +790,15 @@ export function Disclosure({
             </span>
           ) : null}
           <IconChevronDown
-            className={cn(
+            className={[
               "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
               open && "rotate-180"
-            )}
+            ].filter(Boolean).join(" ")}
           />
         </span>
       </button>
       {open ? (
-        <div className={cn(flush ? "pb-3" : "border-t border-border p-3")}>
+        <div className={[flush ? "pb-3" : "border-t border-border p-3"].filter(Boolean).join(" ")}>
           {children}
         </div>
       ) : null}
@@ -843,11 +842,11 @@ export function Callout({
   return (
     <div
       role={tone === "danger" || tone === "warning" ? "alert" : undefined}
-      className={cn(
+      className={[
         "flex gap-2 rounded-lg border p-2.5 text-xs",
         calloutToneClass[tone],
         className
-      )}
+      ].filter(Boolean).join(" ")}
     >
       {Icon ? <Icon className="mt-px size-3.5 shrink-0" /> : null}
       <div className="min-w-0 flex-1 space-y-1">

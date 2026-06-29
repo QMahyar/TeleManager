@@ -1,12 +1,10 @@
 import * as React from "react"
 
-import { cn } from "./utils"
-
 function TableWrap({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="table-wrap"
-      className={cn("overflow-auto rounded-lg border border-border", className)}
+      className={["overflow-auto rounded-lg border border-border", className].filter(Boolean).join(" ")}
       {...props}
     />
   )
@@ -16,7 +14,7 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <table
       data-slot="table"
-      className={cn("w-full text-left text-sm", className)}
+      className={["w-full text-left text-sm", className].filter(Boolean).join(" ")}
       {...props}
     />
   )
@@ -26,10 +24,10 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      className={cn(
+      className={[
         "sticky top-0 z-10 border-b border-border bg-card type-label text-muted-foreground",
         className
-      )}
+      ].filter(Boolean).join(" ")}
       {...props}
     />
   )
@@ -43,10 +41,10 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   return (
     <tr
       data-slot="table-row"
-      className={cn(
+      className={[
         "border-b border-border/60 transition-colors last:border-0 hover:bg-muted/30",
         className
-      )}
+      ].filter(Boolean).join(" ")}
       {...props}
     />
   )
@@ -56,7 +54,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
   return (
     <th
       data-slot="table-head"
-      className={cn("px-3 py-2 font-medium", className)}
+      className={["px-3 py-2 font-medium", className].filter(Boolean).join(" ")}
       {...props}
     />
   )
@@ -64,7 +62,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
 
 function TableCell({ className, ...props }: React.ComponentProps<"td">) {
   return (
-    <td data-slot="table-cell" className={cn("px-3 py-2", className)} {...props} />
+    <td data-slot="table-cell" className={["px-3 py-2", className].filter(Boolean).join(" ")} {...props} />
   )
 }
 

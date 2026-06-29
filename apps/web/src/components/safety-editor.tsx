@@ -1,7 +1,5 @@
 import * as React from "react"
 
-import { cn } from "../ui/utils"
-
 import type { ActionTier, SafetySettings } from "../types"
 import { Field, InfoHint, Input, TimingBadge } from "./ui"
 
@@ -98,10 +96,10 @@ export function SafetyEditor({
   return (
     <div className="space-y-4">
       <div
-        className={cn(
+        className={[
           "grid gap-3",
           dense ? "grid-cols-1" : "sm:grid-cols-2"
-        )}
+        ].filter(Boolean).join(" ")}
       >
         <SafetyNumber
           label="Account delay (s)"
@@ -129,10 +127,10 @@ export function SafetyEditor({
           rate-limits it, so harmless reads fly and spam-prone sends stay spaced.
         </p>
         <div
-          className={cn(
+          className={[
             "grid gap-3",
             dense ? "grid-cols-1" : "sm:grid-cols-3"
-          )}
+          ].filter(Boolean).join(" ")}
         >
           <TierField
             tier="instant"
