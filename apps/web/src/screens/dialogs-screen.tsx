@@ -16,7 +16,11 @@ import type { DialogsScreenProps } from "./screen-props"
 export function DialogsScreen(props: DialogsScreenProps) {
   const [messagePanel, setMessagePanel] =
     React.useState<MessagePanelState | null>(null)
-  const fetchStatus = useCachedDialogs(props.dialogAccountId, props.setDialogs)
+  const fetchStatus = useCachedDialogs(
+    props.dialogAccountId,
+    props.setDialogs,
+    props.setDialogsWithAccountId
+  )
   const {
     allFilteredSelected,
     runRowQuickAction,

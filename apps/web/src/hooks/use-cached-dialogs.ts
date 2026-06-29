@@ -20,7 +20,8 @@ export type FetchStatus = {
 // a slow or failing cache read is never a blank pane.
 export function useCachedDialogs(
   dialogAccountId: string,
-  setDialogs: DialogsScreenProps["setDialogs"]
+  setDialogs: DialogsScreenProps["setDialogs"],
+  setDialogsWithAccountId?: (accountId: string | null, dialogs: TelegramDialog[]) => void
 ): FetchStatus {
   const [value, setValue] = React.useState("")
   const [loading, setLoading] = React.useState(false)
@@ -44,7 +45,13 @@ export function useCachedDialogs(
           fetched_at?: string | null
         }>(`/api/accounts/${id}/dialogs`)
         if (token !== requestToken.current) return
-        setDialogs(payload.dialogs || [])
+        const dialogs = payload.dialogs || []
+        // Use the persistence-aware setter if available
+        if (setDialogsWithAccountId) {
+          setDialogsWithAccountId(id, dialogs)
+        } else {
+          setDialogs(dialogs)
+        }
         setValue(
           payload.fetched_at
             ? `Cached dialogs from ${humanTime(payload.fetched_at)}.`
@@ -52,7 +59,11 @@ export function useCachedDialogs(
         )
       } catch (err) {
         if (token !== requestToken.current) return
-        setDialogs([])
+        if (setDialogsWithAccountId) {
+          setDialogsWithAccountId(id, [])
+        } else {
+          setDialogs([])
+        }
         const message =
           err instanceof Error ? err.message : "Failed to load cached dialogs."
         setValue(message)
@@ -61,7 +72,7 @@ export function useCachedDialogs(
         if (token === requestToken.current) setLoading(false)
       }
     },
-    [setDialogs]
+    [setDialogs, setDialogsWithAccountId]
   )
 
   // Auto-load on account change / explicit reload. Deferred to a timeout (not

@@ -37,6 +37,16 @@ Implementation roadmap for priority improvements identified 2026-06-29.
 - 4 passing tests for session creation, validation, and expiration
 - Password hashing uses bcrypt with salt (secure against rainbow tables)
 
+### **#2 — Bulk Dialog Operations Persistence** ✅
+**Completed**: 2026-06-29  
+**Details**:
+- Updated `use-dialog-state.ts` to persist selections per account in `sessionStorage`
+- Selections automatically restore when switching accounts
+- Survives page refresh (within same session)
+- Key format: `dialog_selection_{accountId}` stores JSON array of selected targets
+- Updated `use-cached-dialogs.ts` to trigger persistence on account change
+- Graceful fallback if storage quota exceeded or privacy mode blocks access
+
 ---
 
 ## 🚧 In Progress
@@ -97,13 +107,9 @@ See "Implemented" section above.
 
 ### 🎨 UX Polish
 
-#### **#2 — Bulk Dialog Operations Persistence**
-**Status**: Not started  
-**Goal**: Preserve selected dialogs across account switches and page refreshes  
-**Details**:
-- Store selection state in `sessionStorage` keyed by account ID
-- Restore on account switch or remount
-- Clear on explicit "Clear selection" or account deletion
+#### ~~**#2 — Bulk Dialog Operations Persistence**~~ ✅
+**Status**: Complete (2026-06-29)  
+See "Implemented" section above.
 
 #### **#4 — Visual Queue Diff Before Run**
 **Status**: Not started  
