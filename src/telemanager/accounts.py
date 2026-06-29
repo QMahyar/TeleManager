@@ -61,8 +61,14 @@ class AccountRecord:
     photos_mode: str = "default"
 
     def to_public_dict(self) -> dict[str, Any]:
-        """Public dict for API responses. Uses asdict() for automatic field coverage."""
-        return asdict(self)
+        """Public dict for API responses. Includes computed health_status."""
+        from .session_health import compute_health_status
+
+        data = asdict(self)
+        data["health_status"] = compute_health_status(
+            self.authorized, self.last_validated_at, self.last_error
+        )
+        return data
         """
         return {
             "id": self.id,

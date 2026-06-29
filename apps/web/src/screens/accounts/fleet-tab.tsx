@@ -1,8 +1,9 @@
 import * as React from "react"
 
-import { IconArrowRight, IconSearch } from "@tabler/icons-react"
+import { IconArrowRight, IconSearch, IconShieldCheck } from "@tabler/icons-react"
 
 import { AccountsTable } from "../../components/accounts-table"
+import { api } from "../../lib/api"
 import { Button } from "../../ui/button"
 import {
   Callout,
@@ -66,6 +67,19 @@ export function FleetTab({ props }: { props: AccountsScreenProps }) {
     setStatusFilter("all")
   }
 
+  async function validateAllAccounts() {
+    await props.guarded(async () => {
+      const response = await api.post("/api/accounts/validate-all")
+      await props.refresh()
+      const { ok_count, failed_count } = response
+      if (failed_count === 0) {
+        props.flash(`✓ All ${ok_count} session(s) validated successfully.`)
+      } else {
+        props.flash(`Validated: ${ok_count} ok, ${failed_count} failed. Check session details.`)
+      }
+    })
+  }
+
   // Distinguish "search/filter hid everything" from "there are genuinely no
   // accounts" — the table owns the zero-accounts empty state (with its Add CTA);
   // this only fires when accounts exist but the active filter excludes them.
@@ -115,11 +129,15 @@ export function FleetTab({ props }: { props: AccountsScreenProps }) {
             title="Session fleet"
             detail={`${filteredAccounts.length} of ${props.accounts.length} shown. Select sessions, then run actions or fetch dialogs.`}
           />
-          <div className="flex gap-2 lg:hidden">
-            <Button variant="outline" size="sm" onClick={fetchDialogsForSelection}>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={validateAllAccounts}>
+              <IconShieldCheck className="size-3.5" />
+              Validate All
+            </Button>
+            <Button variant="outline" size="sm" onClick={fetchDialogsForSelection} className="lg:hidden">
               Fetch Dialogs
             </Button>
-            <Button size="sm" onClick={runActionWithSelection}>
+            <Button size="sm" onClick={runActionWithSelection} className="lg:hidden">
               Run Action <IconArrowRight />
             </Button>
           </div>

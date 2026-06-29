@@ -1,6 +1,7 @@
 """Account lifecycle + local session files (/api/accounts/*, /api/sessions/*)."""
 from __future__ import annotations
 
+import asyncio
 from typing import Literal
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
@@ -104,8 +105,35 @@ def set_account_photos(account_id: str, request: AccountPhotosModeRequest) -> di
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.post("/api/accounts/{account_id}/validate")
-async def validate_account(account_id: str) -> dict:
+@router.post("/api/accounts/validate-all")
+async def validate_all_accounts() -> dict:
+    """Validate all authorized accounts in parallel."""
+    accounts = [acc for acc in manager.accounts.values() if acc.authorized]
+    if not accounts:
+        return {"results": [], "ok_count": 0, "failed_count": 0}
+
+    tasks = [manager.validate_account(acc.id) for acc in accounts]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    ok_count = sum(1 for i, acc in enumerate(accounts) if not isinstance(results[i], Exception) and results[i].authorized)
+    failed_count = len(accounts) - ok_count
+
+    return {
+        "results": [
+            {
+                "account_id": acc.id,
+                "label": acc.label,
+                "ok": not isinstance(results[i], Exception) and results[i].authorized,
+                "error": str(results[i]) if isinstance(results[i], Exception) else results[i].last_error,
+            }
+            for i, acc in enumerate(accounts)
+        ],
+        "ok_count": ok_count,
+        "failed_count": failed_count,
+    }
+
+
+
     try:
         account = await manager.validate_account(account_id)
         log_event("session_validated", "Session validated", account.label, {"account_id": account.id})

@@ -31,6 +31,27 @@ import type { Account, AskDialog, Flash, PhotosMode } from "../types"
 import { Avatar } from "./avatar"
 import { EmptyState, SignalDot, Skeleton, type SignalTone } from "./ui"
 
+function getHealthBadge(account: Account): string {
+  const status = (account as any).health_status || 'unknown'
+  switch (status) {
+    case 'healthy': return '🟢'
+    case 'stale': return '🟡'
+    case 'revoked': return '🔴'
+    default: return '⚪'
+  }
+}
+
+function getHealthTooltip(account: Account): string {
+  const status = (account as any).health_status || 'unknown'
+  switch (status) {
+    case 'healthy': return 'Session healthy (validated recently)'
+    case 'stale': return 'Session stale (not validated in 7+ days)'
+    case 'revoked': return 'Session revoked or expired'
+    default: return 'Session health unknown (never validated)'
+  }
+}
+
+
 // The per-account dialog-photo override, surfaced in the row's Manage menu.
 // "default" defers to the global Settings → Appearance toggle.
 const PHOTOS_MODE_OPTIONS: { mode: PhotosMode; label: string }[] = [
@@ -286,12 +307,19 @@ function AccountIdentity({ account }: { account: Account }) {
     .join(" \u00b7 ")
 
   const display = account.label || account.session_name
+  const healthBadge = getHealthBadge(account)
+  const healthTooltip = getHealthTooltip(account)
 
   return (
     <div className="flex min-w-0 items-center gap-3">
       <Avatar name={display} seed={account.id} size={32} />
       <div className="min-w-0">
         <strong className="block truncate leading-tight">
+          {healthBadge && (
+            <span title={healthTooltip} className="mr-1.5">
+              {healthBadge}
+            </span>
+          )}
           {label || account.session_name}
         </strong>
         {account.last_error ? (

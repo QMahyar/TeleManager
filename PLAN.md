@@ -14,6 +14,17 @@ Implementation roadmap for priority improvements identified 2026-06-29.
 - 12 passing tests covering all error categories and retry logic
 - Session invalid errors now mark account as unauthorized automatically
 
+### **#7 — Session Health Monitoring** ✅
+**Completed**: 2026-06-29  
+**Details**:
+- Created `session_health.py` with `compute_health_status()` computing health from validation history
+- Health statuses: 🟢 healthy (validated <7d), 🟡 stale (7+ days), 🔴 revoked, ⚪ unknown
+- Visual health badge in accounts table (accounts-table.tsx)
+- "Validate All" button in Fleet tab for bulk validation
+- Backend `/api/accounts/validate-all` endpoint for parallel validation
+- 11 passing tests for health computation logic
+- `AccountRecord.to_public_dict()` now includes computed `health_status` field
+
 ---
 
 ## 🚧 In Progress
@@ -30,14 +41,9 @@ _(Current work tracked here)_
 **Status**: Complete (2026-06-29)  
 See "Implemented" section above.
 
-#### **#7 — Session Health Monitoring**
-**Status**: Not started  
-**Goal**: Track session validity proactively with visual health indicators  
-**Details**:
-- Background health check (ping Telegram every 6h while app runs)
-- Visual badge per account: 🟢 healthy / 🟡 stale (>7d) / 🔴 revoked
-- "Validate all" bulk action in Accounts screen
-- Store last_validated + health_status in accounts.json
+#### ~~**#7 — Session Health Monitoring**~~ ✅
+**Status**: Complete (2026-06-29)  
+See "Implemented" section above.
 
 #### **#8 — Local App Password (Opt-in)**
 **Status**: Not started  
