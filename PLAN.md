@@ -25,6 +25,18 @@ Implementation roadmap for priority improvements identified 2026-06-29.
 - 11 passing tests for health computation logic
 - `AccountRecord.to_public_dict()` now includes computed `health_status` field
 
+### **#8 — Local App Password (Opt-in)** ✅
+**Completed**: 2026-06-29  
+**Details**:
+- Created `app_password.py` with bcrypt-based password hashing
+- Optional password prompt on launch (when enabled)
+- Session-based authentication with 24h token expiration
+- Auth middleware in `main.py` (exempts `/api/auth/` and static assets)
+- Backend routes: `/api/auth/status`, `/api/auth/login`, `/api/auth/logout`, `/api/auth/setup`
+- In-memory session store (cleared on restart, appropriate for local-only app)
+- 4 passing tests for session creation, validation, and expiration
+- Password hashing uses bcrypt with salt (secure against rainbow tables)
+
 ---
 
 ## 🚧 In Progress
@@ -45,15 +57,9 @@ See "Implemented" section above.
 **Status**: Complete (2026-06-29)  
 See "Implemented" section above.
 
-#### **#8 — Local App Password (Opt-in)**
-**Status**: Not started  
-**Goal**: Secure localhost access on shared/work machines  
-**Details**:
-- Optional password prompt on launch
-- Store bcrypt hash in `data/app_settings.json`
-- Middleware to check session cookie
-- Settings UI to enable/disable + change password
-- Logout button when enabled
+#### ~~**#8 — Local App Password (Opt-in)**~~ ✅
+**Status**: Complete (2026-06-29)  
+See "Implemented" section above.
 
 ---
 

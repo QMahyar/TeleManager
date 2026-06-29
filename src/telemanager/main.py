@@ -4,14 +4,15 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .accounts import AccountManager
 from .action_queue_service import ActionQueueRequest, now_iso
 from .action_runs_service import load_action_runs
-from .routes import accounts, actions, activity, config, dialogs, schedules, settings, static, system
+from .app_password import clear_expired_sessions, is_password_enabled, is_session_valid
+from .routes import accounts, actions, activity, auth, config, dialogs, schedules, settings, static, system
 from .routes.static import FRONTEND_DIST_DIR
 from .schedules_service import SchedulerService
 
@@ -20,10 +21,13 @@ from .schedules_service import SchedulerService
 manager = AccountManager()
 queue_runs: dict[str, dict] = load_action_runs()
 scheduler = SchedulerService(manager, queue_runs)
+# In-memory session store (cleared on restart, which is fine for a local app)
+active_sessions: dict[str, str] = {}
 
 __all__ = [
     "ALLOWED_HOSTS",
     "ActionQueueRequest",
+    "active_sessions",
     "app",
     "manager",
     "now_iso",
@@ -58,6 +62,32 @@ ALLOWED_HOSTS = [
 ]
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
 
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    """Check app password if enabled. Exempt auth endpoints and static assets."""
+    # Skip auth for login/status endpoints and static files
+    if request.url.path.startswith(("/api/auth/", "/assets/", "/favicon.ico")):
+        return await call_next(request)
+
+    # If password protection is disabled, allow all requests
+    if not is_password_enabled():
+        return await call_next(request)
+
+    # Check session cookie
+    session_token = request.cookies.get("telemanager_session")
+    clear_expired_sessions(active_sessions)
+
+    if session_token and is_session_valid(session_token, active_sessions):
+        return await call_next(request)
+
+    # No valid session - return 401
+    return JSONResponse(
+        status_code=401,
+        content={"detail": "Authentication required. Log in to continue."},
+    )
+
+
 if (FRONTEND_DIST_DIR / "assets").exists():
     from fastapi.staticfiles import StaticFiles
 
@@ -66,7 +96,7 @@ if (FRONTEND_DIST_DIR / "assets").exists():
 # API routers first, then the static/frontend router last — it owns the "/" and
 # "/{filename}" routes. (Order isn't strictly required since /{filename} is single-
 # segment and can't match /api/*, but it keeps the catch-all visibly last.)
-for _module in (config, settings, accounts, dialogs, actions, schedules, activity, system, static):
+for _module in (auth, config, settings, accounts, dialogs, actions, schedules, activity, system, static):
     app.include_router(_module.router)
 
 
