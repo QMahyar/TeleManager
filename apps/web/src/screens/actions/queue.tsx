@@ -3,6 +3,7 @@ import {
   IconAlertTriangle,
   IconBookmarks,
   IconClockPlus,
+  IconListDetails,
   IconPlayerPlay,
   IconTrash,
 } from "@tabler/icons-react"
@@ -11,6 +12,7 @@ import { Button } from "../../ui/button"
 import { QueueTable } from "../../components/queue-table"
 import { SafetyEditor } from "../../components/safety-editor"
 import {
+  Badge,
   Callout,
   Disclosure,
   Panel,
@@ -21,6 +23,7 @@ import { api } from "../../lib/api"
 import { deserializeFields } from "../../lib/action-schema"
 import { estimateQueueSeconds, formatDuration } from "../../lib/action-meta"
 import { actionMeta } from "../../lib/constants"
+import { rollupByAccount } from "../../components/shell/queue-metrics"
 import { startQueueRun } from "../../lib/queue-run"
 import type { QueueStep } from "../../types"
 import type { ActionsScreenProps } from "../screen-props"
@@ -56,6 +59,7 @@ export function QueueColumn({
       action_type: step.action_type,
       target: step.targets.join("\n"),
       fields: deserializeFields(step.action_type, step.message ?? ""),
+      condition: step.condition ?? null,
     })
     props.setActionAccountIds(new Set(step.account_ids))
     props.setQueue((current) => current.filter((_, i) => i !== index))
@@ -118,6 +122,10 @@ export function QueueColumn({
       </Readout>
 
       <QueueTable queue={props.queue} setQueue={props.setQueue} onEdit={editStep} />
+
+      {props.queue.length ? (
+        <AccountDiff queue={props.queue} accounts={props.accounts} />
+      ) : null}
 
       <Disclosure
         flush
@@ -221,6 +229,76 @@ export function QueueColumn({
       ) : null}
       </div>
     </Panel>
+  )
+}
+
+// Visual queue diff: the same queue re-pivoted by account, so before running you
+// see what each session actually receives. Destructive accounts get a red edge +
+// red op count; collapsed by default, auto-opens when anything destructive is in.
+function AccountDiff({
+  queue,
+  accounts,
+}: {
+  queue: ActionsScreenProps["queue"]
+  accounts: ActionsScreenProps["accounts"]
+}) {
+  const rollups = rollupByAccount(queue)
+  if (!rollups.length) return null
+  const labelFor = (id: string) =>
+    accounts.find((account) => account.id === id)?.label ?? id
+  const anyDestructive = rollups.some((rollup) => rollup.destructive > 0)
+
+  return (
+    <Disclosure
+      flush
+      icon={IconListDetails}
+      label="Per-account preview"
+      count={rollups.length}
+      defaultOpen={anyDestructive}
+    >
+      <div className="space-y-2">
+        {rollups.map((rollup) => (
+          <div
+            key={rollup.accountId}
+            className={[
+              "rounded-md border p-2.5",
+              rollup.destructive
+                ? "border-destructive/30 bg-destructive/5"
+                : "border-border bg-background/40",
+            ].join(" ")}
+          >
+            <div className="flex items-baseline justify-between gap-2">
+              <strong className="truncate text-xs">
+                {labelFor(rollup.accountId)}
+              </strong>
+              <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
+                {rollup.ops} ops
+                {rollup.destructive ? (
+                  <span className="text-destructive">
+                    {" · "}
+                    {rollup.destructive} destructive
+                  </span>
+                ) : null}
+              </span>
+            </div>
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {rollup.actions.map((tally) => (
+                <Badge
+                  key={tally.actionType}
+                  tone={
+                    tally.destructive
+                      ? "text-destructive border-destructive/30 bg-destructive/10"
+                      : "border-border bg-muted/40 text-muted-foreground"
+                  }
+                >
+                  {tally.label} ×{tally.ops}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Disclosure>
   )
 }
 

@@ -21,6 +21,7 @@ import {
   engineLabel,
   engineTone,
   intervalUnitOptions,
+  recurrencePresets,
   startModeOptions,
   validateRecurrence,
   type RecurrenceForm,
@@ -54,6 +55,26 @@ export function RecurrenceFields({
 
   return (
     <section className="space-y-3">
+      {/* One-click cadences fill the form below, then stay editable — most
+          schedules are a common pattern ("hourly", "daily at 9am") plus a tweak,
+          so the preset is the starting point, not a separate mode. */}
+      <div className="space-y-1.5">
+        <span className="type-label text-muted-foreground">Quick presets</span>
+        <div className="flex flex-wrap gap-1.5">
+          {recurrencePresets.map((preset) => (
+            <Button
+              key={preset.id}
+              type="button"
+              size="xs"
+              variant="outline"
+              onClick={() => setForm(preset.build())}
+            >
+              {preset.label}
+            </Button>
+          ))}
+        </div>
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Every">
           <div className="flex gap-2">

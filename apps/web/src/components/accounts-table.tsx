@@ -32,7 +32,7 @@ import { Avatar } from "./avatar"
 import { EmptyState, SignalDot, Skeleton, type SignalTone } from "./ui"
 
 function getHealthBadge(account: Account): string {
-  const status = (account as any).health_status || 'unknown'
+  const status = account.health_status || 'unknown'
   switch (status) {
     case 'healthy': return '🟢'
     case 'stale': return '🟡'
@@ -42,7 +42,7 @@ function getHealthBadge(account: Account): string {
 }
 
 function getHealthTooltip(account: Account): string {
-  const status = (account as any).health_status || 'unknown'
+  const status = account.health_status || 'unknown'
   switch (status) {
     case 'healthy': return 'Session healthy (validated recently)'
     case 'stale': return 'Session stale (not validated in 7+ days)'

@@ -30,6 +30,90 @@ export const defaultRecurrenceForm: RecurrenceForm = {
   stagger: false,
 }
 
+// One-click recurrence presets. Each returns a fully-defined RecurrenceForm
+// (spreading the default so every controlled input stays a string), which the
+// modal feeds straight through validate → preview → create. Kept to cadences the
+// interval×unit model can actually express; a day-of-week mask ("Mon/Wed") would
+// need a backend recurrence change, so it's intentionally absent.
+export type RecurrencePreset = {
+  id: string
+  label: string
+  build: () => RecurrenceForm
+}
+
+const pad2 = (value: number) => String(value).padStart(2, "0")
+
+// Next local occurrence of `hour:00` as a `datetime-local` string (today if still
+// ahead, else tomorrow), so "Daily at 9am" always anchors on a valid future time.
+function nextLocalHourInput(hour: number): string {
+  const next = new Date()
+  next.setHours(hour, 0, 0, 0)
+  if (next.getTime() <= Date.now()) next.setDate(next.getDate() + 1)
+  return (
+    `${next.getFullYear()}-${pad2(next.getMonth() + 1)}-${pad2(next.getDate())}` +
+    `T${pad2(next.getHours())}:${pad2(next.getMinutes())}`
+  )
+}
+
+export const recurrencePresets: RecurrencePreset[] = [
+  {
+    id: "every-30m",
+    label: "Every 30 min",
+    build: () => ({
+      ...defaultRecurrenceForm,
+      intervalValue: "30",
+      intervalUnit: "minutes",
+      startMode: "interval",
+      endMode: "forever",
+    }),
+  },
+  {
+    id: "hourly",
+    label: "Hourly",
+    build: () => ({
+      ...defaultRecurrenceForm,
+      intervalValue: "1",
+      intervalUnit: "hours",
+      startMode: "interval",
+      endMode: "forever",
+    }),
+  },
+  {
+    id: "every-3h",
+    label: "Every 3 hours",
+    build: () => ({
+      ...defaultRecurrenceForm,
+      intervalValue: "3",
+      intervalUnit: "hours",
+      startMode: "interval",
+      endMode: "forever",
+    }),
+  },
+  {
+    id: "daily-9am",
+    label: "Daily at 9am",
+    build: () => ({
+      ...defaultRecurrenceForm,
+      intervalValue: "1",
+      intervalUnit: "days",
+      startMode: "at",
+      startAt: nextLocalHourInput(9),
+      endMode: "forever",
+    }),
+  },
+  {
+    id: "weekly",
+    label: "Weekly",
+    build: () => ({
+      ...defaultRecurrenceForm,
+      intervalValue: "7",
+      intervalUnit: "days",
+      startMode: "interval",
+      endMode: "forever",
+    }),
+  },
+]
+
 export const intervalUnitOptions: Array<{ value: IntervalUnit; label: string }> =
   [
     { value: "minutes", label: "minutes" },
