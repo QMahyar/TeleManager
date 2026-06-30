@@ -3,6 +3,7 @@ import * as React from "react"
 import { Toast } from "./ui/toast"
 import { useAppDialog } from "./components/app-dialog"
 import { AppShell } from "./components/app-shell"
+import { WelcomeModal } from "./components/welcome-modal"
 import { useAppState } from "./hooks/use-app-state"
 import { useLoading } from "./hooks/use-loading"
 import { api } from "./lib/api"
@@ -109,6 +110,16 @@ export function App() {
       </AppShell>
       {toast ? <Toast tone={toast.tone}>{toast.message}</Toast> : null}
       {dialogElement}
+      <WelcomeModal
+        accounts={appState.accounts}
+        accountsLoaded={appState.accountsLoaded}
+        apiConfigured={appState.apiConfigured}
+        onConfigureApi={() => appState.setView("settings")}
+        onAddAccount={() => {
+          appState.setAccountsTab("login")
+          appState.setView("accounts")
+        }}
+      />
     </>
   )
 }

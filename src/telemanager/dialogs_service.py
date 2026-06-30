@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from telethon import utils as telethon_utils
 from telethon.errors import FloodWaitError
 from telethon.tl.types import Channel, Chat, Message, User
 
@@ -23,6 +25,10 @@ class CachedDialog:
     unread_count: int = 0
     pinned: bool = False
     archived: bool = False
+    # Whether the chat is muted (notify settings set to a future mute_until). Cached
+    # alongside `archived` so the multi-account Sync feature can diff both states
+    # from a snapshot without a live notify-settings fetch per dialog.
+    muted: bool = False
     is_user: bool = False
     is_bot: bool = False
     is_group: bool = False
@@ -173,6 +179,48 @@ async def fetch_messages(manager: AccountManager, account_id: str, target: str, 
         }
 
 
+def search_result_to_dict(message: Message) -> dict:
+    """A search hit: the usual message fields plus which chat it lives in.
+
+    Global search spans every dialog, so each result needs its chat label to be
+    useful. `message.chat` is populated from the search response's entity list, so
+    no extra Telegram call is made; it degrades to the bare chat id when absent."""
+    base = message_to_dict(message)
+    chat = getattr(message, "chat", None)
+    chat_id = getattr(message, "chat_id", None)
+    chat_title = ""
+    if chat is not None:
+        chat_title = (
+            telethon_utils.get_display_name(chat)
+            or getattr(chat, "title", None)
+            or " ".join(p for p in [getattr(chat, "first_name", None), getattr(chat, "last_name", None)] if p)
+            or ""
+        )
+    base["chat_id"] = chat_id
+    base["chat_title"] = chat_title or (str(chat_id) if chat_id is not None else "unknown chat")
+    base["chat_username"] = getattr(chat, "username", None)
+    return base
+
+
+async def search_messages(manager: AccountManager, account_id: str, query: str, limit: int = 50) -> dict:
+    """Search an account's message history across all dialogs (Telegram global search)."""
+    clean = (query or "").strip()
+    if not clean:
+        raise ValueError("Search query is required.")
+    account = manager._get_account(account_id)
+    capped = max(1, min(limit, 100))
+    async with manager.temp_client(account.id) as client:
+        # entity=None routes to messages.searchGlobal — one server-side search over
+        # every chat, rather than iterating dialogs and querying each in turn.
+        results = [search_result_to_dict(message) async for message in client.iter_messages(None, search=clean, limit=capped) if message]
+        return {
+            "account_id": account.id,
+            "account_label": account.label,
+            "query": clean,
+            "messages": results,
+        }
+
+
 def classify_dialog(dialog: Any) -> CachedDialog:
     entity = dialog.entity
     username = getattr(entity, "username", None)
@@ -215,6 +263,13 @@ def classify_dialog(dialog: Any) -> CachedDialog:
     photo = getattr(entity, "photo", None)
     photo_id = getattr(photo, "photo_id", None)
 
+    # Muted = notify settings carry a future mute_until. Telethon normalises it to a
+    # datetime (or None when unmuted); a far-future date means "muted forever".
+    raw_dialog = getattr(dialog, "dialog", None)
+    notify = getattr(raw_dialog, "notify_settings", None)
+    mute_until = getattr(notify, "mute_until", None)
+    muted = isinstance(mute_until, datetime) and mute_until > datetime.now(UTC)
+
     return CachedDialog(
         id=marked_id,
         title=title,
@@ -223,6 +278,7 @@ def classify_dialog(dialog: Any) -> CachedDialog:
         unread_count=int(getattr(dialog, "unread_count", 0) or 0),
         pinned=bool(getattr(dialog, "pinned", False)),
         archived=bool(getattr(dialog, "archived", False)),
+        muted=muted,
         is_user=is_user,
         is_bot=is_bot,
         is_group=is_group,

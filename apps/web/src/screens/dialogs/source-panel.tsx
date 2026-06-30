@@ -1,4 +1,4 @@
-import { IconBolt, IconChevronDown } from "@tabler/icons-react"
+import { IconBolt, IconChevronDown, IconSearch } from "@tabler/icons-react"
 
 import { Button } from "../../ui/button"
 import { Menu, MenuItem } from "../../ui/menu"
@@ -37,6 +37,7 @@ export function DialogsSourcePanel({
   bulkQuickAction,
   useSelectedTargets,
   scheduleSelected,
+  onOpenSearch,
 }: {
   accounts: DialogsScreenProps["accounts"]
   dialogAccountId: string
@@ -53,6 +54,7 @@ export function DialogsSourcePanel({
   bulkQuickAction: (actionType: ActionType) => void
   useSelectedTargets: () => void
   scheduleSelected: () => void
+  onOpenSearch: () => void
 }) {
   const selectedAccount = accounts.find(
     (account) => account.id === dialogAccountId
@@ -122,6 +124,15 @@ export function DialogsSourcePanel({
       {fetchStatus ? (
         <Callout tone={fetchError ? "danger" : "info"}>{fetchStatus}</Callout>
       ) : null}
+      <Button
+        variant={OUTLINE_VARIANT}
+        className="w-full"
+        disabled={!dialogAccountId}
+        onClick={onOpenSearch}
+      >
+        <IconSearch className="size-4" />
+        Search messages
+      </Button>
 
       <div className="space-y-3 border-t border-border pt-4">
         <div className="flex items-center justify-between gap-3">

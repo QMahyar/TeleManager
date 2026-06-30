@@ -3,6 +3,7 @@ import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
 
 import { api } from "../lib/api"
+import { notifyQueueDone } from "../lib/notify"
 import { TERMINAL_RUN_STATUSES } from "../lib/queue-run"
 import type { Flash, QueueRun } from "../types"
 
@@ -54,6 +55,9 @@ export function useRunPolling(
       flash(
         `Queue ${run.status.replace("_", " ")}: ${run.completed_count || 0}/${run.operation_count || 0} succeeded.`
       )
+      // Desktop notification too, but only if the operator has opted in and the
+      // tab is backgrounded (the flash above covers the foreground case).
+      notifyQueueDone(run)
       refresh().catch(() => {})
       setActiveRunId(null)
     }

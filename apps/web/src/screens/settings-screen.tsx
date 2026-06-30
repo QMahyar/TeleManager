@@ -19,6 +19,11 @@ import {
 } from "../components/theme-provider"
 import { Field, InfoHint, Input, Panel, StepHeading, Tabs } from "../components/ui"
 import { api } from "../lib/api"
+import {
+  ensureNotifyPermission,
+  queueNotifyEnabled,
+  setQueueNotifyEnabled,
+} from "../lib/notify"
 import type {
   ActivityEvent,
   AppSettings,
@@ -361,7 +366,53 @@ function AppearancePanel({
           </InfoHint>
         </div>
       </div>
+
+      <NotificationsToggle flash={flash} />
     </Panel>
+  )
+}
+
+// Desktop-notification opt-in for queue completion. Browser-local (localStorage +
+// the Notification API), so it isn't part of the server-side app settings.
+function NotificationsToggle({ flash }: { flash: Flash }) {
+  const [enabled, setEnabled] = React.useState(() => queueNotifyEnabled())
+
+  async function toggle(next: boolean) {
+    if (next) {
+      const permission = await ensureNotifyPermission()
+      if (permission !== "granted") {
+        flash("Browser blocked notifications. Allow them, then try again.", "error")
+        return
+      }
+    }
+    setQueueNotifyEnabled(next)
+    setEnabled(next)
+    flash(next ? "Queue notifications on." : "Queue notifications off.", "success")
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="type-label text-muted-foreground">Notifications</p>
+      <div className="flex items-start gap-3 rounded-md border border-border bg-background/70 p-3 text-sm">
+        <label className="flex min-w-0 flex-1 items-start gap-3">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={enabled}
+            onChange={(event) => toggle(event.target.checked)}
+          />
+          <span className="min-w-0 space-y-1">
+            <span className="block font-medium text-foreground">
+              Notify when a queue finishes
+            </span>
+            <span className="block text-xs text-muted-foreground">
+              Show a desktop notification on queue completion when this tab is in
+              the background. Asks for browser permission the first time.
+            </span>
+          </span>
+        </label>
+      </div>
+    </div>
   )
 }
 

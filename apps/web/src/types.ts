@@ -71,10 +71,22 @@ export type TelegramDialog = {
   type?: string
   entity_type?: string
   unread_count?: number
+  // Cached folder/notify state (from the last fetch). Drives the multi-account
+  // Sync diff, which copies archive/mute state from one account's chats to another.
+  archived?: boolean
+  muted?: boolean
+  pinned?: boolean
   // Whether a profile-photo thumbnail was cached for this dialog on the last
   // fetch, and the Telegram photo id (used to cache-bust the served image).
   has_photo?: boolean
   photo_id?: number | null
+}
+
+// A global message-search hit: the message plus which chat it came from.
+export type MessageSearchHit = TelegramMessage & {
+  chat_id?: number | null
+  chat_title?: string
+  chat_username?: string | null
 }
 
 export type TelegramMessage = {

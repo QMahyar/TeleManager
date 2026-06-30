@@ -9,6 +9,7 @@ import { resolvePhotosEnabled } from "../lib/helpers"
 import type { TelegramDialog, TelegramMessage } from "../types"
 import { DialogMessagesPanel, MESSAGES_PAGE } from "./dialogs/messages-panel"
 import type { MessagePanelState } from "./dialogs/messages-panel"
+import { DialogSearchModal } from "./dialogs/search-panel"
 import { DialogsSourcePanel } from "./dialogs/source-panel"
 import { DialogsTablePanel } from "./dialogs/table-panel"
 import type { DialogsScreenProps } from "./screen-props"
@@ -16,6 +17,7 @@ import type { DialogsScreenProps } from "./screen-props"
 export function DialogsScreen(props: DialogsScreenProps) {
   const [messagePanel, setMessagePanel] =
     React.useState<MessagePanelState | null>(null)
+  const [searchOpen, setSearchOpen] = React.useState(false)
   const fetchStatus = useCachedDialogs(
     props.dialogAccountId,
     props.setDialogs,
@@ -116,6 +118,7 @@ export function DialogsScreen(props: DialogsScreenProps) {
         bulkQuickAction={bulkQuickAction}
         useSelectedTargets={useSelectedTargets}
         scheduleSelected={scheduleSelected}
+        onOpenSearch={() => setSearchOpen(true)}
       />
       <DialogsTablePanel
         allFilteredSelected={allFilteredSelected}
@@ -145,6 +148,14 @@ export function DialogsScreen(props: DialogsScreenProps) {
         onStageMessage={runMessageQuickAction}
         onReload={loadMessages}
         onClose={() => setMessagePanel(null)}
+      />
+      <DialogSearchModal
+        open={searchOpen}
+        accountId={props.dialogAccountId}
+        accountLabel={
+          activeAccount?.label || activeAccount?.session_name || "account"
+        }
+        onClose={() => setSearchOpen(false)}
       />
       {quickRun ? (
         <QuickActionRunner

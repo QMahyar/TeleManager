@@ -6,7 +6,13 @@ from fastapi.responses import FileResponse
 
 from ..audit_service import log_event
 from ..config import AVATARS_DIR
-from ..dialogs_service import avatar_path, fetch_dialogs, fetch_messages, list_cached_dialogs
+from ..dialogs_service import (
+    avatar_path,
+    fetch_dialogs,
+    fetch_messages,
+    list_cached_dialogs,
+    search_messages,
+)
 from ..runtime import manager
 
 router = APIRouter()
@@ -61,5 +67,14 @@ def get_dialog_photo(account_id: str, dialog_id: str) -> FileResponse:
 async def get_account_messages(account_id: str, target: str, limit: int = 50) -> dict:
     try:
         return await fetch_messages(manager, account_id, target, limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/api/accounts/{account_id}/messages/search")
+async def search_account_messages(account_id: str, q: str, limit: int = 50) -> dict:
+    """Search this account's message history across every dialog (global search)."""
+    try:
+        return await search_messages(manager, account_id, q, limit)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import io
 import zipfile
+from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 import pytest
 from conftest import add_account
@@ -94,6 +96,55 @@ def test_cached_dialogs_unknown_account_fails(app_context: dict):
         assert "Account was not found" in str(exc)
     else:
         raise AssertionError("Expected missing account to fail")
+
+
+def test_search_result_carries_chat_label():
+    # A global-search hit must label which chat it came from; chat_title falls back
+    # to the chat id when the entity has no display name.
+    dialogs_service = __import__("telemanager.dialogs_service", fromlist=["dialogs_service"])
+    message = SimpleNamespace(
+        id=42,
+        date=datetime(2026, 6, 30, tzinfo=UTC),
+        message="hello world",
+        sender=None,
+        sender_id=7,
+        out=False,
+        media=None,
+        chat=SimpleNamespace(title="Ops Room", username="ops"),
+        chat_id=-100123,
+    )
+    result = dialogs_service.search_result_to_dict(message)
+    assert result["text"] == "hello world"
+    assert result["chat_title"] == "Ops Room"
+    assert result["chat_id"] == -100123
+    assert result["chat_username"] == "ops"
+
+    # No chat entity -> degrade to the bare id, never crash.
+    bare = SimpleNamespace(id=1, date=None, message="", sender=None, sender_id=None, out=False, media=None, chat=None, chat_id=-100999)
+    assert dialogs_service.search_result_to_dict(bare)["chat_title"] == "-100999"
+
+
+def test_classify_dialog_reads_muted_state():
+    # muted is derived from notify_settings.mute_until being in the future.
+    dialogs_service = __import__("telemanager.dialogs_service", fromlist=["dialogs_service"])
+    User = __import__("telethon.tl.types", fromlist=["User"]).User
+
+    def make_dialog(mute_until):
+        entity = User(id=500, access_hash=0)
+        return SimpleNamespace(
+            entity=entity,
+            name="Someone",
+            unread_count=0,
+            pinned=False,
+            archived=False,
+            dialog=SimpleNamespace(notify_settings=SimpleNamespace(mute_until=mute_until)),
+        )
+
+    future = datetime.now(UTC) + timedelta(days=365)
+    past = datetime.now(UTC) - timedelta(days=1)
+    assert dialogs_service.classify_dialog(make_dialog(future)).muted is True
+    assert dialogs_service.classify_dialog(make_dialog(past)).muted is False
+    assert dialogs_service.classify_dialog(make_dialog(None)).muted is False
 
 
 def test_import_session_rejects_non_session_file(client):

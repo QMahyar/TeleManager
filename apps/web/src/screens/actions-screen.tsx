@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import {
+  IconArrowsLeftRight,
   IconClockHour4,
   IconHistory,
   IconRefresh,
@@ -23,9 +24,10 @@ import type { QueueStep, SchedulePreview } from "../types"
 import { ActiveRunBanner } from "./actions/run-banner"
 import { BuilderColumn } from "./actions/builder"
 import { QueueColumn } from "./actions/queue"
+import { SyncPanel } from "./actions/sync"
 import type { ActionsScreenProps } from "./screen-props"
 
-type BottomTab = "history" | "schedules" | "inspector"
+type BottomTab = "history" | "schedules" | "inspector" | "sync"
 
 export function ActionsScreen(props: ActionsScreenProps) {
   const actionBusy = useActionBusy(props.flash)
@@ -101,6 +103,7 @@ export function ActionsScreen(props: ActionsScreenProps) {
               badge: props.schedules.length || undefined,
             },
             { id: "inspector", label: "Scheduled inspector", icon: IconRefresh },
+            { id: "sync", label: "Sync", icon: IconArrowsLeftRight },
           ]}
         />
         {bottomTab === "history" ? (
@@ -121,6 +124,14 @@ export function ActionsScreen(props: ActionsScreenProps) {
             guarded={props.guarded}
             flash={props.flash}
             askDialog={props.askDialog}
+          />
+        ) : null}
+        {bottomTab === "sync" ? (
+          <SyncPanel
+            accounts={props.accounts}
+            guarded={props.guarded}
+            flash={props.flash}
+            pollQueueRun={props.pollQueueRun}
           />
         ) : null}
       </Panel>
