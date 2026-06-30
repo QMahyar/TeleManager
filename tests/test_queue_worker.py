@@ -111,8 +111,12 @@ def test_failed_run_releases_session_locks(app_context: dict, monkeypatch) -> No
     asyncio.run(qs.process_action_queue(manager, queue_runs, "run-x", _request(qs), expanded))
 
     run = queue_runs["run-x"]
-    assert run["status"] == "failed"
-    assert "network exploded" in run["error"]
-    # Regression guard: a crashing run must not leave the account's session lock held,
-    # or every later run/schedule on that account would be blocked forever.
+    # An exception from run_warm_action is handled per-op (classified, op marked
+    # failed) and the run finishes rather than aborting — the queue's "fail the op,
+    # keep going" contract (see action_queue_service per-op error handling).
+    assert run["status"] == "completed"
+    assert run["failed_count"] == 1
+    assert expanded[0]["status"] == "failed"
+    # Regression guard: a run whose ops error out must not leave the account's session
+    # lock held, or every later run/schedule on that account would be blocked forever.
     assert manager.is_account_busy("acc-1") is False

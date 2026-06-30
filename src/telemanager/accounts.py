@@ -4,11 +4,11 @@ import asyncio
 import inspect
 import re
 import uuid
-from collections.abc import AsyncIterator, Awaitable
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 from telethon import TelegramClient
 from telethon.errors import (
@@ -69,25 +69,6 @@ class AccountRecord:
             self.authorized, self.last_validated_at, self.last_error
         )
         return data
-        """
-        return {
-            "id": self.id,
-            "label": self.label,
-            "phone": self.phone,
-            "session_name": self.session_name,
-            "authorized": self.authorized,
-            "status": self.status,
-            "username": self.username,
-            "first_name": self.first_name,
-            "last_name": self.last_name,
-            "last_error": self.last_error,
-            "source": self.source,
-            "created_at": self.created_at,
-            "last_validated_at": self.last_validated_at,
-            "last_dialog_fetch_at": self.last_dialog_fetch_at,
-            "dialog_count": self.dialog_count,
-            "photos_mode": self.photos_mode,
-        }
 
 
 @dataclass
@@ -95,6 +76,15 @@ class LoginState:
     account_id: str
     client: TelegramClient
     phone_code_hash: str
+
+
+async def _disconnect(client: Any) -> None:
+    """Disconnect a client, tolerating Telethon's ``disconnect()`` returning either an
+    awaitable (when connected) or ``None`` (when already disconnected). ``await None``
+    raises TypeError, so an already-closed client must not be awaited."""
+    result = client.disconnect()
+    if inspect.isawaitable(result):
+        await result
 
 
 class AccountManager:
@@ -161,7 +151,7 @@ class AccountManager:
                 self._save_accounts()
                 return account
             except Exception as exc:
-                await client.disconnect()
+                await _disconnect(client)
                 account.status = "error"
                 account.last_error = self._login_error_message(exc)
                 self._save_accounts()
@@ -230,7 +220,7 @@ class AccountManager:
                     self._save_accounts()
                     return account
                 finally:
-                    await client.disconnect()
+                    await _disconnect(client)
 
     async def logout_account(self, account_id: str) -> AccountRecord:
         async with self.lock:
@@ -247,7 +237,7 @@ class AccountManager:
                     if await client.is_user_authorized():
                         await client.log_out()
                 finally:
-                    await client.disconnect()
+                    await _disconnect(client)
                 account.authorized = False
                 account.status = "stopped"
                 account.last_error = None
@@ -268,7 +258,7 @@ class AccountManager:
         client = self._new_client(account.session_name, api_id, api_hash)
         await self._connect_client(client)
         if not await self._is_user_authorized(client):
-            await client.disconnect()
+            await _disconnect(client)
             account.authorized = False
             account.last_error = "Session is not authorized. Log in again."
             self._save_accounts()
@@ -314,7 +304,7 @@ class AccountManager:
         for account_id in set(account_ids):
             client = self.clients.pop(account_id, None)
             if client is not None:
-                await client.disconnect()
+                await _disconnect(client)
 
     def _session_lock(self, account_id: str) -> asyncio.Lock:
         return self._session_locks.setdefault(account_id, asyncio.Lock())
@@ -416,19 +406,19 @@ class AccountManager:
                     raise ValueError(account.last_error)
                 yield client
             finally:
-                await client.disconnect()
+                await _disconnect(client)
 
     async def shutdown(self) -> None:
         for client in list(self.clients.values()):
-            await client.disconnect()
+            await _disconnect(client)
         for login_state in list(self.pending_logins.values()):
-            await login_state.client.disconnect()
+            await _disconnect(login_state.client)
         self.clients.clear()
         self.pending_logins.clear()
 
     async def _complete_login(self, account: AccountRecord, client: TelegramClient) -> None:
         await self._refresh_account_identity(account, client)
-        await client.disconnect()
+        await _disconnect(client)
         account.authorized = True
         account.status = "stopped"
         account.last_error = None

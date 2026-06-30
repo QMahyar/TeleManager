@@ -61,9 +61,15 @@ def test_flood_wait_stops_queue_and_marks_remaining(app_context: dict) -> None:
         "status": "pending",
     }
 
+    from telemanager.telegram_errors import classify_telegram_error
+
     flood = FloodWaitError(request=None)
     flood.seconds = 42
-    queue_service.handle_queue_flood_wait(run, op_current, [op_current, op_remaining], flood)
+    # handle_queue_flood_wait takes a *classified* error (TelegramErrorInfo), as the
+    # production caller passes — not a raw FloodWaitError.
+    queue_service.handle_queue_flood_wait(
+        run, op_current, [op_current, op_remaining], classify_telegram_error(flood)
+    )
 
     assert run["status"] == "flood_wait"
     assert "42" in run["error"]

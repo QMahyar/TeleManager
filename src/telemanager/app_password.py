@@ -10,10 +10,10 @@ from datetime import UTC, datetime, timedelta
 
 import bcrypt
 
-from .documents import Document
-
-# App settings stored separately from config (which holds API credentials)
-app_settings_doc = Document("app_settings.json")
+# Shared app-settings document (Path-based, under DATA_DIR). The password hash lives
+# here alongside other app settings; reusing the one shared doc keeps both readers in
+# sync and avoids a second, relative-path Document that wrote to the wrong place.
+from .documents import app_settings_doc
 
 # Session tokens valid for 24 hours
 SESSION_DURATION_HOURS = 24

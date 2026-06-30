@@ -52,3 +52,14 @@ def write_json(path: Path, value: Any) -> None:
     tmp_path = path.with_suffix(f"{path.suffix}.tmp")
     tmp_path.write_text(json.dumps(value, indent=2, sort_keys=True), encoding="utf-8")
     tmp_path.replace(path)
+
+
+def atomic_write_text(path: Path, text: str) -> None:
+    """Atomically write text (write to a temp file, then replace) so a crash mid-write
+    can't leave a half-written file. The plain-text counterpart of write_json; used by
+    the audit log, which stores newline-delimited events rather than a JSON document."""
+    ensure_dirs()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_suffix(f"{path.suffix}.tmp")
+    tmp_path.write_text(text, encoding="utf-8")
+    tmp_path.replace(path)

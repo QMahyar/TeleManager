@@ -8,21 +8,16 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from .accounts import AccountManager
 from .action_queue_service import ActionQueueRequest, now_iso
-from .action_runs_service import load_action_runs
 from .app_password import clear_expired_sessions, is_password_enabled, is_session_valid
 from .routes import accounts, actions, activity, auth, config, dialogs, schedules, settings, static, system
 from .routes.static import FRONTEND_DIST_DIR
-from .schedules_service import SchedulerService
+from .runtime import active_sessions, manager, queue_runs, scheduler
 
-# Live application singletons shared across route modules. Created once at import
-# so main and routes/* all see the same instances. queue_runs is mutated in place.
-manager = AccountManager()
-queue_runs: dict[str, dict] = load_action_runs()
-scheduler = SchedulerService(manager, queue_runs)
-# In-memory session store (cleared on restart, which is fine for a local app)
-active_sessions: dict[str, str] = {}
+# manager / queue_runs / scheduler / active_sessions are the shared singletons defined
+# in runtime.py; main and every routes/* module import the SAME instances from there.
+# Re-exported below (__all__) so existing `main.manager` / `main.queue_runs` callers
+# (and the test harness) still resolve them on the main module.
 
 __all__ = [
     "ALLOWED_HOSTS",

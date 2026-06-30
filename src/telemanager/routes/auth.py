@@ -11,7 +11,7 @@ from ..app_password import (
     verify_app_password,
 )
 from ..audit_service import log_event
-from ..main import active_sessions
+from ..runtime import active_sessions
 
 router = APIRouter()
 
