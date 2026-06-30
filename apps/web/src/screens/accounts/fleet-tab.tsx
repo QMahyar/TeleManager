@@ -69,7 +69,10 @@ export function FleetTab({ props }: { props: AccountsScreenProps }) {
 
   async function validateAllAccounts() {
     await props.guarded(async () => {
-      const response = await api.post("/api/accounts/validate-all")
+      const response = await api<{ ok_count: number; failed_count: number }>(
+        "/api/accounts/validate-all",
+        { method: "POST" }
+      )
       await props.refresh()
       const { ok_count, failed_count } = response
       if (failed_count === 0) {

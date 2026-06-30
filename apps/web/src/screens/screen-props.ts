@@ -78,6 +78,13 @@ export type AppScreenProps = {
   setDialogAccountId: React.Dispatch<React.SetStateAction<string>>
   dialogs: TelegramDialog[]
   setDialogs: React.Dispatch<React.SetStateAction<TelegramDialog[]>>
+  // Persistence-aware setter (from useDialogState): sets the dialog list and, on an
+  // account change, restores that account's saved selection. Spread into app state via
+  // `...dialogState`, so it's always present at runtime — declared here so it's typed.
+  setDialogsWithAccountId: (
+    accountId: string | null,
+    dialogs: TelegramDialog[]
+  ) => void
   dialogFilter: string
   setDialogFilter: React.Dispatch<React.SetStateAction<string>>
   dialogSearch: string
@@ -160,6 +167,7 @@ export type DialogsScreenProps = Pick<
   | "dialogAccountId"
   | "setDialogAccountId"
   | "setDialogs"
+  | "setDialogsWithAccountId"
   | "dialogFilter"
   | "setDialogFilter"
   | "dialogSearch"
