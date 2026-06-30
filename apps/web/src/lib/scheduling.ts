@@ -12,6 +12,10 @@ import { actionMeta } from "./constants"
 const NATIVE_MESSAGE_ACTIONS = new Set<ActionType>(["send_message", "send_media"])
 
 export function stepIsNativeSchedulable(step: QueueStep): boolean {
+  // A condition is evaluated live at fire time; native (offline) delivery can't run
+  // it, so a conditional step forces the runner engine. Mirrors _step_is_native in
+  // schedules_service.py — keep the two in lockstep.
+  if (step.condition) return false
   if (NATIVE_MESSAGE_ACTIONS.has(step.action_type)) return true
   // A bare "/start" (no referral parameter) is just a text message Telegram can
   // pre-schedule; a referral start goes through StartBotRequest and cannot.

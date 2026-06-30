@@ -5,9 +5,12 @@ import logging
 import random
 import time
 import uuid
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
+
 from .accounts import AccountManager
+from .action_conditions import evaluate_condition
 from .action_runs_service import save_action_runs
 from .audit_service import log_event
 from .config import now_iso
@@ -43,11 +46,23 @@ ACTIVE_RUN_STATUSES = {"queued", "running", "canceling"}
 _background_tasks: set[asyncio.Task] = set()
 
 
+class StepCondition(BaseModel):
+    """A guard evaluated per-target at run time; the operation is skipped when it's
+    false. Structured (not a free-text DSL) so no parser has to be kept in lockstep
+    across backend + frontend — the three fields are all readable with one Telegram
+    call (or the cached dialogs, for unread_count)."""
+
+    field: Literal["member_count", "days_since_last_message", "unread_count"]
+    op: Literal["<", "<=", "==", "!=", ">", ">="]
+    value: float = Field(ge=0)
+
+
 class ActionQueueStep(BaseModel):
     action_type: TelegramActionType
     targets: list[str] = Field(min_length=1, max_length=25)
     account_ids: list[str] = Field(min_length=1, max_length=25)
     message: str | None = Field(default=None, max_length=4096)
+    condition: StepCondition | None = None
 
     @model_validator(mode="after")
     def validate_step(self) -> ActionQueueStep:
@@ -149,6 +164,7 @@ def start_action_queue(
         "completed_count": 0,
         "ok_count": 0,
         "failed_count": 0,
+        "skipped_count": 0,
         "current": None,
         "operations": expanded,
         "results": [],
@@ -215,6 +231,40 @@ async def process_action_queue(
                 run["current"] = operation
                 run["updated_at"] = now_iso()
                 throttled_save()
+
+                # Smart-queue guard: when a step carries a condition, evaluate it
+                # against this target with the warm client and skip the op if it's
+                # not met (or can't be verified). Skips never count as failures.
+                condition = operation.get("condition")
+                if condition:
+                    try:
+                        client = await manager.warm_client(operation["account_id"])
+                        should_run, reason = await evaluate_condition(
+                            manager, client, operation["account_id"], operation["target"], condition
+                        )
+                    except Exception as exc:
+                        should_run = False
+                        reason = f"Skipped: {classify_telegram_error(exc).user_message}"
+                    if not should_run:
+                        operation["status"] = "skipped_condition"
+                        operation["completed_at"] = now_iso()
+                        result_payload = {
+                            "account_id": operation["account_id"],
+                            "label": operation.get("account_label") or operation["account_id"],
+                            "ok": True,
+                            "skipped": True,
+                            "action_type": operation["action_type"],
+                            "detail": reason,
+                            "target": operation["target"],
+                            "step_index": operation["step_index"],
+                        }
+                        operation["result"] = result_payload
+                        run["results"].append(result_payload)
+                        _update_run_counts(run)
+                        run["updated_at"] = now_iso()
+                        throttled_save()
+                        continue
+
                 action = TelegramAction(
                     action_type=operation["action_type"],
                     target=operation["target"],
@@ -299,9 +349,7 @@ async def process_action_queue(
                 operation["completed_at"] = now_iso()
                 operation["result"] = result_payload
                 run["results"].append(result_payload)
-                run["completed_count"] = len(run["results"])
-                run["ok_count"] = sum(1 for item in run["results"] if item["ok"])
-                run["failed_count"] = run["completed_count"] - run["ok_count"]
+                _update_run_counts(run)
                 run["updated_at"] = now_iso()
                 throttled_save()
             if run.get("status") not in {"canceled", "flood_wait"}:
@@ -344,12 +392,21 @@ def handle_queue_flood_wait(run: dict, operation: dict, remaining: list[dict], e
         "step_index": operation["step_index"],
     }
     run["results"].append(operation["result"])
-    run["completed_count"] = len(run["results"])
-    run["ok_count"] = sum(1 for item in run["results"] if item["ok"])
-    run["failed_count"] = run["completed_count"] - run["ok_count"]
+    _update_run_counts(run)
     mark_remaining_operations(remaining[1:])
     run["status"] = "flood_wait"
     run["error"] = f"Rate limited by Telegram. Wait {seconds}s ({seconds // 60}m) before retrying."
+
+
+def _update_run_counts(run: dict) -> None:
+    """Recompute completed/ok/failed/skipped from results. A skipped op (a condition
+    not met) is its own bucket — neither ok nor failed — so the run summary never
+    reads a deliberate skip as a success or a failure."""
+    results = run["results"]
+    run["completed_count"] = len(results)
+    run["skipped_count"] = sum(1 for item in results if item.get("skipped"))
+    run["ok_count"] = sum(1 for item in results if item.get("ok") and not item.get("skipped"))
+    run["failed_count"] = sum(1 for item in results if not item.get("ok"))
 
 
 def mark_remaining_operations(operations: list[dict]) -> None:
@@ -400,6 +457,7 @@ def expand_action_queue(manager: AccountManager, request: ActionQueueRequest) ->
                         "account_label": account.label,
                         "target": target,
                         "message": step.message,
+                        "condition": step.condition.model_dump() if step.condition else None,
                         "status": "ready" if account.authorized else "needs_login",
                     }
                 )

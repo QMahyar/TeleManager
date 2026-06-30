@@ -27,6 +27,7 @@ export function useQueueState(
     action_type: "join_chat",
     target: "",
     fields: defaultFieldValues("join_chat"),
+    condition: null,
   })
   const [quickActionContext, setQuickActionContext] =
     React.useState<QuickActionContext | null>(null)
@@ -100,5 +101,6 @@ function queueStepFromDraft(
     targets,
     account_ids,
     message: serializeFields(actionDraft.action_type, actionDraft.fields),
+    condition: actionDraft.condition ?? undefined,
   }
 }

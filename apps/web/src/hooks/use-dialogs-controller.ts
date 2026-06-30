@@ -293,6 +293,7 @@ export function useDialogsController(
       action_type: "send_message",
       target,
       fields: defaultFieldValues("send_message"),
+      condition: null,
     })
     seedActionAccount()
     props.setScheduleSeed({

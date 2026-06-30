@@ -206,6 +206,10 @@ def prune_local_native_ids(account_id: str, target: str, ids: list[int]) -> None
 
 
 def _step_is_native(step: dict[str, Any]) -> bool:
+    # A condition is evaluated live at fire time; native (offline) delivery has no
+    # app running to evaluate it, so any conditional step forces the runner engine.
+    if step.get("condition"):
+        return False
     action = step.get("action_type")
     # A plain "/start" (no referral parameter) is just a text message and can be
     # pre-scheduled; a referral start goes through StartBotRequest and cannot.
@@ -337,6 +341,10 @@ def preview_warnings(engine: str, recurrence: dict[str, Any], queue: dict[str, A
     if seconds < 300:
         warnings.append(
             "Short intervals can trip Telegram flood limits. Use the largest interval that still works for you."
+        )
+    if any(step.get("condition") for step in queue["steps"]):
+        warnings.append(
+            "Some steps have conditions, so operations may be skipped at run time. The counts above are maximums."
         )
     return warnings
 

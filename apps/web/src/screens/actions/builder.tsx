@@ -2,6 +2,7 @@ import * as React from "react"
 
 import {
   IconAlertTriangle,
+  IconFilter,
   IconForms,
   IconListDetails,
   IconLoader2,
@@ -17,10 +18,17 @@ import {
   Disclosure,
   EmptyState,
   Field,
+  Input,
   Panel,
   Select,
   TimingBadge,
 } from "../../components/ui"
+import {
+  conditionFieldOptions,
+  conditionOpOptions,
+  defaultCondition,
+  describeCondition,
+} from "../../lib/conditions"
 import {
   carryFieldValues,
   getActionSchema,
@@ -30,7 +38,12 @@ import { actionDelaySeconds, tierForAction } from "../../lib/action-meta"
 import { actionMeta, categoryLabels, categoryOrder } from "../../lib/constants"
 import { accountStatus, splitTargets, statusTone } from "../../lib/helpers"
 import { partitionTargets } from "../../lib/targeting"
-import type { ActionType } from "../../types"
+import type {
+  ActionType,
+  ConditionField,
+  ConditionOp,
+  StepCondition,
+} from "../../types"
 import type { ActionsScreenProps } from "../screen-props"
 import { SectionLabel } from "./section-label"
 
@@ -184,6 +197,13 @@ export function BuilderColumn({ props }: { props: ActionsScreenProps }) {
             />
           </Disclosure>
         ) : null}
+
+        <ConditionDisclosure
+          condition={props.actionDraft.condition}
+          setCondition={(condition) =>
+            props.setActionDraft({ ...props.actionDraft, condition })
+          }
+        />
       </div>
 
       <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-2 border-t border-border bg-card/95 px-4 py-3 backdrop-blur">
@@ -348,5 +368,105 @@ function QuickActionNotice({
         Source: {quickActionContext.targetSummary}
       </span>
     </Callout>
+  )
+}
+
+// Optional per-step guard (#12). When enabled, each target is checked live at run
+// time and the op is skipped if the rule is false. A condition also forces a schedule
+// to the "runner" engine (it can't be evaluated for offline delivery) — the Schedule
+// modal surfaces that via classifyScheduleEngine, which reads step.condition.
+function ConditionDisclosure({
+  condition,
+  setCondition,
+}: {
+  condition: StepCondition | null
+  setCondition: (condition: StepCondition | null) => void
+}) {
+  const enabled = condition !== null
+  const fieldHint = condition
+    ? conditionFieldOptions.find((option) => option.value === condition.field)?.hint
+    : undefined
+
+  return (
+    <Disclosure
+      flush
+      icon={IconFilter}
+      label="Condition"
+      hint={
+        enabled
+          ? `if ${describeCondition(condition)}`
+          : "optional — skip targets that don't match"
+      }
+      defaultOpen={enabled}
+    >
+      <div className="space-y-3">
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(event) =>
+              setCondition(event.target.checked ? defaultCondition : null)
+            }
+          />
+          Only run on targets that match a rule (checked live, per target).
+        </label>
+
+        {condition ? (
+          <>
+            <div className="grid grid-cols-[minmax(0,1fr)_auto_5rem] gap-2">
+              <Select
+                aria-label="Condition field"
+                value={condition.field}
+                onChange={(event) =>
+                  setCondition({
+                    ...condition,
+                    field: event.target.value as ConditionField,
+                  })
+                }
+              >
+                {conditionFieldOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                aria-label="Condition operator"
+                value={condition.op}
+                onChange={(event) =>
+                  setCondition({
+                    ...condition,
+                    op: event.target.value as ConditionOp,
+                  })
+                }
+              >
+                {conditionOpOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+              <Input
+                aria-label="Condition value"
+                type="number"
+                min={0}
+                value={condition.value}
+                onChange={(event) =>
+                  setCondition({
+                    ...condition,
+                    value:
+                      event.target.value === "" ? 0 : Number(event.target.value),
+                  })
+                }
+              />
+            </div>
+            <Callout tone="info">
+              {fieldHint} A step with a condition runs only while the app is open
+              (it can&apos;t be pre-scheduled for offline delivery).
+            </Callout>
+          </>
+        ) : null}
+      </div>
+    </Disclosure>
   )
 }

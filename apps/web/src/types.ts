@@ -44,6 +44,10 @@ export type ActionType =
 // global app setting; "on"/"off" force it for this account.
 export type PhotosMode = "default" | "on" | "off"
 
+// Computed session-health status (backend session_health.compute_health_status,
+// surfaced via AccountRecord.to_public_dict). Drives the badge in accounts-table.
+export type HealthStatus = "healthy" | "stale" | "revoked" | "unknown"
+
 export type Account = {
   id: string
   label: string
@@ -55,6 +59,7 @@ export type Account = {
   last_error?: string | null
   dialog_count?: number
   photos_mode?: PhotosMode
+  health_status?: HealthStatus
 }
 
 export type TelegramDialog = {
@@ -91,11 +96,24 @@ export type ActivityEvent = {
   account_label?: string
 }
 
+// A per-step "smart queue" guard. Structured (not a free-text DSL) and mirrored by
+// the backend StepCondition — when present, each target is checked at run time and
+// the operation is skipped if the condition is false. A condition also forces a
+// schedule to the "runner" engine (it can't be evaluated for offline delivery).
+export type ConditionField = "member_count" | "days_since_last_message" | "unread_count"
+export type ConditionOp = "<" | "<=" | "==" | "!=" | ">" | ">="
+export type StepCondition = {
+  field: ConditionField
+  op: ConditionOp
+  value: number
+}
+
 export type QueueStep = {
   action_type: ActionType
   targets: string[]
   account_ids: string[]
   message?: string
+  condition?: StepCondition | null
 }
 
 export type QuickActionContext = {
@@ -113,6 +131,7 @@ export type ActionDraft = {
   action_type: ActionType
   target: string
   fields: ActionFieldValues
+  condition: StepCondition | null
 }
 
 // One-shot prefill handed to the merged Actions page when staging chats from
@@ -135,6 +154,7 @@ export type QueueRun = {
   operation_count?: number
   completed_count?: number
   failed_count?: number
+  skipped_count?: number
   operations?: Array<Record<string, unknown>>
   results?: Array<Record<string, unknown>>
   error?: string | null

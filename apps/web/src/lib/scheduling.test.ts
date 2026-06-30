@@ -22,6 +22,15 @@ describe("stepIsNativeSchedulable", () => {
   it("treats non-message actions as not natively schedulable", () => {
     expect(stepIsNativeSchedulable(step("join_chat"))).toBe(false)
   })
+
+  it("forces runner for a conditional step (mirrors backend _step_is_native)", () => {
+    const conditional: QueueStep = {
+      ...step("send_message", "hi"),
+      condition: { field: "unread_count", op: "==", value: 0 },
+    }
+    expect(stepIsNativeSchedulable(conditional)).toBe(false)
+    expect(classifyScheduleEngine([conditional]).engine).toBe("runner")
+  })
 })
 
 describe("classifyScheduleEngine", () => {

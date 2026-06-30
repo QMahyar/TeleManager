@@ -5,6 +5,7 @@ import { IconStack2 } from "@tabler/icons-react"
 import { Button } from "../ui/button"
 
 import { actionMeta, categoryLabels } from "../lib/constants"
+import { describeCondition } from "../lib/conditions"
 import type { QueueStep } from "../types"
 import { Badge, EmptyState } from "./ui"
 
@@ -51,6 +52,11 @@ export function QueueTable({
                   {meta?.destructive ? (
                     <Badge tone="text-destructive border-destructive/30 bg-destructive/10">
                       destructive
+                    </Badge>
+                  ) : null}
+                  {step.condition ? (
+                    <Badge tone="border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                      if {describeCondition(step.condition)}
                     </Badge>
                   ) : null}
                 </div>
