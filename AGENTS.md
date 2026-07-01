@@ -41,9 +41,12 @@ ruff check src
 
 ## Conventions
 
-- **Versioning is single-source.** `pyproject.toml` `[project] version` is canonical;
-  run `python scripts/sync_version.py` to propagate to `apps/web/package.json`,
-  `README.md`, and `src/telemanager/__init__.py` (CI gate: `--check`).
+- **Versioning is single-source.** `pyproject.toml` is canonical for both the
+  `[project] version` and the runtime dependency pins; run
+  `python scripts/sync_version.py` to propagate the version to `apps/web/package.json`
+  and `src/telemanager/__init__.py`, and to regenerate `requirements.txt` from
+  `[project] dependencies` (CI gate: `--check`). README shows the version via a
+  dynamic release badge, so it needs no propagation.
 - **Releases are tag-driven.** Push a `vX.Y.Z` tag → `.github/workflows/release.yml`
   builds all platforms and publishes a GitHub release whose body is the matching
   `## [X.Y.Z]` section of `CHANGELOG.md`. Update the CHANGELOG before tagging.

@@ -12,6 +12,7 @@ from telemanager.app_password import (
     is_session_valid,
 )
 
+
 def test_session_creation_and_validation():
     """Create session and validate token."""
     sessions = {}

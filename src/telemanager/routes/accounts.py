@@ -115,7 +115,11 @@ async def validate_all_accounts() -> dict:
     tasks = [manager.validate_account(acc.id) for acc in accounts]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    ok_count = sum(1 for i, acc in enumerate(accounts) if not isinstance(results[i], Exception) and results[i].authorized)
+    ok_count = sum(
+        1
+        for i, acc in enumerate(accounts)
+        if not isinstance(results[i], Exception) and results[i].authorized
+    )
     failed_count = len(accounts) - ok_count
 
     return {
@@ -133,7 +137,10 @@ async def validate_all_accounts() -> dict:
     }
 
 
-
+@router.post("/api/accounts/{account_id}/validate")
+async def validate_account(account_id: str) -> dict:
+    """Re-check a single account's session against Telegram (used by the per-row
+    Validate button). 400s with a readable message on any auth/session failure."""
     try:
         account = await manager.validate_account(account_id)
         log_event("session_validated", "Session validated", account.label, {"account_id": account.id})

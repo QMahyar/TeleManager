@@ -5,7 +5,7 @@ validation to catch expired sessions before they cause queue failures.
 """
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Literal
 
 HealthStatus = Literal["healthy", "stale", "revoked", "unknown"]

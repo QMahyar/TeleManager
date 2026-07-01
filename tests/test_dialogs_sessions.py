@@ -120,7 +120,10 @@ def test_search_result_carries_chat_label():
     assert result["chat_username"] == "ops"
 
     # No chat entity -> degrade to the bare id, never crash.
-    bare = SimpleNamespace(id=1, date=None, message="", sender=None, sender_id=None, out=False, media=None, chat=None, chat_id=-100999)
+    bare = SimpleNamespace(
+        id=1, date=None, message="", sender=None, sender_id=None,
+        out=False, media=None, chat=None, chat_id=-100999,
+    )
     assert dialogs_service.search_result_to_dict(bare)["chat_title"] == "-100999"
 
 
@@ -201,3 +204,16 @@ def test_rename_and_delete_session_file(app_context: dict):
     delete_response = app_context["client"].delete(f"/api/accounts/{account.id}")
     assert delete_response.status_code == 200
     assert not (app_context["sessions_dir"] / "renamed_session.session").exists()
+
+
+def test_validate_account_route_registered(app_context: dict):
+    # The per-account Validate button (accounts-table.tsx) POSTs here. Regression:
+    # this handler once lost its @router.post decorator in a merge, silently 404ing
+    # the button. Assert the route stays registered rather than the handler body.
+    app = app_context["main"].app
+    registered = {
+        (route.path, method)
+        for route in app.routes
+        for method in getattr(route, "methods", None) or ()
+    }
+    assert ("/api/accounts/{account_id}/validate", "POST") in registered

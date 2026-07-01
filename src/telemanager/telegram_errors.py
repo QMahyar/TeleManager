@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any
 
 from telethon.errors import (
     ChannelBannedError,
@@ -77,7 +76,10 @@ def classify_telegram_error(error: Exception) -> TelegramErrorInfo:
     if isinstance(error, PeerFloodError):
         return TelegramErrorInfo(
             category="peer_flood",
-            user_message="Telegram flagged this account for spam-like behavior. Wait 24-48h before messaging unknown contacts.",
+            user_message=(
+                "Telegram flagged this account for spam-like behavior. "
+                "Wait 24-48h before messaging unknown contacts."
+            ),
             retryable=False,
             action="wait",
         )

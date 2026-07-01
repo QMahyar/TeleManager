@@ -212,7 +212,11 @@ async def search_messages(manager: AccountManager, account_id: str, query: str, 
     async with manager.temp_client(account.id) as client:
         # entity=None routes to messages.searchGlobal — one server-side search over
         # every chat, rather than iterating dialogs and querying each in turn.
-        results = [search_result_to_dict(message) async for message in client.iter_messages(None, search=clean, limit=capped) if message]
+        results = [
+            search_result_to_dict(message)
+            async for message in client.iter_messages(None, search=clean, limit=capped)
+            if message
+        ]
         return {
             "account_id": account.id,
             "account_label": account.label,
