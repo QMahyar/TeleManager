@@ -67,9 +67,6 @@ export type TelegramDialog = {
   title: string
   username?: string | null
   dialog_type?: string
-  kind?: string
-  type?: string
-  entity_type?: string
   unread_count?: number
   // Cached folder/notify state (from the last fetch). Drives the multi-account
   // Sync diff, which copies archive/mute state from one account's chats to another.

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import threading
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, TypeVar
@@ -25,9 +25,6 @@ class Document:
     tasks (event loop). Only a thread lock serializes both. It is held only for
     the duration of a small JSON read+write, and the codebase already performs
     synchronous file IO on the loop, so briefly blocking it here is consistent.
-
-    Storage-agnostic on purpose: a SQLite-backed implementation can expose the
-    same read/write/mutate/update surface so call sites need not change.
     """
 
     def __init__(self, path: Path) -> None:
@@ -60,15 +57,3 @@ class Document:
             value = read_json(self._path, default)
             yield value
             write_json(self._path, value)
-
-    def update(self, fn: Callable[[T], T], default: T) -> T:
-        """Functional variant of :meth:`mutate` for replace-style edits.
-
-        ``fn`` receives the current value and returns the new value to persist
-        (it may mutate and return the same object, or build a fresh one). The
-        whole read -> fn -> write runs under the lock. Returns the persisted value.
-        """
-        with self._lock:
-            new_value = fn(read_json(self._path, default))
-            write_json(self._path, new_value)
-            return new_value

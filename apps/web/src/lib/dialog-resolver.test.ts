@@ -19,20 +19,13 @@ describe("dialogTarget", () => {
 })
 
 describe("dialogKind", () => {
-  it("walks the field-priority fallback chain", () => {
+  it("returns the backend's dialog_type", () => {
     expect(dialogKind(dialog({ dialog_type: "channel" }))).toBe("channel")
-    expect(dialogKind(dialog({ kind: "group" }))).toBe("group")
-    expect(dialogKind(dialog({ type: "supergroup" }))).toBe("supergroup")
-    expect(dialogKind(dialog({ entity_type: "bot" }))).toBe("bot")
+    expect(dialogKind(dialog({ dialog_type: "supergroup" }))).toBe("supergroup")
+    expect(dialogKind(dialog({ dialog_type: "bot" }))).toBe("bot")
   })
 
-  it("prefers dialog_type over later fallbacks", () => {
-    expect(
-      dialogKind(dialog({ dialog_type: "channel", kind: "group", type: "user" }))
-    ).toBe("channel")
-  })
-
-  it("returns 'unknown' when no kind field is present", () => {
+  it("returns 'unknown' when dialog_type is absent", () => {
     expect(dialogKind(dialog({}))).toBe("unknown")
   })
 })

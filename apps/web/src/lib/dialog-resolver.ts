@@ -1,26 +1,15 @@
 import type { TelegramDialog } from "../types"
 
 // Resolving a Telegram dialog's *kind* and its addressable *target* from a cached
-// dialog record. Both have to tolerate shape drift: a dialog can arrive from a
-// fresh fetch, an older cached payload, or a few different backend code paths, and
-// those don't all label the fields identically. Centralizing the fallback chains
-// here (rather than re-deriving them ad hoc at each call site) keeps every screen,
-// picker, and action-availability check reading the same identity.
-//
-// Keep in lockstep with the backend's dialog/target resolution (telegram_actions);
-// if the canonical field names change there, change them here too.
+// dialog record. Centralizing these here (rather than re-deriving them ad hoc at
+// each call site) keeps every screen, picker, and action-availability check reading
+// the same identity. The backend (dialogs_service.classify_dialog) writes exactly
+// one category field, `dialog_type`; keep that name in sync if it ever changes there.
 
-// The dialog's category (user / group / supergroup / channel / bot / ...). Different
-// payload versions store it under different keys, so fall through them in priority
-// order; "unknown" is the last resort so callers never get undefined.
+// The dialog's category (personal / group / supergroup / channel / bot / ...).
+// "unknown" is the last resort so callers never get undefined.
 export function dialogKind(dialog: TelegramDialog) {
-  return (
-    dialog.dialog_type ||
-    dialog.kind ||
-    dialog.type ||
-    dialog.entity_type ||
-    "unknown"
-  )
+  return dialog.dialog_type || "unknown"
 }
 
 // The canonical addressable target the backend accepts for an action: a public
