@@ -64,7 +64,7 @@ def classify_telegram_error(error: Exception) -> TelegramErrorInfo:
         )
 
     # Session revoked/expired — needs re-login
-    if isinstance(error, (SessionRevokedError, SessionExpiredError)):
+    if isinstance(error, SessionRevokedError | SessionExpiredError):
         return TelegramErrorInfo(
             category="session_invalid",
             user_message="Session revoked or expired. Log in again from the Accounts screen.",
@@ -85,7 +85,7 @@ def classify_telegram_error(error: Exception) -> TelegramErrorInfo:
         )
 
     # Account banned
-    if isinstance(error, (PhoneNumberBannedError, UserDeactivatedBanError)):
+    if isinstance(error, PhoneNumberBannedError | UserDeactivatedBanError):
         return TelegramErrorInfo(
             category="account_banned",
             user_message="This account is banned by Telegram. Contact Telegram support or use a different account.",
@@ -103,7 +103,7 @@ def classify_telegram_error(error: Exception) -> TelegramErrorInfo:
         )
 
     # Permission errors (chat-level)
-    if isinstance(error, (ChatAdminRequiredError, ChatWriteForbiddenError)):
+    if isinstance(error, ChatAdminRequiredError | ChatWriteForbiddenError):
         return TelegramErrorInfo(
             category="permission_denied",
             user_message="No permission for this action. You may need admin rights or membership in this chat.",
@@ -112,7 +112,7 @@ def classify_telegram_error(error: Exception) -> TelegramErrorInfo:
         )
 
     # Chat access errors (private, forbidden, restricted)
-    if isinstance(error, (ChannelPrivateError, ChatForbiddenError, ChannelBannedError, ChatRestrictedError)):
+    if isinstance(error, ChannelPrivateError | ChatForbiddenError | ChannelBannedError | ChatRestrictedError):
         return TelegramErrorInfo(
             category="chat_inaccessible",
             user_message="Cannot access this chat. It may be private, deleted, or you were removed.",
