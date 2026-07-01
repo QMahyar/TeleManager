@@ -9,6 +9,7 @@ dependencies = [
   "telethon==1.38.1",
   "pydantic==2.10.4",
   "python-multipart==0.0.20",
+  "bcrypt==5.0.0",
 ]
 
 [project.optional-dependencies]
