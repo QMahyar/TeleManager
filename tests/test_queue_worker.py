@@ -96,6 +96,38 @@ def test_queue_continues_after_single_op_failure(app_context: dict, monkeypatch)
     assert [op["status"] for op in expanded] == ["failed", "ok"]
 
 
+def test_cancel_during_final_op_ends_canceled(app_context: dict, monkeypatch) -> None:
+    """A cancel landing while the only/last op is mid-flight must end the run as
+    'canceled' — the top-of-loop cancel check has no next iteration to catch it, so the
+    terminal guard must honour cancel_requested instead of overwriting it with completed."""
+    qs = _qs()
+    actions = importlib.import_module("telemanager.telegram_actions")
+    manager = app_context["main"].manager
+    add_account(app_context, "acc-1", "Primary")
+
+    async def no_delay(_seconds):
+        return None
+
+    monkeypatch.setattr(qs, "safe_delay", no_delay)
+
+    expanded = [_operation("acc-1", "Primary", "@first")]
+    queue_runs = {"run-c": _run("run-c", expanded)}
+
+    async def fake_run_warm_action(_action):
+        # Operator hits cancel while this final op is mid-flight (index 0's top-of-loop
+        # cancel check has already passed), so only the terminal guard can honour it.
+        queue_runs["run-c"]["cancel_requested"] = True
+        return actions.TelegramActionResult("acc-1", "Primary", True, "send_message", "sent")
+
+    monkeypatch.setattr(manager, "run_warm_action", fake_run_warm_action)
+
+    asyncio.run(qs.process_action_queue(manager, queue_runs, "run-c", _request(qs), expanded))
+
+    run = queue_runs["run-c"]
+    assert run["status"] == "canceled"  # not "completed"
+    assert manager.is_account_busy("acc-1") is False
+
+
 def test_failed_run_releases_session_locks(app_context: dict, monkeypatch) -> None:
     qs = _qs()
     manager = app_context["main"].manager

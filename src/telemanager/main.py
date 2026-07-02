@@ -95,6 +95,17 @@ for _module in (auth, config, settings, accounts, dialogs, actions, schedules, a
     app.include_router(_module.router)
 
 
+@app.exception_handler(TimeoutError)
+async def timeout_exception_handler(_: object, exc: TimeoutError) -> JSONResponse:
+    # Telethon connect/auth timeouts carry an actionable message (check clock/network).
+    # Without this they hit the generic handler below and the operator sees only a bare
+    # "internal error" 500 — the common case for accounts on a filtered network.
+    return JSONResponse(
+        status_code=504,
+        content={"detail": str(exc) or "Telegram request timed out. Check your network and try again."},
+    )
+
+
 @app.exception_handler(Exception)
 async def general_exception_handler(_: object, exc: Exception) -> JSONResponse:
     logging.getLogger("telemanager").exception("Unhandled error", exc_info=exc)

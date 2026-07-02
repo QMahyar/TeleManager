@@ -397,8 +397,11 @@ class AccountManager:
         async with self.exclusive_session(account.id):
             api_id, api_hash = self.get_api_credentials()
             client = self._new_client(account.session_name, api_id, api_hash)
-            await self._connect_client(client)
+            # connect inside the try so a connect/auth timeout still disconnects the
+            # client. Otherwise Telethon's send/recv loop tasks, spawned during
+            # connect(), leak as pending tasks ("coroutine ignored GeneratorExit").
             try:
+                await self._connect_client(client)
                 if not await self._is_user_authorized(client):
                     account.authorized = False
                     account.last_error = "Session is not authorized. Log in again."

@@ -352,7 +352,12 @@ async def process_action_queue(
                 _update_run_counts(run)
                 run["updated_at"] = now_iso()
                 throttled_save()
-            if run.get("status") not in {"canceled", "flood_wait"}:
+            # A cancel that lands during the final (or only) operation has no next
+            # loop iteration to catch cancel_requested, so honour it here too — else
+            # "canceling" is overwritten by "completed" and the operator's cancel is lost.
+            if run.get("cancel_requested") and run.get("status") != "flood_wait":
+                run["status"] = "canceled"
+            elif run.get("status") not in {"canceled", "flood_wait"}:
                 run["status"] = "completed"
             save_action_runs(queue_runs)
         except Exception as exc:

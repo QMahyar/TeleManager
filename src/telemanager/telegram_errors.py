@@ -143,7 +143,7 @@ def classify_telegram_error(error: Exception) -> TelegramErrorInfo:
     if any(keyword in error_str for keyword in ["timeout", "connection", "network", "socket"]):
         return TelegramErrorInfo(
             category="network_error",
-            user_message="Network error. Retrying...",
+            user_message="Network error.",
             retryable=True,
             retry_after_seconds=5,
             action="retry",
