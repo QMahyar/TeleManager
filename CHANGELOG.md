@@ -11,6 +11,55 @@ section below, with auto-generated commit/PR notes appended.
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-07-02
+
+Run lifecycle control for long batch jobs. Until now a running queue could only
+be canceled; this release adds pause/resume and turns a rate limit from a full
+stop into a wait-and-continue. The active-run banner is rebuilt around the new
+states. Backend suite 192 passing; frontend 50 Vitest + lint/typecheck/build
+green.
+
+### Added
+
+- **Pause / resume a running queue.** A queue can be parked between operations
+  (still holding its session locks, so the accounts stay reserved) and resumed
+  later. New `POST /api/actions/queue/runs/{id}/pause` and `/resume` endpoints;
+  `pausing`/`paused` run statuses; a cancel supersedes a pending pause.
+- **Flood-wait auto-resume.** A flood wait at or below a configurable cap
+  (`flood_wait_resume_cap` safety setting, default 900s / 15m) is now waited out
+  in place — cancellably — and the operation retried once, instead of stopping
+  the whole run. Beyond the cap the run still stops as `flood_wait`. The run
+  exposes `resume_at` so the UI shows a live "auto-resuming in…" countdown.
+- **Rebuilt active-run banner.** Determinate progress bar, phase-aware heading
+  (running / pausing / paused / flood wait), a live estimate of time remaining,
+  the flood-wait countdown, and inline Pause/Resume/Cancel. The operations rail
+  and footer pulse render the held states (amber, steady) distinctly from active
+  running (sky, pulsing).
+- **Richer run details.** Per-operation duration column, status-filter chips
+  (jump to just the failed rows), one-click CSV export of a run, and
+  copy-failed-targets for a fast retry elsewhere.
+- **Queue step reordering.** Move-up / move-down controls in the queue builder
+  (run order sets account-switch spacing and, for schedules, send order).
+
+### Changed
+
+- **Retry-failed fidelity.** Retrying a run's failed operations now carries each
+  step's smart-queue condition forward and leaves the delays unset so the
+  operator's current safety settings apply, instead of pinning stale 4s/8s
+  values.
+
+### Fixed
+
+- **Hung operations fail fast.** A per-operation timeout is now handled before
+  the generic error path (the previous ordering left the `TimeoutError` branch
+  unreachable), so a stuck Telethon call fails once at the 180s ceiling instead
+  of being misclassified as a retryable network error and burning ~365s.
+- **Cancel during the final operation** is honoured instead of being overwritten
+  by `completed`.
+- **Telethon connect/auth timeouts** surface as an actionable `504` with the
+  clock/network guidance rather than a bare `500`, and no longer leak the
+  client's send/recv loop tasks on a validation timeout.
+
 ## [1.14.0] - 2026-06-28
 
 An end-to-end hardening and refactor sweep: a security fix and CI gates, a
