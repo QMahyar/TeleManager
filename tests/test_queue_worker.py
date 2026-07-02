@@ -17,6 +17,14 @@ def _qs():
     return importlib.import_module("telemanager.action_queue_service")
 
 
+def _flood(seconds: int):
+    from telethon.errors import FloodWaitError
+
+    error = FloodWaitError(request=None)
+    error.seconds = seconds
+    return error
+
+
 def _operation(account_id: str, label: str, target: str, step_index: int = 1) -> dict:
     return {
         "operation_id": f"{account_id}-{target}",
@@ -126,6 +134,191 @@ def test_cancel_during_final_op_ends_canceled(app_context: dict, monkeypatch) ->
     run = queue_runs["run-c"]
     assert run["status"] == "canceled"  # not "completed"
     assert manager.is_account_busy("acc-1") is False
+
+
+def test_timeout_fails_fast_without_retry(app_context: dict, monkeypatch) -> None:
+    """A hard per-op timeout must fail the op once and move on — not fall through to
+    the network-error retry path (the old dead `except TimeoutError` bug, which
+    doubled the ceiling to ~365s)."""
+    qs = _qs()
+    manager = app_context["main"].manager
+    add_account(app_context, "acc-1", "Primary")
+
+    async def no_delay(_seconds):
+        return None
+
+    monkeypatch.setattr(qs, "safe_delay", no_delay)
+    # Shrink the ceiling so the test is instant; run_warm_action hangs past it.
+    monkeypatch.setattr(qs, "QUEUE_OPERATION_TIMEOUT_SECONDS", 0.05)
+
+    calls = 0
+
+    async def hang(_action):
+        nonlocal calls
+        calls += 1
+        await asyncio.sleep(5)
+
+    monkeypatch.setattr(manager, "run_warm_action", hang)
+
+    expanded = [_operation("acc-1", "Primary", "@first")]
+    queue_runs = {"run-t": _run("run-t", expanded)}
+    asyncio.run(qs.process_action_queue(manager, queue_runs, "run-t", _request(qs), expanded))
+
+    run = queue_runs["run-t"]
+    assert calls == 1  # exactly one attempt — no retry after the timeout
+    assert run["status"] == "completed"
+    assert (run["ok_count"], run["failed_count"]) == (0, 1)
+    assert "timed out" in expanded[0]["result"]["detail"].lower()
+    assert manager.is_account_busy("acc-1") is False
+
+
+def test_long_flood_within_cap_auto_resumes(app_context: dict, monkeypatch) -> None:
+    """A flood wait longer than 60s but within the resume cap is waited out (cancellably)
+    and the op retried once in-place — the run keeps going instead of stopping."""
+    qs = _qs()
+    actions = importlib.import_module("telemanager.telegram_actions")
+    manager = app_context["main"].manager
+    add_account(app_context, "acc-1", "Primary")
+
+    async def no_delay(_seconds):
+        return None
+
+    monkeypatch.setattr(qs, "safe_delay", no_delay)
+    # Don't actually sleep the flood duration; just let the retry proceed.
+    slept: list[float] = []
+
+    async def fake_sleep(_seconds, run):
+        slept.append(_seconds)
+        return True  # slept fully, not canceled
+
+    monkeypatch.setattr(qs, "_cancellable_sleep", fake_sleep)
+
+    outcomes = iter(
+        [
+            _flood(120),  # first attempt floods for 2 minutes (within the 900s cap)
+            actions.TelegramActionResult("acc-1", "Primary", True, "send_message", "sent"),
+        ]
+    )
+
+    async def fake_run_warm_action(_action):
+        outcome = next(outcomes)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    monkeypatch.setattr(manager, "run_warm_action", fake_run_warm_action)
+
+    expanded = [_operation("acc-1", "Primary", "@first")]
+    queue_runs = {"run-f": _run("run-f", expanded)}
+    asyncio.run(qs.process_action_queue(manager, queue_runs, "run-f", _request(qs), expanded))
+
+    run = queue_runs["run-f"]
+    assert slept == [120.0]  # waited the flood duration once
+    assert run["status"] == "completed"
+    assert (run["ok_count"], run["failed_count"]) == (1, 0)
+    assert run["resume_at"] is None  # cleared after resume
+    assert manager.is_account_busy("acc-1") is False
+
+
+def test_long_flood_beyond_cap_stops_queue(app_context: dict, monkeypatch) -> None:
+    """A flood wait beyond the resume cap stops the run as flood_wait and skips the rest."""
+    qs = _qs()
+    manager = app_context["main"].manager
+    add_account(app_context, "acc-1", "Primary")
+
+    async def no_delay(_seconds):
+        return None
+
+    monkeypatch.setattr(qs, "safe_delay", no_delay)
+
+    async def fake_run_warm_action(_action):
+        raise _flood(4000)  # > 900s cap
+
+    monkeypatch.setattr(manager, "run_warm_action", fake_run_warm_action)
+
+    expanded = [_operation("acc-1", "Primary", "@a"), _operation("acc-1", "Primary", "@b")]
+    queue_runs = {"run-fb": _run("run-fb", expanded)}
+    asyncio.run(qs.process_action_queue(manager, queue_runs, "run-fb", _request(qs), expanded))
+
+    run = queue_runs["run-fb"]
+    assert run["status"] == "flood_wait"
+    assert expanded[0]["status"] == "failed"
+    assert expanded[1]["status"] == "skipped_canceled"  # the rest are skipped
+    assert manager.is_account_busy("acc-1") is False
+
+
+def test_pause_gate_holds_then_resumes(app_context: dict, monkeypatch) -> None:
+    """A pause parks the run at 'paused' before the next op; clearing pause_requested
+    lets it finish. Cancel takes priority over a pending pause."""
+    qs = _qs()
+    actions = importlib.import_module("telemanager.telegram_actions")
+    manager = app_context["main"].manager
+    add_account(app_context, "acc-1", "Primary")
+
+    async def no_delay(_seconds):
+        return None
+
+    monkeypatch.setattr(qs, "safe_delay", no_delay)
+    # Speed up the pause gate poll so the test doesn't wait a real second.
+    monkeypatch.setattr(qs, "CONTROL_POLL_SECONDS", 0.01)
+
+    run_id = "run-p"
+
+    async def fake_run_warm_action(_action):
+        # After op 1 runs, request a pause; a background waiter clears it shortly after
+        # so the gate releases and op 2 runs.
+        run = queue_runs[run_id]
+        if not run["operations"][0]["result"]:  # first op not yet recorded → this is op 1
+            run["pause_requested"] = True
+            asyncio.get_running_loop().call_later(0.05, lambda: run.__setitem__("pause_requested", False))
+        return actions.TelegramActionResult("acc-1", "Primary", True, "send_message", "sent")
+
+    monkeypatch.setattr(manager, "run_warm_action", fake_run_warm_action)
+
+    expanded = [_operation("acc-1", "Primary", "@first"), _operation("acc-1", "Primary", "@second")]
+    queue_runs = {run_id: _run(run_id, expanded)}
+    asyncio.run(qs.process_action_queue(manager, queue_runs, run_id, _request(qs), expanded))
+
+    run = queue_runs[run_id]
+    assert run["status"] == "completed"
+    assert run["ok_count"] == 2  # both ran; the pause parked then released
+    assert run["pause_requested"] is False
+    assert manager.is_account_busy("acc-1") is False
+
+
+def test_retry_failed_carries_condition_and_defaults(app_context: dict) -> None:
+    """retry_request_from_failed_operations rebuilds only the failed ops, preserving any
+    per-step condition and leaving delays unset so current safety defaults apply."""
+    qs = _qs()
+    run = {
+        "operations": [
+            {
+                "action_type": "send_message",
+                "account_id": "acc-1",
+                "account_label": "Primary",
+                "target": "@ok",
+                "message": "hi",
+                "condition": None,
+                "status": "ok",
+            },
+            {
+                "action_type": "send_message",
+                "account_id": "acc-1",
+                "account_label": "Primary",
+                "target": "@bad",
+                "message": "hi",
+                "condition": {"field": "unread_count", "op": ">", "value": 0},
+                "status": "failed",
+            },
+        ]
+    }
+    request = qs.retry_request_from_failed_operations(run)
+    assert len(request.steps) == 1  # only the failed op
+    step = request.steps[0]
+    assert step.targets == ["@bad"]
+    assert step.condition is not None and step.condition.field == "unread_count"
+    # Delays default from safety settings, not stale hardcoded values.
+    assert request.delay_between_actions == qs.safety_defaults()["delay_between_actions"]
 
 
 def test_failed_run_releases_session_locks(app_context: dict, monkeypatch) -> None:

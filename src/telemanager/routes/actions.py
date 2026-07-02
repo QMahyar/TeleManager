@@ -137,7 +137,44 @@ def cancel_action_queue_run(run_id: str) -> dict:
     if run.get("status") in TERMINAL_RUN_STATUSES:
         return {"run": run}
     run["cancel_requested"] = True
+    # A cancel supersedes a pending pause — clear it so the worker doesn't park in the
+    # pause gate instead of stopping.
+    run["pause_requested"] = False
     run["status"] = "canceling"
+    run["updated_at"] = now_iso()
+    save_action_runs(queue_runs)
+    return {"run": run}
+
+
+@router.post("/api/actions/queue/runs/{run_id}/pause")
+def pause_action_queue_run(run_id: str) -> dict:
+    run = queue_runs.get(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Queue run was not found.")
+    if run.get("status") in TERMINAL_RUN_STATUSES:
+        raise HTTPException(status_code=400, detail="This queue run has already finished.")
+    run["pause_requested"] = True
+    # "pausing" until the worker reaches the gate and parks at "paused"; leave a
+    # mid-flight flood_waiting status alone so the countdown keeps rendering.
+    if run.get("status") not in {"paused", "flood_waiting"}:
+        run["status"] = "pausing"
+    run["updated_at"] = now_iso()
+    save_action_runs(queue_runs)
+    return {"run": run}
+
+
+@router.post("/api/actions/queue/runs/{run_id}/resume")
+def resume_action_queue_run(run_id: str) -> dict:
+    run = queue_runs.get(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Queue run was not found.")
+    if run.get("status") in TERMINAL_RUN_STATUSES:
+        raise HTTPException(status_code=400, detail="This queue run has already finished.")
+    run["pause_requested"] = False
+    # The worker flips paused → running when it wakes; nudge the status now so the UI
+    # reflects intent immediately even before the next poll.
+    if run.get("status") in {"pausing", "paused"}:
+        run["status"] = "running"
     run["updated_at"] = now_iso()
     save_action_runs(queue_runs)
     return {"run": run}

@@ -5,6 +5,7 @@ import logging
 import random
 import time
 import uuid
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -24,7 +25,7 @@ from .telegram_actions import (
     safe_delay,
     validate_target_for_action,
 )
-from .telegram_errors import classify_telegram_error, should_auto_retry
+from .telegram_errors import classify_telegram_error
 
 logger = logging.getLogger("telemanager.queue")
 
@@ -38,8 +39,13 @@ QUEUE_SAVE_INTERVAL_SECONDS = 2.0
 # Telegram) can't stall the whole queue indefinitely. Generous enough for large
 # media uploads; a hang beyond this fails just that operation and the queue continues.
 QUEUE_OPERATION_TIMEOUT_SECONDS = 180.0
+# How often a cancellable wait (pause gate, flood-wait auto-resume) re-checks the
+# run's control flags. Small so cancel/resume feel immediate without busy-looping.
+CONTROL_POLL_SECONDS = 1.0
 TERMINAL_RUN_STATUSES = {"completed", "failed", "interrupted", "canceled", "flood_wait"}
-ACTIVE_RUN_STATUSES = {"queued", "running", "canceling"}
+# "Active" now covers the two operator-controllable waits (paused, flood_waiting) so
+# clear/delete/retry guards still treat a parked run as live, not deletable.
+ACTIVE_RUN_STATUSES = {"queued", "running", "canceling", "pausing", "paused", "flood_waiting"}
 
 # The event loop only holds a weak reference to bare tasks, so a running queue can be
 # garbage-collected mid-run. Keep a strong reference until the task finishes.
@@ -121,6 +127,10 @@ class SafetySettingsRequest(BaseModel):
     delay_instant: float = Field(default=1.0, ge=0.0, le=120.0)
     delay_sensitive: float = Field(default=12.0, ge=1.0, le=120.0)
     max_operations: int = Field(default=100, ge=1, le=250)
+    # A flood wait at or below this cap is auto-waited and retried once in-place
+    # instead of stopping the queue; beyond it, the run stops as before. 0 disables
+    # auto-resume (any long flood stops the run). 900s = 15m default.
+    flood_wait_resume_cap: int = Field(default=900, ge=0, le=86400)
 
 
 def safety_defaults() -> dict:
@@ -171,6 +181,8 @@ def start_action_queue(
         "error": None,
         "audit_event_id": None,
         "cancel_requested": False,
+        "pause_requested": False,
+        "resume_at": None,  # ISO time a flood-wait auto-resume is expected to end
     }
     save_action_runs(queue_runs)
     task = asyncio.create_task(process_action_queue(manager, queue_runs, run_id, request, expanded))
@@ -200,7 +212,14 @@ async def process_action_queue(
             last_save = now
 
     delays = resolved_queue_delays(request)
+    resume_cap = float(safety_defaults()["flood_wait_resume_cap"])
     run_account_ids = sorted({operation["account_id"] for operation in expanded})
+
+    def cancel_now(remaining: list[dict], during: str = "before the next operation started") -> None:
+        mark_remaining_operations(remaining)
+        run["status"] = "canceled"
+        run["error"] = f"Queue canceled {during}."
+
     # Hold the per-account session locks for the whole run so a `.session` file is
     # never opened by two runs at once (manual + scheduled, or two schedules). Runs
     # over disjoint accounts don't contend; same-account runs serialize here.
@@ -208,9 +227,14 @@ async def process_action_queue(
         try:
             for index, operation in enumerate(expanded):
                 if run.get("cancel_requested"):
-                    mark_remaining_operations(expanded[index:])
-                    run["status"] = "canceled"
-                    run["error"] = "Queue canceled before the next operation started."
+                    cancel_now(expanded[index:])
+                    break
+                # Pause gate: park here (still holding the session locks) until the
+                # operator resumes or cancels. ponytail: a paused run keeps its
+                # accounts reserved on purpose — cancel to release them.
+                await _wait_while_paused(queue_runs, run)
+                if run.get("cancel_requested"):
+                    cancel_now(expanded[index:])
                     break
                 if index > 0:
                     previous = expanded[index - 1]
@@ -222,9 +246,7 @@ async def process_action_queue(
                     # here too so the queue stops promptly instead of running one more
                     # operation. The op is still "pending", so it's marked skipped.
                     if run.get("cancel_requested"):
-                        mark_remaining_operations(expanded[index:])
-                        run["status"] = "canceled"
-                        run["error"] = "Queue canceled before the next operation started."
+                        cancel_now(expanded[index:])
                         break
                 operation["status"] = "running"
                 operation["started_at"] = now_iso()
@@ -236,34 +258,13 @@ async def process_action_queue(
                 # against this target with the warm client and skip the op if it's
                 # not met (or can't be verified). Skips never count as failures.
                 condition = operation.get("condition")
-                if condition:
-                    try:
-                        client = await manager.warm_client(operation["account_id"])
-                        should_run, reason = await evaluate_condition(
-                            manager, client, operation["account_id"], operation["target"], condition
-                        )
-                    except Exception as exc:
-                        should_run = False
-                        reason = f"Skipped: {classify_telegram_error(exc).user_message}"
-                    if not should_run:
-                        operation["status"] = "skipped_condition"
-                        operation["completed_at"] = now_iso()
-                        result_payload = {
-                            "account_id": operation["account_id"],
-                            "label": operation.get("account_label") or operation["account_id"],
-                            "ok": True,
-                            "skipped": True,
-                            "action_type": operation["action_type"],
-                            "detail": reason,
-                            "target": operation["target"],
-                            "step_index": operation["step_index"],
-                        }
-                        operation["result"] = result_payload
-                        run["results"].append(result_payload)
-                        _update_run_counts(run)
-                        run["updated_at"] = now_iso()
-                        throttled_save()
-                        continue
+                if condition and not await _condition_passes(manager, run, operation, condition):
+                    operation["result"] = _skip_payload(operation)
+                    run["results"].append(operation["result"])
+                    _update_run_counts(run)
+                    run["updated_at"] = now_iso()
+                    throttled_save()
+                    continue
 
                 action = TelegramAction(
                     action_type=operation["action_type"],
@@ -274,75 +275,17 @@ async def process_action_queue(
                     delay_seconds=delays["accounts"],
                 )
                 try:
-                    result = await asyncio.wait_for(
-                        manager.run_warm_action(action), timeout=QUEUE_OPERATION_TIMEOUT_SECONDS
-                    )
-                    result_payload = result.to_dict()
-                except Exception as exc:
-                    # Classify and handle Telegram errors with retry logic
-                    error_info = classify_telegram_error(exc)
-
-                    # Short flood waits: retry once after delay
-                    if should_auto_retry(error_info) and error_info.retry_after_seconds:
-                        logger.info(
-                            "Queue %s: retrying %s after %ss flood wait",
-                            run_id, operation["action_type"], error_info.retry_after_seconds
-                        )
-                        await asyncio.sleep(error_info.retry_after_seconds)
-                        try:
-                            result = await asyncio.wait_for(
-                                manager.run_warm_action(action), timeout=QUEUE_OPERATION_TIMEOUT_SECONDS
-                            )
-                            result_payload = result.to_dict()
-                        except Exception as retry_exc:
-                            # Retry failed — classify again and fail the operation
-                            retry_error_info = classify_telegram_error(retry_exc)
-                            result_payload = TelegramActionResult(
-                                operation["account_id"],
-                                operation["account_label"],
-                                False,
-                                operation["action_type"],
-                                f"{retry_error_info.user_message} (retry failed)",
-                            ).to_dict()
-                    # Long flood waits or non-retryable errors: fail and stop queue
-                    elif error_info.category.startswith("flood_wait"):
-                        handle_queue_flood_wait(run, operation, expanded[index:], error_info)
-                        break
-                    # Session invalid: fail operation and continue (operator can fix and retry run)
-                    elif error_info.category == "session_invalid":
-                        result_payload = TelegramActionResult(
-                            operation["account_id"],
-                            operation["account_label"],
-                            False,
-                            operation["action_type"],
-                            error_info.user_message,
-                        ).to_dict()
-                    # Other errors: fail operation and continue
-                    else:
-                        result_payload = TelegramActionResult(
-                            operation["account_id"],
-                            operation["account_label"],
-                            False,
-                            operation["action_type"],
-                            error_info.user_message,
-                        ).to_dict()
-                except TimeoutError:
-                    # Fail just this operation and continue — a single stuck call must
-                    # not take the whole run down. Shape matches TelegramActionResult.
-                    logger.warning(
-                        "Queue %s: %s on %s timed out after %ss",
-                        run_id,
-                        operation["action_type"],
-                        operation["account_id"],
-                        QUEUE_OPERATION_TIMEOUT_SECONDS,
-                    )
-                    result_payload = TelegramActionResult(
-                        operation["account_id"],
-                        operation["account_label"],
-                        False,
-                        operation["action_type"],
-                        f"Operation timed out after {int(QUEUE_OPERATION_TIMEOUT_SECONDS)}s.",
-                    ).to_dict()
+                    result_payload = await execute_operation(manager, queue_runs, run, operation, action, resume_cap)
+                except _FloodStop as stop:
+                    handle_queue_flood_wait(run, operation, expanded[index:], stop.error_info)
+                    break
+                except _QueueAborted:
+                    # Cancel landed during a flood-wait auto-resume pause; this op never
+                    # ran, so mark it (and the rest) skipped rather than failed.
+                    operation["status"] = "skipped_canceled"
+                    operation["completed_at"] = now_iso()
+                    cancel_now(expanded[index + 1 :], during="during a flood-wait pause")
+                    break
                 result_payload["target"] = operation["target"]
                 result_payload["step_index"] = operation["step_index"]
                 operation["status"] = "ok" if result_payload["ok"] else "failed"
@@ -379,6 +322,171 @@ async def process_action_queue(
             )
             run["audit_event_id"] = event["id"]
             save_action_runs(queue_runs)
+
+
+class _FloodStop(Exception):
+    """Raised by execute_operation for a flood wait beyond the auto-resume cap; the
+    worker catches it, records the stop, and ends the run as flood_wait."""
+
+    def __init__(self, error_info: Any) -> None:
+        self.error_info = error_info
+
+
+class _QueueAborted(Exception):
+    """Raised when a cancel lands during a cancellable in-op wait (flood auto-resume),
+    so the worker skips the in-flight op instead of failing it."""
+
+
+def _iso_in(seconds: float) -> str:
+    return (datetime.now(UTC) + timedelta(seconds=seconds)).isoformat()
+
+
+def _fail_payload(operation: dict, detail: str) -> dict:
+    return TelegramActionResult(
+        operation["account_id"], operation["account_label"], False, operation["action_type"], detail
+    ).to_dict()
+
+
+def _skip_payload(operation: dict, reason: str | None = None) -> dict:
+    """Result row for an op skipped by its condition — ok=True + skipped=True so the
+    run summary counts it as neither success nor failure."""
+    operation["status"] = "skipped_condition"
+    operation["completed_at"] = now_iso()
+    return {
+        "account_id": operation["account_id"],
+        "label": operation.get("account_label") or operation["account_id"],
+        "ok": True,
+        "skipped": True,
+        "action_type": operation["action_type"],
+        "detail": reason or operation.get("_skip_reason", "Condition not met."),
+        "target": operation["target"],
+        "step_index": operation["step_index"],
+    }
+
+
+async def _condition_passes(manager: AccountManager, run: dict, operation: dict, condition: dict) -> bool:
+    """Evaluate a step condition against this target; on any error, skip (never fail).
+    Stashes the human reason on the operation for _skip_payload to read."""
+    try:
+        client = await manager.warm_client(operation["account_id"])
+        should_run, reason = await evaluate_condition(
+            manager, client, operation["account_id"], operation["target"], condition
+        )
+    except Exception as exc:
+        should_run, reason = False, f"Skipped: {classify_telegram_error(exc).user_message}"
+    operation["_skip_reason"] = reason
+    return should_run
+
+
+async def _wait_while_paused(queue_runs: dict[str, dict], run: dict) -> None:
+    """Block while pause is requested, flipping the run to 'paused' and back to
+    'running'. Returns immediately (and lets the caller's cancel check fire) if a
+    cancel arrives while parked."""
+    if not run.get("pause_requested"):
+        return
+    run["status"] = "paused"
+    run["updated_at"] = now_iso()
+    save_action_runs(queue_runs)
+    while run.get("pause_requested") and not run.get("cancel_requested"):
+        await asyncio.sleep(CONTROL_POLL_SECONDS)
+    if not run.get("cancel_requested"):
+        run["status"] = "running"
+        run["updated_at"] = now_iso()
+        save_action_runs(queue_runs)
+
+
+async def _cancellable_sleep(seconds: float, run: dict) -> bool:
+    """Sleep up to `seconds`, re-checking the run's cancel flag every poll. Returns
+    False the moment a cancel is seen, True if the full duration elapsed."""
+    remaining = max(0.0, seconds)
+    while remaining > 0:
+        if run.get("cancel_requested"):
+            return False
+        step = min(CONTROL_POLL_SECONDS, remaining)
+        await asyncio.sleep(step)
+        remaining -= step
+    return not run.get("cancel_requested")
+
+
+def _auto_wait_seconds(error_info: Any, resume_cap: float) -> float | None:
+    """Seconds to wait before one automatic in-place retry, or None to not retry.
+
+    Short floods (<=60s) and transient network blips always get their brief retry;
+    a longer flood is auto-waited only up to the operator's resume cap. Beyond the
+    cap (or a non-retryable error) returns None so the caller stops or fails the op.
+    """
+    seconds = error_info.retry_after_seconds
+    if seconds is None:
+        return None
+    if error_info.category.startswith("flood_wait"):
+        if seconds <= 60:
+            return float(seconds)
+        return float(seconds) if seconds <= resume_cap else None
+    return float(seconds) if (error_info.retryable and seconds <= 60) else None
+
+
+async def _run_action_once(manager: AccountManager, action: TelegramAction) -> dict:
+    result = await asyncio.wait_for(manager.run_warm_action(action), timeout=QUEUE_OPERATION_TIMEOUT_SECONDS)
+    return result.to_dict()
+
+
+async def execute_operation(
+    manager: AccountManager,
+    queue_runs: dict[str, dict],
+    run: dict,
+    operation: dict,
+    action: TelegramAction,
+    resume_cap: float,
+) -> dict:
+    """Run one queued operation and return its result payload.
+
+    Applies the retry/flood policy in one place: a hard timeout fails fast (no retry —
+    that was the bug where a hung op burned 2× the ceiling); a within-cap flood or a
+    network blip is waited out (cancellably) and retried once; a beyond-cap flood
+    raises _FloodStop so the caller stops the whole run.
+    """
+    try:
+        return await _run_action_once(manager, action)
+    except TimeoutError:
+        logger.warning(
+            "Queue %s: %s on %s timed out after %ss",
+            run["id"], operation["action_type"], operation["account_id"], QUEUE_OPERATION_TIMEOUT_SECONDS,
+        )
+        return _fail_payload(operation, f"Operation timed out after {int(QUEUE_OPERATION_TIMEOUT_SECONDS)}s.")
+    except Exception as exc:
+        error_info = classify_telegram_error(exc)
+        wait = _auto_wait_seconds(error_info, resume_cap)
+        if wait is None:
+            if error_info.category.startswith("flood_wait"):
+                raise _FloodStop(error_info) from exc
+            return _fail_payload(operation, error_info.user_message)
+
+        long_flood = error_info.category.startswith("flood_wait") and wait > 60
+        if long_flood:
+            # Surface a live countdown target so the UI can show "auto-resuming in…".
+            run["status"] = "flood_waiting"
+            run["resume_at"] = _iso_in(wait)
+            run["error"] = f"Flood wait {int(wait)}s — auto-resuming when it clears."
+            run["updated_at"] = now_iso()
+            save_action_runs(queue_runs)
+        else:
+            logger.info("Queue %s: retrying %s after %ss", run["id"], operation["action_type"], int(wait))
+
+        if not await _cancellable_sleep(wait, run):
+            raise _QueueAborted from exc
+
+        if long_flood:
+            run["status"] = "running"
+            run["resume_at"] = None
+            run["error"] = None
+            run["updated_at"] = now_iso()
+        try:
+            return await _run_action_once(manager, action)
+        except TimeoutError:
+            return _fail_payload(operation, f"Operation timed out after {int(QUEUE_OPERATION_TIMEOUT_SECONDS)}s.")
+        except Exception as retry_exc:
+            info = classify_telegram_error(retry_exc)
+            return _fail_payload(operation, f"{info.user_message} (retry failed)")
 
 
 def handle_queue_flood_wait(run: dict, operation: dict, remaining: list[dict], error_info: Any) -> None:
@@ -436,14 +544,17 @@ def retry_request_from_failed_operations(run: dict) -> ActionQueueRequest:
             account_ids=[operation["account_id"]],
             targets=[operation["target"]],
             message=operation.get("message"),
+            # Carry the guard forward so a retried step is re-checked, not blindly
+            # re-run against a target that has since drifted out of the condition.
+            condition=operation.get("condition"),
         )
         for operation in failed_operations
     ]
+    # Leave the delays unset so the request validator fills them from the operator's
+    # current safety settings, rather than pinning stale hardcoded 4s/8s values.
     return ActionQueueRequest(
         steps=steps,
         confirm=True,
-        delay_between_accounts=4.0,
-        delay_between_actions=8.0,
         max_operations=min(max(len(steps), 1), 250),
     )
 
