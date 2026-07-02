@@ -38,6 +38,8 @@ export function ActionsScreen(props: ActionsScreenProps) {
     activeRun: props.activeRun,
     pollQueueRun: props.pollQueueRun,
     cancelActiveRun: props.cancelActiveRun,
+    pauseActiveRun: props.pauseActiveRun,
+    resumeActiveRun: props.resumeActiveRun,
   }
   const composer = useScheduleComposer(props)
   const { scheduleSeed, setScheduleSeed } = props
@@ -60,7 +62,11 @@ export function ActionsScreen(props: ActionsScreenProps) {
         activeRunId={queueRunner.activeRunId}
         activeRun={queueRunner.activeRun}
         cancelActiveRun={queueRunner.cancelActiveRun}
+        pauseActiveRun={queueRunner.pauseActiveRun}
+        resumeActiveRun={queueRunner.resumeActiveRun}
         guarded={props.guarded}
+        safety={props.safety}
+        actionsMeta={props.actionsMeta}
       />
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem] 2xl:grid-cols-[minmax(0,1fr)_24rem]">
         <BuilderColumn props={props} />

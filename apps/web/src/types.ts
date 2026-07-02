@@ -168,6 +168,11 @@ export type QueueRun = {
   results?: Array<Record<string, unknown>>
   error?: string | null
   current?: Record<string, unknown> | null
+  // Run lifecycle control (backend action_queue_service). pause_requested is set
+  // while a pause is pending/held; resume_at is an ISO target for a flood-wait
+  // auto-resume so the UI can show a live countdown.
+  pause_requested?: boolean
+  resume_at?: string | null
 }
 
 export type Preset = {
@@ -190,6 +195,9 @@ export type SafetySettings = {
   delay_instant: number
   delay_sensitive: number
   max_operations: number
+  // A flood wait at/below this cap (seconds) is auto-waited and retried in-place
+  // instead of stopping the run; 0 disables auto-resume. Mirrors the backend.
+  flood_wait_resume_cap: number
 }
 
 // Backend-persisted display/runtime preferences (global). Distinct from the

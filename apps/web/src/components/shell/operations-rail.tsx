@@ -5,6 +5,8 @@ import {
 } from "@tabler/icons-react"
 
 import { queueRunProgress, relTime, statusTone } from "../../lib/helpers"
+import { isHeldPhase, runPhase, secondsUntil } from "../../lib/run-lifecycle"
+import { formatDuration } from "../../lib/action-meta"
 import { Badge, Callout, Readout, ReadoutItem } from "../ui"
 import type { QueueRun, QueueStep, View } from "../../types"
 import {
@@ -124,20 +126,29 @@ function RailHeader({
 function ActiveRunProgress({ activeRun }: { activeRun: QueueRun }) {
   const { completedCount, operationCount, failedCount, progress } =
     queueRunProgress(activeRun)
-  const status = activeRun.status || "running"
+  const phase = runPhase(activeRun)
+  const held = isHeldPhase(phase)
+  const floodRemaining =
+    phase === "waiting" ? secondsUntil(activeRun.resume_at) : 0
+
+  // Amber while held (paused / flood wait), sky while moving — matches the banner.
+  const tone = held
+    ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+    : "border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400"
 
   return (
-    <div className="space-y-1.5 rounded-md border border-sky-500/30 bg-sky-500/10 p-2 text-xs text-sky-600 dark:text-sky-400">
+    <div className={`space-y-1.5 rounded-md border p-2 text-xs ${tone}`}>
       <div className="flex items-center justify-between gap-2">
-        <span className="font-medium">
-          {status === "canceling" ? "Canceling" : "Running"}
-        </span>
+        <span className="font-medium capitalize">{RAIL_PHASE_LABEL[phase]}</span>
         <span className="font-mono">
           {completedCount}/{operationCount}
           {failedCount ? ` · ${failedCount} failed` : ""}
         </span>
       </div>
-      <div className="h-1 overflow-hidden rounded-full bg-sky-500/20">
+      {phase === "waiting" && floodRemaining > 0 ? (
+        <p className="font-mono">resume in {formatDuration(floodRemaining)}</p>
+      ) : null}
+      <div className="h-1 overflow-hidden rounded-full bg-current/20">
         <div
           className="h-full rounded-full bg-current transition-all"
           style={{ width: `${progress}%` }}
@@ -145,6 +156,15 @@ function ActiveRunProgress({ activeRun }: { activeRun: QueueRun }) {
       </div>
     </div>
   )
+}
+
+const RAIL_PHASE_LABEL: Record<string, string> = {
+  running: "Running",
+  canceling: "Canceling",
+  pausing: "Pausing",
+  paused: "Paused",
+  waiting: "Flood wait",
+  terminal: "Done",
 }
 
 // A human last-run line: outcome + relative time, instead of the raw UUID the

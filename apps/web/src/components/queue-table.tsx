@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import { IconStack2 } from "@tabler/icons-react"
+import { IconArrowDown, IconArrowUp, IconStack2 } from "@tabler/icons-react"
 
 import { Button } from "../ui/button"
 
@@ -28,6 +28,17 @@ export function QueueTable({
         detail="Choose accounts and an action, add targets, then Add To Queue."
       />
     )
+  }
+
+  // Swap a step with its neighbour. Run order is meaningful (it sets the
+  // account-switch spacing and, for scheduled queues, the send order), so
+  // reordering is a first-class edit, not just cosmetic.
+  function moveStep(current: QueueStep[], index: number, delta: number) {
+    const target = index + delta
+    if (target < 0 || target >= current.length) return current
+    const next = [...current]
+    ;[next[index], next[target]] = [next[target], next[index]]
+    return next
   }
 
   return (
@@ -88,6 +99,26 @@ export function QueueTable({
                 ) : null}
               </div>
               <div className="flex gap-1.5 md:flex-col md:items-stretch">
+                <div className="flex gap-1.5">
+                  <Button
+                    size="icon-sm"
+                    variant="outline"
+                    aria-label="Move step up"
+                    disabled={index === 0}
+                    onClick={() => setQueue((current) => moveStep(current, index, -1))}
+                  >
+                    <IconArrowUp className="size-3.5" />
+                  </Button>
+                  <Button
+                    size="icon-sm"
+                    variant="outline"
+                    aria-label="Move step down"
+                    disabled={index === queue.length - 1}
+                    onClick={() => setQueue((current) => moveStep(current, index, 1))}
+                  >
+                    <IconArrowDown className="size-3.5" />
+                  </Button>
+                </div>
                 {onEdit ? (
                   <Button
                     size="sm"

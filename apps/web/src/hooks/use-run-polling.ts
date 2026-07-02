@@ -95,5 +95,47 @@ export function useRunPolling(
     }
   }, [activeRunId, flash, loadRuns])
 
-  return { activeRunId, activeRun, pollQueueRun, cancelActiveRun }
+  // Pause/resume the live run. Both refetch immediately so the banner reflects the
+  // new control state without waiting for the next 1.2s poll tick.
+  const controlActiveRun = React.useCallback(
+    async (action: "pause" | "resume") => {
+      if (!activeRunId) return
+      try {
+        await api(`/api/actions/queue/runs/${activeRunId}/${action}`, {
+          method: "POST",
+        })
+        flash(
+          action === "pause"
+            ? "Pausing after the current operation."
+            : "Resuming queue.",
+          "success"
+        )
+        await runQuery.refetch()
+      } catch (error) {
+        flash(
+          error instanceof Error ? error.message : `${action} failed.`,
+          "error"
+        )
+      }
+    },
+    [activeRunId, flash, runQuery]
+  )
+
+  const pauseActiveRun = React.useCallback(
+    () => controlActiveRun("pause"),
+    [controlActiveRun]
+  )
+  const resumeActiveRun = React.useCallback(
+    () => controlActiveRun("resume"),
+    [controlActiveRun]
+  )
+
+  return {
+    activeRunId,
+    activeRun,
+    pollQueueRun,
+    cancelActiveRun,
+    pauseActiveRun,
+    resumeActiveRun,
+  }
 }

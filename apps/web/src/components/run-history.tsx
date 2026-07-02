@@ -1,6 +1,11 @@
 import * as React from "react"
 
-import { IconAlertTriangle, IconProgressCheck } from "@tabler/icons-react"
+import {
+  IconAlertTriangle,
+  IconCopy,
+  IconDownload,
+  IconProgressCheck,
+} from "@tabler/icons-react"
 
 import { EmptyHistoryArt } from "./empty-illustrations"
 import { Button } from "../ui/button"
@@ -347,10 +352,127 @@ function RunDetailsDialog({
           />
           <CurrentOperationPanel current={current} />
           <RunErrorPanel error={error} />
-          <RunOperationsTable operations={operations} />
+          <RunOperationsSection run={run} operations={operations} />
         </div>
       ) : null}
     </ModalShell>
+  )
+}
+
+// Operations with a filter/export toolbar. Filter chips let an operator jump
+// straight to the failed rows on a big run; the two buttons export the whole run
+// as a spreadsheet-friendly CSV and copy just the failed targets so a retry
+// elsewhere is one paste away.
+function RunOperationsSection({
+  run,
+  operations,
+}: {
+  run: QueueRun
+  operations: NonNullable<QueueRun["operations"]>
+}) {
+  const [filter, setFilter] = React.useState<string>("all")
+  const [copied, setCopied] = React.useState(false)
+
+  const counts = React.useMemo(() => {
+    const tally: Record<string, number> = {}
+    for (const op of operations) {
+      const status = String(op.status || "queued")
+      tally[status] = (tally[status] || 0) + 1
+    }
+    return tally
+  }, [operations])
+
+  const shown =
+    filter === "all"
+      ? operations
+      : operations.filter((op) => String(op.status || "queued") === filter)
+
+  const failedTargets = operations
+    .filter((op) => !isOk(op))
+    .map((op) => String(op.target || "").trim())
+    .filter(Boolean)
+
+  async function copyFailed() {
+    if (!failedTargets.length) return
+    try {
+      await navigator.clipboard.writeText([...new Set(failedTargets)].join("\n"))
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1800)
+    } catch {
+      /* clipboard blocked — nothing actionable to show here */
+    }
+  }
+
+  function exportCsv() {
+    downloadBlob(
+      new Blob([operationsToCsv(operations)], { type: "text/csv" }),
+      `queue-run-${run.id}.csv`
+    )
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-1.5">
+          <FilterChip
+            label="All"
+            count={operations.length}
+            active={filter === "all"}
+            onClick={() => setFilter("all")}
+          />
+          {Object.entries(counts).map(([status, count]) => (
+            <FilterChip
+              key={status}
+              label={status.replace(/_/g, " ")}
+              count={count}
+              active={filter === status}
+              onClick={() => setFilter(status)}
+            />
+          ))}
+        </div>
+        <div className="flex gap-1.5">
+          {failedTargets.length ? (
+            <Button size="xs" variant="outline" onClick={copyFailed}>
+              <IconCopy className="size-3.5" />
+              {copied ? "Copied" : `Copy ${failedTargets.length} failed`}
+            </Button>
+          ) : null}
+          {operations.length ? (
+            <Button size="xs" variant="outline" onClick={exportCsv}>
+              <IconDownload className="size-3.5" />
+              CSV
+            </Button>
+          ) : null}
+        </div>
+      </div>
+      <RunOperationsTable operations={shown} />
+    </div>
+  )
+}
+
+function FilterChip({
+  label,
+  count,
+  active,
+  onClick,
+}: {
+  label: string
+  count: number
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+        active
+          ? "border-primary/40 bg-primary/10 text-primary"
+          : "border-border text-muted-foreground hover:bg-muted/40"
+      }`}
+    >
+      {label} <span className="font-mono">{count}</span>
+    </button>
   )
 }
 
@@ -398,13 +520,14 @@ function RunOperationsTable({
 }) {
   return (
     <TableWrap>
-      <Table className="min-w-[52rem]">
+      <Table className="min-w-[56rem]">
         <TableHeader>
           <TableRow>
             <TableHead>Status</TableHead>
             <TableHead>Action</TableHead>
             <TableHead>Target</TableHead>
             <TableHead>Account</TableHead>
+            <TableHead className="text-right">Took</TableHead>
             <TableHead>Detail</TableHead>
           </TableRow>
         </TableHeader>
@@ -417,6 +540,7 @@ function RunOperationsTable({
               const ok = result?.ok
               const detail =
                 result?.error || result?.message || operation.error || "—"
+              const duration = operationDuration(operation)
               return (
                 <TableRow
                   key={`${operation.account_id || "account"}-${operation.target || index}-${index}`}
@@ -439,6 +563,9 @@ function RunOperationsTable({
                       operation.account_label || operation.account_id || "—"
                     )}
                   </TableCell>
+                  <TableCell className="text-right font-mono text-xs text-muted-foreground">
+                    {duration || "—"}
+                  </TableCell>
                   <TableCell
                     className={
                       ok === false
@@ -453,8 +580,8 @@ function RunOperationsTable({
             })
           ) : (
             <TableRow>
-              <TableCell colSpan={5} className="p-6 text-muted-foreground">
-                No operation details were stored for this run.
+              <TableCell colSpan={6} className="p-6 text-muted-foreground">
+                No operations match this filter.
               </TableCell>
             </TableRow>
           )}
@@ -462,6 +589,51 @@ function RunOperationsTable({
       </Table>
     </TableWrap>
   )
+}
+
+function isOk(operation: Record<string, unknown>): boolean {
+  const result = operation.result as Record<string, unknown> | undefined
+  // A skipped-by-condition op is ok=true+skipped; treat only genuine failures as
+  // "failed" for the copy-failed-targets action.
+  if (result?.ok === false) return false
+  return String(operation.status || "") !== "failed"
+}
+
+// Wall-clock time a single operation took, from its started/completed stamps.
+// Returns "" when either stamp is missing (pending/skipped ops) so the cell shows
+// a dash instead of a nonsensical duration.
+function operationDuration(operation: Record<string, unknown>): string {
+  const started = operation.started_at ? Date.parse(String(operation.started_at)) : NaN
+  const completed = operation.completed_at ? Date.parse(String(operation.completed_at)) : NaN
+  if (Number.isNaN(started) || Number.isNaN(completed) || completed < started) return ""
+  const seconds = (completed - started) / 1000
+  if (seconds < 1) return `${Math.round(seconds * 1000)}ms`
+  if (seconds < 60) return `${seconds.toFixed(1)}s`
+  const minutes = Math.floor(seconds / 60)
+  return `${minutes}m ${Math.round(seconds % 60)}s`
+}
+
+// Flatten a run's operations to CSV for spreadsheet review / sharing. Quotes every
+// field and escapes embedded quotes so a target or error message with commas or
+// quotes can't break the columns.
+function operationsToCsv(operations: NonNullable<QueueRun["operations"]>): string {
+  const header = ["status", "action_type", "target", "account", "duration", "detail"]
+  const escape = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`
+  const rows = operations.map((operation) => {
+    const result = operation.result as Record<string, unknown> | undefined
+    const detail = result?.error || result?.message || operation.error || ""
+    return [
+      operation.status || "",
+      operation.action_type || "",
+      operation.target || "",
+      operation.account_label || operation.account_id || "",
+      operationDuration(operation),
+      detail,
+    ]
+      .map(escape)
+      .join(",")
+  })
+  return [header.map(escape).join(","), ...rows].join("\r\n")
 }
 
 function RunStat({ label, value }: { label: string; value: number }) {

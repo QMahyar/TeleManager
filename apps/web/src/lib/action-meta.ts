@@ -84,8 +84,18 @@ export function estimateQueueSeconds(
       }
     }
   }
-  if (ops.length === 0) return 0
+  return estimateOperationsSeconds(ops, safety, meta)
+}
 
+// Shared estimator core: the wall-clock cost of a flat list of operations under
+// the backend's inter_operation_delay rule. Used by both the pre-run queue
+// estimate (above) and the live "remaining" estimate on a running banner.
+export function estimateOperationsSeconds(
+  ops: Array<{ type: ActionType; account: string }>,
+  safety: SafetySettings,
+  meta: ActionsMeta | null
+): number {
+  if (ops.length === 0) return 0
   let total = PER_OP_EXEC_SECONDS * ops.length
   for (let i = 1; i < ops.length; i++) {
     const prev = ops[i - 1]

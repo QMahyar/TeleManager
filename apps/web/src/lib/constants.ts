@@ -366,4 +366,5 @@ export const emptySafety: SafetySettings = {
   delay_instant: 1,
   delay_sensitive: 12,
   max_operations: 100,
+  flood_wait_resume_cap: 900,
 }

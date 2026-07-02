@@ -9,6 +9,7 @@ function SafetyNumber({
   value,
   min,
   max,
+  step = 0.5,
   onChange,
   help,
   hint,
@@ -17,6 +18,7 @@ function SafetyNumber({
   value: number
   min: number
   max: number
+  step?: number
   onChange: (value: number) => void
   help: string
   hint?: string
@@ -27,7 +29,7 @@ function SafetyNumber({
         type="number"
         min={min}
         max={max}
-        step="0.5"
+        step={step}
         autoComplete="off"
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
@@ -115,9 +117,20 @@ export function SafetyEditor({
           value={safety.max_operations}
           min={1}
           max={250}
+          step={1}
           onChange={(value) => patch({ max_operations: value })}
           help="Hard cap on total queued operations per run (1–250)."
           hint="A safety stop: a single run never executes more than this many steps, however large the queue. Keep it low to make runs small and reviewable; raise it only when you trust the queue."
+        />
+        <SafetyNumber
+          label="Auto-resume flood ≤ (s)"
+          value={safety.flood_wait_resume_cap}
+          min={0}
+          max={3600}
+          step={30}
+          onChange={(value) => patch({ flood_wait_resume_cap: value })}
+          help="Wait out & retry flood limits up to this long (0 disables)."
+          hint="When Telegram imposes a flood wait shorter than this, the run waits it out and retries the operation in place instead of stopping. Longer waits still halt the run. Set 0 to always stop on a long flood."
         />
       </div>
 

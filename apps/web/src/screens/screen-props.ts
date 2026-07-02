@@ -70,6 +70,8 @@ export type AppScreenProps = {
   activeRun: QueueRun | null
   pollQueueRun: (runId: string) => Promise<void>
   cancelActiveRun: () => Promise<void>
+  pauseActiveRun: () => Promise<void>
+  resumeActiveRun: () => Promise<void>
   schedules: Schedule[]
   loadSchedules: () => Promise<void>
   scheduleSeed: ScheduleSeed | null
@@ -143,6 +145,8 @@ export type ActionsScreenProps = Pick<
   | "activeRun"
   | "pollQueueRun"
   | "cancelActiveRun"
+  | "pauseActiveRun"
+  | "resumeActiveRun"
   | "refresh"
   | "guarded"
   | "loading"

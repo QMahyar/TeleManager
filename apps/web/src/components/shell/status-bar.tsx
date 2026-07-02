@@ -3,6 +3,7 @@ import { IconMoon, IconRefresh, IconSun } from "@tabler/icons-react"
 import { Button } from "../../ui/button"
 
 import { queueRunProgress } from "../../lib/helpers"
+import { isHeldPhase, runPhase } from "../../lib/run-lifecycle"
 import type { QueueRun } from "../../types"
 
 // The footer status bar — the device that makes a browser app read as a desktop
@@ -71,24 +72,37 @@ function RunPulse({ activeRun }: { activeRun: QueueRun | null }) {
   }
 
   const { completedCount, operationCount } = queueRunProgress(activeRun)
-  const status = activeRun.status || "running"
+  const phase = runPhase(activeRun)
+  const held = isHeldPhase(phase)
 
   return (
     <div
       className={[
         "flex min-w-0 flex-1 items-center justify-center gap-2",
-        "text-sky-600 dark:text-sky-400"
-      ].filter(Boolean).join(" ")}
+        held ? "text-amber-600 dark:text-amber-400" : "text-sky-600 dark:text-sky-400",
+      ].join(" ")}
       role="status"
     >
       <span className="relative flex size-2 shrink-0">
-        <span className="absolute inline-flex size-full animate-ping rounded-full bg-current opacity-60" />
+        {/* The ping only reads right for genuine motion; a held run shows a steady
+            dot so "paused" doesn't look like it's still working. */}
+        {held ? null : (
+          <span className="absolute inline-flex size-full animate-ping rounded-full bg-current opacity-60" />
+        )}
         <span className="relative inline-flex size-2 rounded-full bg-current" />
       </span>
       <span className="truncate">
-        {status === "canceling" ? "canceling" : "running"} {completedCount}/
-        {operationCount}
+        {PULSE_LABEL[phase]} {completedCount}/{operationCount}
       </span>
     </div>
   )
+}
+
+const PULSE_LABEL: Record<string, string> = {
+  running: "running",
+  canceling: "canceling",
+  pausing: "pausing",
+  paused: "paused",
+  waiting: "flood wait",
+  terminal: "done",
 }

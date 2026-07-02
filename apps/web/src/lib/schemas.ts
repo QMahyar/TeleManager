@@ -68,10 +68,13 @@ const queueRunSchema = z.object({
   operation_count: z.number().optional(),
   completed_count: z.number().optional(),
   failed_count: z.number().optional(),
+  skipped_count: z.number().optional(),
   operations: z.array(looseRecord).optional(),
   results: z.array(looseRecord).optional(),
   error: z.string().nullable().optional(),
   current: looseRecord.nullable().optional(),
+  pause_requested: z.boolean().optional(),
+  resume_at: z.string().nullable().optional(),
 })
 
 const queueStepSchema = z.object({
@@ -131,6 +134,7 @@ const safetySettingsSchema = z.object({
   delay_instant: z.number(),
   delay_sensitive: z.number(),
   max_operations: z.number(),
+  flood_wait_resume_cap: z.number(),
 })
 
 const appSettingsSchema = z.object({
