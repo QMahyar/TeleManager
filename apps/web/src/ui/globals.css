@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "@fontsource-variable/geist";
 @import "@fontsource-variable/geist-mono";
+@import "@fontsource-variable/space-grotesk";
 
 @custom-variant dark (&:is(.dark *));
 @source "../**/*.{ts,tsx}";
@@ -29,6 +30,13 @@
        the UI/heading sans; Geist Mono carries all machine data. */
     --ff-sans: 'Geist Variable', system-ui, sans-serif;
     --ff-mono: 'Geist Mono Variable', ui-monospace, 'Cascadia Code', monospace;
+    /* The Nameplate — the third voice. Space Grotesk is the proportional
+       descendant of Space Mono: giving human, drafted shape to letterforms born
+       in a monospace is this app's whole thesis (proportional structure over
+       machine artifacts) rendered as type. It carries page titles and section
+       headings only — the engraved label on the instrument, kept scarce so it
+       stays a nameplate and never turns into body copy. */
+    --ff-display: 'Space Grotesk Variable', 'Geist Variable', system-ui, sans-serif;
 
     --background: oklch(0.985 0.003 85);
     --foreground: oklch(0.24 0.008 75);
@@ -238,7 +246,8 @@
        declared in :root; the type-* scale below references the same stacks. */
     --font-sans: var(--ff-sans);
     --font-mono: var(--ff-mono);
-    --font-heading: var(--ff-sans);
+    --font-heading: var(--ff-display);
+    --font-display: var(--ff-display);
 }
 
 @layer base {
@@ -255,9 +264,10 @@
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     }
-  /* Headings are sans (Inter) now. Give them weight + tight tracking centrally so
-     no h-tag renders as weak Inter 400 where mono used to carry presence.
-     Per-heading utilities still override this. */
+  /* Bare headings fall back to Geist semibold + tight tracking so no h-tag ever
+     renders weak. The `type-title`/`type-heading` utilities override family AND
+     weight (Space Grotesk 500), so titles that carry the class get the Nameplate
+     voice; anything without one still reads as a proper heading. */
   h1, h2, h3 {
     @apply font-semibold tracking-tight;
     }
@@ -346,30 +356,37 @@
    Colour and spacing stay in the markup so a role can be muted / primary /
    destructive and sit in any layout without the utility fighting it.
 
-     Headings (Geist sans):  type-title › type-heading › type-subheading
-     Eyebrow  (Geist Mono):  type-eyebrow — kicker above a title / breadcrumb
-     Labels   (Geist sans):  type-label   — form fields, nav groups, table heads
-     Captions (Geist Mono):  type-meta    — tiny machine-data captions on tiles
-     Metric   (Geist Mono):  type-stat    — the large readout number
+     Nameplate (Space Grotesk): type-title › type-heading — engraved instrument
+                                labels; the display voice, kept to two tiers.
+     Subhead   (Geist sans):  type-subheading — the tier below the nameplate.
+     Eyebrow   (Geist Mono):  type-eyebrow — kicker above a title / breadcrumb
+     Labels    (Geist sans):  type-label   — form fields, nav groups, table heads
+     Captions  (Geist Mono):  type-meta    — tiny machine-data captions on tiles
+     Metric    (Geist Mono):  type-stat    — the large readout number
 
-   Two families, two cases: sans for human structure (titles, form labels),
-   mono for the machine's own voice (eyebrows, captions, metrics). Tracking and
-   weight step with size so small caps stay legible and large titles stay tight.
+   Three voices: Nameplate (Space Grotesk — the descendant of Space Mono, giving
+   proportional shape to a monospace, mirroring the app's whole premise) carries
+   titles; Geist sans carries human structure (subheads, form labels); Geist Mono
+   is the machine's own voice (eyebrows, captions, metrics). Tracking and weight
+   step with size so small caps stay legible and large nameplates stay tight.
 --------------------------------------------------------------------------- */
 @utility type-title {
-  font-family: var(--ff-sans);
-  font-weight: 600;
+  /* Nameplate voice. Space Grotesk's drafted forms carry presence at 500, so it
+     sits a weight below Geist's old 600 and tracks tighter — the engraved label
+     on the instrument, not a shouted heading. */
+  font-family: var(--ff-display);
+  font-weight: 500;
   letter-spacing: -0.02em;
-  line-height: 1.15;
-  /* Fluid 20→24px: the one page H1 scales with the viewport instead of needing
-     a `sm:` breakpoint bump at every call site. */
-  font-size: clamp(1.25rem, 1.07rem + 0.9vw, 1.5rem);
+  line-height: 1.1;
+  /* Fluid 22→28px: the nameplate reads a touch larger than the old Geist H1 so
+     the display voice registers, still scaling without a `sm:` bump per call. */
+  font-size: clamp(1.375rem, 1.12rem + 1.15vw, 1.75rem);
 }
 @utility type-heading {
-  font-family: var(--ff-sans);
-  font-weight: 600;
+  font-family: var(--ff-display);
+  font-weight: 500;
   letter-spacing: -0.015em;
-  line-height: 1.3;
+  line-height: 1.25;
   font-size: 1.125rem;
 }
 @utility type-subheading {

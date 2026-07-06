@@ -5,7 +5,7 @@ import {
 } from "@tabler/icons-react"
 
 import { Button } from "../../ui/button"
-import { Badge } from "../ui"
+import { Badge, SignalDot } from "../ui"
 import type { QueueStep } from "../../types"
 import { countQueueOperations } from "./queue-metrics"
 import type { NavItem } from "./types"
@@ -43,12 +43,24 @@ export function Header({
         >
           <IconMenu2 />
         </Button>
+        {/* Instrument header: a live gauge line (signal dot + mono breadcrumb
+            path) above the engraved nameplate title. The dot promotes the app's
+            SignalDot status-light motif into the most-seen chrome, so the header
+            reads as an instrument panel rather than a plain page title. */}
         <div className="min-w-0">
-          <p className="type-eyebrow text-muted-foreground">
-            <span className="text-primary">›</span>{" "}
-            {activeItem?.group || "Workspace"}
+          <p className="type-eyebrow flex items-center gap-2 text-muted-foreground">
+            <SignalDot tone={queue.length > 0 ? "live" : "ready"} />
+            <span>{activeItem?.group || "Workspace"}</span>
+            {activeItem?.label ? (
+              <span className="text-muted-foreground/40" aria-hidden>
+                /
+              </span>
+            ) : null}
+            <span className="text-foreground/70">{activeItem?.label}</span>
           </p>
-          <h1 className="type-title text-foreground">{activeItem?.label}</h1>
+          <h1 className="type-title mt-1.5 text-foreground">
+            {activeItem?.label}
+          </h1>
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
