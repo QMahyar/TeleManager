@@ -8,6 +8,7 @@ import {
   IconMessageCircle,
   IconPencil,
   IconPlus,
+  IconSettings,
   IconShieldCheck,
   IconTrash,
   IconUsers,
@@ -28,6 +29,7 @@ import {
 import { api, toForm } from "../lib/api"
 import { accountStatus } from "../lib/helpers"
 import type { Account, AskDialog, Flash, PhotosMode } from "../types"
+import { AccountSettingsModal } from "./account-settings-modal"
 import { Avatar } from "./avatar"
 import { EmptyState, SignalDot, Skeleton, type SignalTone } from "./ui"
 
@@ -367,8 +369,20 @@ function AccountActions({
   // previously needed min-w-[62rem], which pushed this whole column off-screen
   // behind a horizontal scrollbar. Validate + Dialogs (the common verbs) lead;
   // the rest follow.
+  const [settingsOpen, setSettingsOpen] = React.useState(false)
   return (
     <div className="flex justify-end">
+      <AccountSettingsModal
+        account={account}
+        open={settingsOpen}
+        // Profile/username edits change the row's label + @username, so refresh
+        // the fleet on close to reflect them.
+        onClose={() => {
+          setSettingsOpen(false)
+          void refresh()
+        }}
+        flash={flash}
+      />
       <Menu
         label={`Manage ${account.label || account.session_name}`}
         panelClassName="min-w-48"
@@ -395,6 +409,10 @@ function AccountActions({
           Fetch dialogs
         </MenuItem>
         <MenuSeparator />
+        <MenuItem onClick={() => setSettingsOpen(true)}>
+          <IconSettings className="size-3.5" />
+          Account settings
+        </MenuItem>
         <MenuItem
           onClick={() =>
             guarded(() => renameAccount(account, refresh, flash, askDialog))

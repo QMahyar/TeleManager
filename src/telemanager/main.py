@@ -10,7 +10,19 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .action_queue_service import ActionQueueRequest, now_iso
 from .app_password import clear_expired_sessions, is_password_enabled, is_session_valid
-from .routes import accounts, actions, activity, auth, config, dialogs, schedules, settings, static, system
+from .routes import (
+    account_settings,
+    accounts,
+    actions,
+    activity,
+    auth,
+    config,
+    dialogs,
+    schedules,
+    settings,
+    static,
+    system,
+)
 from .routes.static import FRONTEND_DIST_DIR
 from .runtime import active_sessions, manager, queue_runs, scheduler
 
@@ -91,7 +103,10 @@ if (FRONTEND_DIST_DIR / "assets").exists():
 # API routers first, then the static/frontend router last — it owns the "/" and
 # "/{filename}" routes. (Order isn't strictly required since /{filename} is single-
 # segment and can't match /api/*, but it keeps the catch-all visibly last.)
-for _module in (auth, config, settings, accounts, dialogs, actions, schedules, activity, system, static):
+for _module in (
+    auth, config, settings, accounts, account_settings,
+    dialogs, actions, schedules, activity, system, static,
+):
     app.include_router(_module.router)
 
 
