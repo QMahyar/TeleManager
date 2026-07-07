@@ -20,16 +20,20 @@ type ButtonProps = React.ComponentProps<"button"> & {
 }
 
 const baseClass =
-  "group/button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-clip-padding text-xs/relaxed font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
+  "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-xs/relaxed font-semibold whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-4 focus-visible:ring-ring/20 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
 
 const variants: Record<ButtonVariant, string> = {
-  default: "bg-primary text-primary-foreground hover:bg-primary/80",
+  // The signature commit action: the sunset gradient with a coral glow that lifts
+  // on hover. Text is white on the warm gradient in both light and dark.
+  default:
+    "bg-sunset text-white shadow-[0_6px_18px_-4px_color-mix(in_oklab,var(--primary),transparent_50%)] hover:-translate-y-px hover:shadow-[0_10px_26px_-6px_color-mix(in_oklab,var(--primary),transparent_38%)]",
+  // The everyday secondary action: a raised white chip on the warm canvas.
   outline:
-    "border-border hover:bg-input/50 hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:bg-input/30",
+    "border-border bg-card text-foreground shadow-sm hover:bg-secondary hover:text-foreground aria-expanded:bg-secondary aria-expanded:text-foreground",
   secondary:
     "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
   ghost:
-    "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
+    "hover:bg-secondary hover:text-foreground aria-expanded:bg-secondary aria-expanded:text-foreground dark:hover:bg-muted/60",
   destructive:
     "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
   link: "text-primary underline-offset-4 hover:underline",

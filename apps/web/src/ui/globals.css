@@ -1,121 +1,158 @@
 @import "tailwindcss";
-@import "@fontsource-variable/geist";
+@import "@fontsource-variable/fraunces";
+@import "@fontsource-variable/inter";
 @import "@fontsource-variable/geist-mono";
-@import "@fontsource-variable/space-grotesk";
 
 @custom-variant dark (&:is(.dark *));
 @source "../**/*.{ts,tsx}";
 
 /* ---------------------------------------------------------------------------
-   "Console" theme
-   A local operator's console: warm-charcoal neutrals, near-monochrome, with a
-   single dim-teal signal. Geist leads (titles + prose); Geist Mono is the voice
-   of the machine's own artifacts — session names, IDs, IPs, timestamps, counts.
-   Typography is governed by the `type-*` scale at the foot of this file, never
-   hand-tuned per call site.
+   "Arc" theme
+   A warm, frosted operator's console: peach-cream canvas washed with a soft
+   sunset, pure-white cards lifted on generous shadows, and a single coral signal
+   that flares into a sunset gradient on the primary commit action. Fraunces (a
+   serif with real optical presence) carries titles; Inter carries prose; Geist
+   Mono stays the voice of the machine's own artifacts — session names, IDs, IPs,
+   timestamps, counts. Typography is governed by the `type-*` scale at the foot of
+   this file, never hand-tuned per call site.
 
    Two independent dimensions:
    - light/dark  -> the `.dark` class on <html> (set by the theme provider).
-                    Dark is the default mode.
-   - accent      -> the `data-accent` attribute on <html>. The default is `teal`
+                    Light (warm peach-cream) is the default mode; dark is a warm
+                    charcoal variant that keeps the coral signal.
+   - accent      -> the `data-accent` attribute on <html>. The default is `coral`
                     and lives directly in :root/.dark; the other accents override
                     only the accent family in the [data-accent="…"] blocks below.
-   Neutrals carry a faint warm cast (hue ~75) so charcoal reads warm, not blue.
+                    Each accent also redefines `--sunset` so the gradient primary
+                    button reads intentionally under every accent.
 --------------------------------------------------------------------------- */
 
 :root {
     /* Font stacks live here as real custom properties (not only inside @theme)
        so they're emitted to :root and can be referenced by both Tailwind's
-       font-* utilities (via @theme inline below) and the type-* scale. Geist is
-       the UI/heading sans; Geist Mono carries all machine data. */
-    --ff-sans: 'Geist Variable', system-ui, sans-serif;
+       font-* utilities (via @theme inline below) and the type-* scale. Inter is
+       the UI/body sans; Geist Mono carries all machine data. */
+    --ff-sans: 'Inter Variable', system-ui, -apple-system, sans-serif;
     --ff-mono: 'Geist Mono Variable', ui-monospace, 'Cascadia Code', monospace;
-    /* The Nameplate — the third voice. Space Grotesk is the proportional
-       descendant of Space Mono: giving human, drafted shape to letterforms born
-       in a monospace is this app's whole thesis (proportional structure over
-       machine artifacts) rendered as type. It carries page titles and section
-       headings only — the engraved label on the instrument, kept scarce so it
-       stays a nameplate and never turns into body copy. */
-    --ff-display: 'Space Grotesk Variable', 'Geist Variable', system-ui, sans-serif;
+    /* The display voice. Fraunces is a "wonky" old-style serif with strong
+       optical presence — it gives page titles and section headings the engraved,
+       editorial character the Arc design leads with. Kept scarce so it stays a
+       nameplate and never turns into body copy. */
+    --ff-display: 'Fraunces Variable', 'Argent CF', 'Source Serif Pro', Georgia, serif;
 
-    --background: oklch(0.985 0.003 85);
-    --foreground: oklch(0.24 0.008 75);
-    /* Recessed "well" behind panels. Cards are pure white here, so the well sits
-       a touch below --background to give panels a surface to lift off of. */
-    --surface-well: oklch(0.958 0.004 85);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.24 0.008 75);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.24 0.008 75);
-    --primary: oklch(0.56 0.12 190);
-    --primary-foreground: oklch(0.99 0.01 190);
-    --secondary: oklch(0.965 0.004 85);
-    --secondary-foreground: oklch(0.30 0.008 75);
-    --muted: oklch(0.965 0.004 85);
-    --muted-foreground: oklch(0.48 0.012 80);
-    --accent: oklch(0.56 0.12 190);
-    --accent-foreground: oklch(0.99 0.01 190);
-    --destructive: oklch(0.58 0.20 28);
-    --border: oklch(0.90 0.005 80);
-    --input: oklch(0.90 0.005 80);
-    --ring: oklch(0.60 0.12 190);
-    --radius: 0.5rem;
-    --elevation-sm: 0 1px 2px 0 oklch(0.24 0.01 75 / 6%);
-    --elevation-md: 0 2px 8px -2px oklch(0.24 0.01 75 / 10%), 0 1px 3px -1px oklch(0.24 0.01 75 / 8%);
-    --elevation-lg: 0 12px 32px -8px oklch(0.24 0.01 75 / 18%);
-    --sidebar: oklch(0.975 0.004 85);
-    --sidebar-foreground: oklch(0.24 0.008 75);
-    --sidebar-primary: oklch(0.56 0.12 190);
-    --sidebar-primary-foreground: oklch(0.99 0.01 190);
-    --sidebar-accent: oklch(0.965 0.004 85);
-    --sidebar-accent-foreground: oklch(0.30 0.008 75);
-    --sidebar-border: oklch(0.90 0.005 80);
-    --sidebar-ring: oklch(0.60 0.12 190);
+    --background: #fdf3ec;
+    --foreground: #1a1a1f;
+    /* The washed canvas the content column sits on. Cards are pure white and
+       lift off this warm, slightly-recessed surface. */
+    --surface-well: #f6ece2;
+    --card: #ffffff;
+    --card-foreground: #1a1a1f;
+    --popover: #ffffff;
+    --popover-foreground: #1a1a1f;
+    --primary: #ff5f5f;
+    --primary-foreground: #ffffff;
+    --secondary: #fff4ea;
+    --secondary-foreground: #3a3a42;
+    --muted: #f4ece3;
+    --muted-foreground: #83838b;
+    --accent: #ff5f5f;
+    --accent-foreground: #ffffff;
+    --destructive: #ef5350;
+    --border: #ece5db;
+    --input: #ece5db;
+    --ring: #ff7a6b;
+    --radius: 0.75rem;
+    /* Softer, larger shadows than a flat UI — cards read as raised panels
+       floating on the warm canvas (Arc's whole surface language). */
+    --elevation-sm: 0 1px 2px 0 rgb(26 26 31 / 5%);
+    --elevation-md: 0 8px 28px -10px rgb(26 26 31 / 12%), 0 2px 6px -2px rgb(26 26 31 / 6%);
+    --elevation-lg: 0 24px 60px -14px rgb(26 26 31 / 22%);
+    --sidebar: #fbf2ea;
+    --sidebar-foreground: #1a1a1f;
+    --sidebar-primary: #ff5f5f;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #fff4ea;
+    --sidebar-accent-foreground: #3a3a42;
+    --sidebar-border: #ece5db;
+    --sidebar-ring: #ff7a6b;
+    /* Sunset — the brand gradient on the primary commit action, brand mark and
+       hero panels. Coral default; alternate accents override it below. */
+    --sunset: linear-gradient(135deg, #ff7e5f, #feb47b);
+    /* Radial canvas washes (light only; dark zeroes them out). */
+    --wash-1: rgb(255 126 95 / 16%);
+    --wash-2: rgb(183 148 244 / 12%);
 }
 
 .dark {
-    --background: oklch(0.168 0.005 75);
-    --foreground: oklch(0.93 0.004 85);
+    --background: oklch(0.175 0.006 55);
+    --foreground: oklch(0.93 0.006 70);
     /* Depth is carried by luminance on dark screens: each tier steps up in L so
-       panels read as raised on their own, not only because of a border.
-       well < background < sidebar < card < muted < popover. Card now lifts
-       ~+0.057 L over the background (into the perceptible band) vs the old
-       +0.036, which read as flat. */
-    --surface-well: oklch(0.150 0.005 75);
-    --card: oklch(0.225 0.006 75);
-    --card-foreground: oklch(0.93 0.004 85);
-    --popover: oklch(0.275 0.007 75);
-    --popover-foreground: oklch(0.93 0.004 85);
-    --primary: oklch(0.74 0.11 186);
-    --primary-foreground: oklch(0.20 0.02 185);
-    --secondary: oklch(0.262 0.007 75);
-    --secondary-foreground: oklch(0.95 0.003 85);
-    --muted: oklch(0.262 0.007 75);
-    --muted-foreground: oklch(0.66 0.012 80);
-    --accent: oklch(0.74 0.11 186);
-    --accent-foreground: oklch(0.20 0.02 185);
-    --destructive: oklch(0.64 0.16 28);
-    --border: oklch(0.325 0.006 75);
-    --input: oklch(0.34 0.007 75);
-    --ring: oklch(0.72 0.11 186);
+       panels read as raised on their own. well < background < sidebar < card <
+       muted < popover. */
+    --surface-well: oklch(0.152 0.006 55);
+    --card: oklch(0.228 0.008 55);
+    --card-foreground: oklch(0.93 0.006 70);
+    --popover: oklch(0.278 0.009 55);
+    --popover-foreground: oklch(0.93 0.006 70);
+    --primary: oklch(0.72 0.165 26);
+    --primary-foreground: oklch(0.20 0.03 25);
+    --secondary: oklch(0.265 0.008 55);
+    --secondary-foreground: oklch(0.95 0.005 70);
+    --muted: oklch(0.265 0.008 55);
+    --muted-foreground: oklch(0.71 0.014 60);
+    --accent: oklch(0.72 0.165 26);
+    --accent-foreground: oklch(0.20 0.03 25);
+    --destructive: oklch(0.64 0.17 22);
+    --border: oklch(0.325 0.008 55);
+    --input: oklch(0.345 0.009 55);
+    --ring: oklch(0.72 0.16 26);
     --elevation-sm: 0 1px 2px 0 oklch(0 0 0 / 30%);
-    --elevation-md: 0 2px 8px -2px oklch(0 0 0 / 45%), 0 1px 3px -1px oklch(0 0 0 / 35%);
-    --elevation-lg: 0 12px 32px -8px oklch(0 0 0 / 60%);
-    --sidebar: oklch(0.196 0.006 75);
-    --sidebar-foreground: oklch(0.93 0.004 85);
-    --sidebar-primary: oklch(0.74 0.11 186);
-    --sidebar-primary-foreground: oklch(0.20 0.02 185);
-    --sidebar-accent: oklch(0.262 0.007 75);
-    --sidebar-accent-foreground: oklch(0.93 0.004 85);
-    --sidebar-border: oklch(0.325 0.006 75);
-    --sidebar-ring: oklch(0.72 0.11 186);
+    --elevation-md: 0 8px 28px -10px oklch(0 0 0 / 50%), 0 2px 6px -2px oklch(0 0 0 / 40%);
+    --elevation-lg: 0 24px 60px -14px oklch(0 0 0 / 62%);
+    --sidebar: oklch(0.20 0.007 55);
+    --sidebar-foreground: oklch(0.93 0.006 70);
+    --sidebar-primary: oklch(0.72 0.165 26);
+    --sidebar-primary-foreground: oklch(0.20 0.03 25);
+    --sidebar-accent: oklch(0.265 0.008 55);
+    --sidebar-accent-foreground: oklch(0.93 0.006 70);
+    --sidebar-border: oklch(0.325 0.008 55);
+    --sidebar-ring: oklch(0.72 0.16 26);
+    --sunset: linear-gradient(135deg, oklch(0.72 0.16 30), oklch(0.78 0.13 55));
+    --wash-1: transparent;
+    --wash-2: transparent;
 }
 
 /* --- Alternate accents -------------------------------------------------------
-   The default (teal) is baked into :root/.dark above. These blocks override only
-   the accent family so the Appearance picker can offer alternates. --------- */
+   The default (coral) is baked into :root/.dark above. These blocks override only
+   the accent family + `--sunset` so the Appearance picker can offer alternates.
+   Non-coral accents get a subtle same-hue sheen instead of the peach sunset, so
+   the gradient primary button always reads intentionally. -------------------- */
 
-/* Moonlight — the original cool azure */
+/* Teal — the original dim-teal signal, kept selectable */
+[data-accent="teal"] {
+    --primary: oklch(0.56 0.12 190);
+    --primary-foreground: oklch(0.99 0.01 190);
+    --accent: oklch(0.56 0.12 190);
+    --accent-foreground: oklch(0.99 0.01 190);
+    --ring: oklch(0.60 0.12 190);
+    --sidebar-primary: oklch(0.56 0.12 190);
+    --sidebar-primary-foreground: oklch(0.99 0.01 190);
+    --sidebar-ring: oklch(0.60 0.12 190);
+    --sunset: linear-gradient(135deg, color-mix(in oklab, var(--primary), white 12%), var(--primary));
+}
+.dark[data-accent="teal"] {
+    --primary: oklch(0.74 0.11 186);
+    --primary-foreground: oklch(0.20 0.02 185);
+    --accent: oklch(0.74 0.11 186);
+    --accent-foreground: oklch(0.20 0.02 185);
+    --ring: oklch(0.72 0.11 186);
+    --sidebar-primary: oklch(0.74 0.11 186);
+    --sidebar-primary-foreground: oklch(0.20 0.02 185);
+    --sidebar-ring: oklch(0.72 0.11 186);
+    --sunset: linear-gradient(135deg, color-mix(in oklab, var(--primary), white 8%), var(--primary));
+}
+
+/* Moonlight — cool azure */
 [data-accent="moonlight"] {
     --primary: oklch(0.54 0.18 264);
     --primary-foreground: oklch(0.99 0.005 264);
@@ -125,6 +162,7 @@
     --sidebar-primary: oklch(0.54 0.18 264);
     --sidebar-primary-foreground: oklch(0.99 0.005 264);
     --sidebar-ring: oklch(0.60 0.17 264);
+    --sunset: linear-gradient(135deg, color-mix(in oklab, var(--primary), white 12%), var(--primary));
 }
 .dark[data-accent="moonlight"] {
     --primary: oklch(0.68 0.16 264);
@@ -135,6 +173,7 @@
     --sidebar-primary: oklch(0.68 0.16 264);
     --sidebar-primary-foreground: oklch(0.17 0.03 264);
     --sidebar-ring: oklch(0.70 0.15 264);
+    --sunset: linear-gradient(135deg, color-mix(in oklab, var(--primary), white 8%), var(--primary));
 }
 
 /* Amber — warm gold */
@@ -147,6 +186,7 @@
     --sidebar-primary: oklch(0.58 0.13 72);
     --sidebar-primary-foreground: oklch(0.99 0.01 85);
     --sidebar-ring: oklch(0.64 0.13 72);
+    --sunset: linear-gradient(135deg, color-mix(in oklab, var(--primary), white 12%), var(--primary));
 }
 .dark[data-accent="amber"] {
     --primary: oklch(0.77 0.15 75);
@@ -157,6 +197,7 @@
     --sidebar-primary: oklch(0.77 0.15 75);
     --sidebar-primary-foreground: oklch(0.2 0.04 60);
     --sidebar-ring: oklch(0.79 0.14 78);
+    --sunset: linear-gradient(135deg, color-mix(in oklab, var(--primary), white 8%), var(--primary));
 }
 
 /* Arctic — bright cyan */
@@ -169,6 +210,7 @@
     --sidebar-primary: oklch(0.55 0.11 215);
     --sidebar-primary-foreground: oklch(0.99 0.005 215);
     --sidebar-ring: oklch(0.62 0.11 215);
+    --sunset: linear-gradient(135deg, color-mix(in oklab, var(--primary), white 12%), var(--primary));
 }
 .dark[data-accent="arctic"] {
     --primary: oklch(0.74 0.13 210);
@@ -179,6 +221,7 @@
     --sidebar-primary: oklch(0.74 0.13 210);
     --sidebar-primary-foreground: oklch(0.18 0.03 215);
     --sidebar-ring: oklch(0.76 0.12 210);
+    --sunset: linear-gradient(135deg, color-mix(in oklab, var(--primary), white 8%), var(--primary));
 }
 
 /* Emerald — refined green */
@@ -191,6 +234,7 @@
     --sidebar-primary: oklch(0.55 0.13 163);
     --sidebar-primary-foreground: oklch(0.99 0.01 166);
     --sidebar-ring: oklch(0.6 0.13 163);
+    --sunset: linear-gradient(135deg, color-mix(in oklab, var(--primary), white 12%), var(--primary));
 }
 .dark[data-accent="emerald"] {
     --primary: oklch(0.7 0.15 163);
@@ -201,6 +245,7 @@
     --sidebar-primary: oklch(0.7 0.15 163);
     --sidebar-primary-foreground: oklch(0.18 0.04 166);
     --sidebar-ring: oklch(0.72 0.15 163);
+    --sunset: linear-gradient(135deg, color-mix(in oklab, var(--primary), white 8%), var(--primary));
 }
 
 @theme inline {
@@ -239,11 +284,11 @@
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
-    /* Type roles: Geist leads (titles + prose). Geist Mono is reserved for
-       machine data only — session names, IDs, IPs, counts, timestamps, status
-       codes, queue/audit rows, stat values. Mono earns meaning by being scarce.
-       These map Tailwind's font-sans/-mono/-heading utilities onto the stacks
-       declared in :root; the type-* scale below references the same stacks. */
+    /* Type roles: Fraunces leads (titles + headings). Inter carries prose. Geist
+       Mono is reserved for machine data only — session names, IDs, IPs, counts,
+       timestamps, status codes, queue/audit rows, stat values. Mono earns meaning
+       by being scarce. These map Tailwind's font-sans/-mono/-heading utilities
+       onto the stacks declared in :root; the type-* scale below references them. */
     --font-sans: var(--ff-sans);
     --font-mono: var(--ff-mono);
     --font-heading: var(--ff-display);
@@ -258,16 +303,16 @@
     /* tabular-nums globally so every changing count/metric aligns in columns —
        a key "designed, not templated" move for a data-dense console. */
     @apply bg-background text-foreground tabular-nums;
-    /* Set the base family explicitly so prose renders in Geist regardless of how
+    /* Set the base family explicitly so prose renders in Inter regardless of how
        Tailwind resolves its default font under @theme inline. */
     font-family: var(--ff-sans);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     }
-  /* Bare headings fall back to Geist semibold + tight tracking so no h-tag ever
+  /* Bare headings fall back to Inter semibold + tight tracking so no h-tag ever
      renders weak. The `type-title`/`type-heading` utilities override family AND
-     weight (Space Grotesk 500), so titles that carry the class get the Nameplate
-     voice; anything without one still reads as a proper heading. */
+     weight (Fraunces), so titles that carry the class get the display voice;
+     anything without one still reads as a proper heading. */
   h1, h2, h3 {
     @apply font-semibold tracking-tight;
     }
@@ -299,6 +344,44 @@
     width: 1.25rem;
     height: 1.25rem;
     }
+}
+
+/* Surface utilities ----------------------------------------------------------
+   Arc's frosted chrome + washed canvas + one saturated focal panel per screen,
+   expressed as reusable utilities so the shell and screens share the vocabulary. */
+
+/* Frosted glass — the sidebar / topbar / statusbar surface. Translucent warm
+   surface over the washed canvas, blurred so the washes bleed through. */
+@utility frosted {
+  background-color: color-mix(in oklab, var(--sidebar), transparent 22%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  backdrop-filter: blur(22px) saturate(180%);
+}
+
+/* The washed canvas. Sits under the whole app so the frosted chrome reveals the
+   sunset/violet washes; content cards float on it. Dark zeroes the washes. */
+@utility canvas-wash {
+  background-color: var(--background);
+  background-image:
+    radial-gradient(1200px 700px at 85% -8%, var(--wash-1), transparent 60%),
+    radial-gradient(900px 600px at -10% 110%, var(--wash-2), transparent 55%);
+  background-attachment: fixed;
+}
+
+/* The gradient primary surface — used by the primary button, brand mark, and
+   hero panels. Accent-aware via --sunset. */
+@utility bg-sunset {
+  background-image: var(--sunset);
+}
+
+/* The ONE saturated focal panel per screen (Arc: one warm moment). A light
+   coral wash over the card, kept light so foreground text stays high-contrast. */
+@utility hero-run {
+  background-image:
+    linear-gradient(135deg,
+      color-mix(in oklab, var(--primary), transparent 88%),
+      color-mix(in oklab, var(--primary), transparent 95%));
+  border-color: color-mix(in oklab, var(--primary), var(--border) 55%);
 }
 
 /* Motion ---------------------------------------------------------------------
@@ -351,43 +434,37 @@
 
 /* Type scale -----------------------------------------------------------------
    One source of truth for every title, eyebrow, and label, so type stops being
-   hand-tuned per call site (the cause of the old "all over the place" feel).
-   Each utility sets *only* type — family, size, weight, tracking, case, leading.
-   Colour and spacing stay in the markup so a role can be muted / primary /
-   destructive and sit in any layout without the utility fighting it.
+   hand-tuned per call site. Each utility sets *only* type — family, size, weight,
+   tracking, case, leading. Colour and spacing stay in the markup so a role can be
+   muted / primary / destructive and sit in any layout without the utility fighting
+   it.
 
-     Nameplate (Space Grotesk): type-title › type-heading — engraved instrument
-                                labels; the display voice, kept to two tiers.
-     Subhead   (Geist sans):  type-subheading — the tier below the nameplate.
-     Eyebrow   (Geist Mono):  type-eyebrow — kicker above a title / breadcrumb
-     Labels    (Geist sans):  type-label   — form fields, nav groups, table heads
-     Captions  (Geist Mono):  type-meta    — tiny machine-data captions on tiles
-     Metric    (Geist Mono):  type-stat    — the large readout number
-
-   Three voices: Nameplate (Space Grotesk — the descendant of Space Mono, giving
-   proportional shape to a monospace, mirroring the app's whole premise) carries
-   titles; Geist sans carries human structure (subheads, form labels); Geist Mono
-   is the machine's own voice (eyebrows, captions, metrics). Tracking and weight
-   step with size so small caps stay legible and large nameplates stay tight.
+     Display (Fraunces):  type-title › type-heading — the editorial serif voice,
+                          kept to two tiers.
+     Subhead (Inter):     type-subheading — the tier below the display.
+     Eyebrow (Geist Mono):type-eyebrow — kicker above a title / breadcrumb
+     Labels  (Inter):     type-label   — form fields, nav groups, table heads
+     Captions(Geist Mono):type-meta    — tiny machine-data captions on tiles
+     Metric  (Geist Mono):type-stat    — the large readout number
 --------------------------------------------------------------------------- */
 @utility type-title {
-  /* Nameplate voice. Space Grotesk's drafted forms carry presence at 500, so it
-     sits a weight below Geist's old 600 and tracks tighter — the engraved label
-     on the instrument, not a shouted heading. */
+  /* Display voice. Fraunces carries real presence at 560; optical sizing on so
+     it holds up large. */
   font-family: var(--ff-display);
-  font-weight: 500;
-  letter-spacing: -0.02em;
+  font-optical-sizing: auto;
+  font-weight: 560;
+  letter-spacing: -0.015em;
   line-height: 1.1;
-  /* Fluid 22→28px: the nameplate reads a touch larger than the old Geist H1 so
-     the display voice registers, still scaling without a `sm:` bump per call. */
-  font-size: clamp(1.375rem, 1.12rem + 1.15vw, 1.75rem);
+  /* Fluid 24→32px — the editorial title registers without a `sm:` bump per call. */
+  font-size: clamp(1.5rem, 1.2rem + 1.4vw, 2rem);
 }
 @utility type-heading {
   font-family: var(--ff-display);
-  font-weight: 500;
-  letter-spacing: -0.015em;
+  font-optical-sizing: auto;
+  font-weight: 560;
+  letter-spacing: -0.01em;
   line-height: 1.25;
-  font-size: 1.125rem;
+  font-size: 1.2rem;
 }
 @utility type-subheading {
   font-family: var(--ff-sans);
@@ -407,7 +484,7 @@
 @utility type-label {
   font-family: var(--ff-sans);
   font-weight: 600;
-  letter-spacing: 0.11em;
+  letter-spacing: 0.08em;
   line-height: 1.2;
   text-transform: uppercase;
   font-size: 0.6875rem;
@@ -415,7 +492,7 @@
 @utility type-meta {
   font-family: var(--ff-mono);
   font-weight: 500;
-  letter-spacing: 0.09em;
+  letter-spacing: 0.06em;
   line-height: 1;
   text-transform: uppercase;
   font-size: 0.625rem;

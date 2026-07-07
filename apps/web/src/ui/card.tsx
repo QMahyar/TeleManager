@@ -5,7 +5,7 @@ export function Card({ className, ...props }: React.ComponentProps<"section">) {
     <section
       data-slot="card"
       className={[
-        "rounded-lg border border-border bg-card text-card-foreground shadow-sm",
+        "rounded-xl border border-border bg-card text-card-foreground shadow-md",
         className
       ].filter(Boolean).join(" ")}
       {...props}

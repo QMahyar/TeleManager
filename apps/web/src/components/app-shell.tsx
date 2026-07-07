@@ -92,7 +92,7 @@ export function AppShell({
   usePaletteHotkeys(palette, openView)
 
   return (
-    <div className="flex h-svh flex-col bg-background text-foreground">
+    <div className="flex h-svh flex-col canvas-wash text-foreground">
       {sidebarOpen ? (
         <button
           className="fixed inset-0 z-30 bg-background/70 backdrop-blur-sm lg:hidden"
@@ -116,7 +116,7 @@ export function AppShell({
         {/* <main> is now the scroll container (the page no longer scrolls as a
             whole). w-full keeps the centered content from collapsing as a flex
             child. */}
-        <main className="flex min-h-0 min-w-0 flex-col overflow-y-auto bg-surface-well px-4 py-4 sm:px-6 lg:px-7 xl:px-8">
+        <main className="flex min-h-0 min-w-0 flex-col overflow-y-auto px-4 pb-8 sm:px-6 lg:px-7 xl:px-8">
           <Header
             activeItem={activeItem}
             queue={shellData.queue}

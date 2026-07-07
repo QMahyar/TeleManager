@@ -50,7 +50,11 @@ ruff check src
 - **Releases are tag-driven.** Push a `vX.Y.Z` tag → `.github/workflows/release.yml`
   builds all platforms and publishes a GitHub release whose body is the matching
   `## [X.Y.Z]` section of `CHANGELOG.md`. Update the CHANGELOG before tagging.
-- **Frontend theme** ("Console"): dark-first, warm-charcoal neutrals + dim-teal accent,
-  Geist Mono for machine data, Geist for prose (both self-hosted). Keep type restrained.
-  Design lives in the token layer (`src/ui/globals.css`) and shared primitives
-  (`src/components/ui.tsx`) — restyle there, not per-screen.
+- **Frontend theme** ("Arc"): light-first — a warm peach-cream canvas washed with a soft
+  sunset, elevated rounded white cards, and frosted-glass sidebar/topbar/statusbar. The
+  coral accent flares into a sunset gradient on the one primary commit action per screen;
+  a warm-charcoal dark variant keeps the coral signal. Fraunces (serif) leads titles,
+  Inter carries prose, Geist Mono is machine data only (all self-hosted). Coral is the
+  default accent; teal/moonlight/amber/arctic/emerald stay selectable. Design lives in the
+  token layer (`src/ui/globals.css`) and shared primitives (`src/components/ui.tsx`) —
+  restyle there, not per-screen.

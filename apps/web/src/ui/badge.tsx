@@ -17,7 +17,7 @@ export function Badge({
   return (
     <span
       className={[
-        "inline-flex items-center rounded-md border px-1.5 py-0.5 type-meta whitespace-nowrap",
+        "inline-flex items-center rounded-full border px-2 py-0.5 type-meta whitespace-nowrap",
         variants[variant],
         className
       ].filter(Boolean).join(" ")}

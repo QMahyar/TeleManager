@@ -25,7 +25,7 @@ export function StatusBar({
   onToggleTheme: () => void
 }) {
   return (
-    <footer className="flex h-9 shrink-0 items-center justify-between gap-3 border-t border-border bg-sidebar px-3 font-mono text-[0.7rem] text-muted-foreground">
+    <footer className="frosted flex h-9 shrink-0 items-center justify-between gap-3 border-t border-sidebar-border px-3 font-mono text-[0.7rem] text-muted-foreground">
       <div className="flex min-w-0 items-center gap-2">
         <span className="size-1.5 shrink-0 rounded-full bg-primary" />
         <span className="truncate">

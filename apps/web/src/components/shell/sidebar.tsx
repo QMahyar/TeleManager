@@ -34,7 +34,7 @@ export function Sidebar({
       className={[
         // h-full (not h-svh) so the column respects the footer instead of
         // overlapping it; the shell's flex parent gives it the height.
-        "fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-border bg-sidebar p-4 text-sidebar-foreground transition-transform lg:sticky lg:top-0 lg:z-auto lg:h-full lg:w-auto lg:translate-x-0 lg:overflow-auto",
+        "frosted fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-sidebar-border p-4 text-sidebar-foreground transition-transform lg:sticky lg:top-0 lg:z-auto lg:h-full lg:w-auto lg:translate-x-0 lg:overflow-auto",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       ].filter(Boolean).join(" ")}
     >
@@ -76,7 +76,7 @@ export function Sidebar({
           className={[
             "flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition",
             view === "about"
-              ? "border-sidebar-primary bg-sidebar-primary text-sidebar-primary-foreground"
+              ? "border-sidebar-border bg-card text-foreground shadow-sm"
               : "border-transparent hover:border-sidebar-border hover:bg-sidebar-accent"
           ].filter(Boolean).join(" ")}
         >
@@ -133,7 +133,7 @@ function SidebarItem({
       className={[
         "flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition",
         view === item.id
-          ? "border-sidebar-primary bg-sidebar-primary text-sidebar-primary-foreground"
+          ? "border-sidebar-border bg-card text-foreground shadow-sm"
           : "border-transparent hover:border-sidebar-border hover:bg-sidebar-accent"
       ].filter(Boolean).join(" ")}
     >

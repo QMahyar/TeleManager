@@ -5,7 +5,7 @@ import { BEACON_VIEWBOX, beaconMarkup } from "../lib/beacon"
 
 type Theme = "dark" | "light" | "system"
 type ResolvedTheme = "dark" | "light"
-type Accent = "teal" | "moonlight" | "amber" | "arctic" | "emerald"
+type Accent = "coral" | "teal" | "moonlight" | "amber" | "arctic" | "emerald"
 
 type ThemeProviderProps = {
   children: React.ReactNode
@@ -25,7 +25,7 @@ type ThemeProviderState = {
 
 const COLOR_SCHEME_QUERY = "(prefers-color-scheme: dark)"
 const THEME_VALUES: Theme[] = ["dark", "light", "system"]
-const ACCENT_VALUES: Accent[] = ["teal", "moonlight", "amber", "arctic", "emerald"]
+const ACCENT_VALUES: Accent[] = ["coral", "teal", "moonlight", "amber", "arctic", "emerald"]
 export const ACCENTS: Accent[] = ACCENT_VALUES
 export type { Accent }
 
@@ -245,7 +245,7 @@ function resolvePrimaryColor(): string {
   canvas.width = 1
   canvas.height = 1
   const ctx = canvas.getContext("2d")
-  if (!ctx) return "#5fc6bb"
+  if (!ctx) return "#ff5f5f"
   ctx.fillStyle = computed
   ctx.fillRect(0, 0, 1, 1)
   const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data
@@ -293,8 +293,8 @@ function useFaviconSync(theme: Theme, accent: Accent) {
 
 export function ThemeProvider({
   children,
-  defaultTheme = "dark",
-  defaultAccent = "teal",
+  defaultTheme = "light",
+  defaultAccent = "coral",
   storageKey = "theme",
   accentStorageKey = "accent",
   disableTransitionOnChange = true,

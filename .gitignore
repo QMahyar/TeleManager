@@ -38,3 +38,6 @@ release/*.tar.gz
 .pi-tasks/
 .playwright-mcp/
 nul
+
+# Local pi-lens tooling scratch
+.pi-lens/

@@ -32,7 +32,7 @@ export function Header({
   openPalette: () => void
 }) {
   return (
-    <header className="mb-6 flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-center sm:justify-between">
+    <header className="frosted sticky top-0 z-20 -mx-4 mb-6 flex flex-col gap-3 border-b border-sidebar-border px-4 py-3.5 sm:-mx-6 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:-mx-7 lg:px-7 xl:-mx-8 xl:px-8">
       <div className="flex items-start gap-3">
         <Button
           variant="outline"

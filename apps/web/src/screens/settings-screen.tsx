@@ -174,6 +174,11 @@ function ApiPanel({
 }
 
 const ACCENT_META: Record<Accent, { label: string; detail: string; swatch: string }> = {
+  coral: {
+    label: "Coral",
+    detail: "Sunset coral",
+    swatch: "#ff5f5f",
+  },
   teal: {
     label: "Teal",
     detail: "Dim teal signal",

@@ -324,9 +324,11 @@ export function Tabs<T extends string>({
 }) {
   return (
     <BaseTabs.Root value={value} onValueChange={(next) => onChange(next as T)}>
+      {/* Arc segmented pill strip: a warm track holds the tabs; the active tab
+          lifts as a raised white chip rather than an underline. */}
       <BaseTabs.List
         className={[
-          "flex flex-wrap gap-1 border-b border-border pb-2",
+          "inline-flex flex-wrap gap-1 rounded-lg border border-border bg-secondary p-1",
           className
         ].filter(Boolean).join(" ")}
       >
@@ -337,10 +339,10 @@ export function Tabs<T extends string>({
               key={item.id}
               value={item.id}
               className={[
-                "flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors outline-none [&_svg]:size-3.5",
-                "border-transparent text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground",
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors outline-none [&_svg]:size-3.5",
+                "text-muted-foreground hover:text-foreground",
                 "focus-visible:ring-2 focus-visible:ring-ring/40",
-                "data-[selected]:border-primary/40 data-[selected]:bg-primary/10 data-[selected]:text-primary"
+                "data-[selected]:bg-card data-[selected]:text-foreground data-[selected]:shadow-sm"
               ].filter(Boolean).join(" ")}
             >
               {Icon ? <Icon /> : null}
@@ -387,9 +389,11 @@ export function StatCard({
   onClick?: () => void
 }) {
   const className = [
-    "rounded-lg border border-l-2 border-border bg-card p-3 text-left transition-colors",
-    primary || active ? "border-l-primary" : "border-l-border",
-    onClick && "hover:border-l-primary hover:bg-muted/30"
+    // Arc stat tile: an elevated white tile that lifts on hover when it doubles
+    // as a filter control; a coral ring marks the active filter.
+    "rounded-xl border border-border bg-card p-4 text-left shadow-md transition-all",
+    (primary || active) && "ring-1 ring-primary/40",
+    onClick && "hover:-translate-y-0.5 hover:shadow-lg"
   ].filter(Boolean).join(" ")
   const body = (
     <>
