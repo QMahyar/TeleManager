@@ -28,6 +28,7 @@ export type AppShellProps = React.PropsWithChildren<
     onRefresh: () => void
     onExit: () => void
     onAddAccount: () => void
+    onClearQueue: () => void
   }
 >
 

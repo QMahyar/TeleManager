@@ -139,7 +139,9 @@ function SidebarItem({
     >
       <Icon className="size-4" />
       <span className="flex-1">{item.label}</span>
-      <kbd className="text-[0.6rem] opacity-60">Alt+{shortcut}</kbd>
+      <kbd className="font-mono text-[0.65rem] tracking-wide text-muted-foreground/70">
+        Alt {shortcut}
+      </kbd>
     </button>
   )
 }

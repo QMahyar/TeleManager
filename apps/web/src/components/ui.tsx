@@ -390,7 +390,10 @@ export function StatCard({
 }) {
   const className = [
     // Arc stat tile: an elevated white tile that lifts on hover when it doubles
-    // as a filter control; a coral ring marks the active filter.
+    // as a filter control; a coral ring marks the active filter. `primary` is the
+    // one highlighted metric (coral number); `active` is the filter indicator
+    // (ring only) — kept separate so a filterable tile isn't forced coral just by
+    // being the current filter.
     "rounded-xl border border-border bg-card p-4 text-left shadow-md transition-all",
     (primary || active) && "ring-1 ring-primary/40",
     onClick && "hover:-translate-y-0.5 hover:shadow-lg"
@@ -401,7 +404,7 @@ export function StatCard({
       <strong
         className={[
           "mt-1 block type-stat",
-          (primary || active) && "text-primary"
+          primary && "text-primary"
         ].filter(Boolean).join(" ")}
       >
         {value}

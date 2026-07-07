@@ -1,4 +1,9 @@
-import { IconInfoCircle, IconSettings } from "@tabler/icons-react"
+import {
+  IconInfoCircle,
+  IconLayoutGrid,
+  IconSettings,
+  IconTimeline,
+} from "@tabler/icons-react"
 import type * as React from "react"
 
 import {
@@ -9,25 +14,68 @@ import {
 
 import type { ActionType, SafetySettings, View } from "../types"
 
+// `description` is the one-line subtitle the page header renders under the title
+// (e.g. "API credentials, safety defaults and app security"), so the header can
+// stay a dumb renderer and every screen's framing lives in one table.
 export const navItems: Array<{
   id: View
   label: string
   group: string
   icon: React.ElementType
+  description: string
 }> = [
-  { id: "accounts", label: "Accounts", group: "Workspace", icon: IconSessionStack },
+  {
+    id: "overview",
+    label: "Overview",
+    group: "Workspace",
+    icon: IconLayoutGrid,
+    description: "Local session ops · everything stays on 127.0.0.1",
+  },
+  {
+    id: "accounts",
+    label: "Accounts",
+    group: "Workspace",
+    icon: IconSessionStack,
+    description: "Every owned Telegram session, in one place",
+  },
   {
     id: "dialogs",
     label: "Dialogs",
     group: "Workspace",
     icon: IconChatNodes,
+    description: "Find chats, then stage them into actions",
   },
-  { id: "actions", label: "Actions", group: "Workspace", icon: IconRunQueue },
-  { id: "settings", label: "Settings", group: "System", icon: IconSettings },
+  {
+    id: "actions",
+    label: "Actions",
+    group: "Workspace",
+    icon: IconRunQueue,
+    description: "Build, queue and run operations across selected sessions",
+  },
+  {
+    id: "activity",
+    label: "Activity",
+    group: "System",
+    icon: IconTimeline,
+    description: "Persistent local audit trail of everything TeleManager does",
+  },
+  {
+    id: "settings",
+    label: "Settings",
+    group: "System",
+    icon: IconSettings,
+    description: "API credentials, safety defaults and app security",
+  },
   // Group "About" is intentionally not one of the rendered sidebar groups
   // ("Workspace"/"System"); About is pinned separately at the sidebar bottom.
   // Listing it here still lets the Header title and command palette resolve it.
-  { id: "about", label: "About", group: "About", icon: IconInfoCircle },
+  {
+    id: "about",
+    label: "About",
+    group: "About",
+    icon: IconInfoCircle,
+    description: "What TeleManager is, and the principles it runs by",
+  },
 ]
 
 export type ActionCategory =

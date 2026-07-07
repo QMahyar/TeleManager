@@ -97,6 +97,7 @@ export function App() {
       appState.setAccountsTab("login")
       appState.setView("accounts")
     },
+    onClearQueue: () => appState.setQueue([]),
   }
 
   return (

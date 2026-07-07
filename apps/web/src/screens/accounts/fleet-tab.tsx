@@ -1,21 +1,16 @@
 import * as React from "react"
 
-import { IconArrowRight, IconSearch, IconShieldCheck } from "@tabler/icons-react"
+import { IconBolt, IconSearch, IconShieldCheck } from "@tabler/icons-react"
 
 import { AccountsTable } from "../../components/accounts-table"
 import { api } from "../../lib/api"
 import { Button } from "../../ui/button"
 import {
-  Callout,
   EmptyState,
   Input,
-  PageGrid,
   Panel,
-  PrimaryPane,
-  Readout,
-  ReadoutItem,
   Select,
-  SidePane,
+  StatCard,
   StepHeading,
 } from "../../components/ui"
 import type { Account } from "../../types"
@@ -93,76 +88,66 @@ export function FleetTab({ props }: { props: AccountsScreenProps }) {
     filteredAccounts.length === 0
 
   return (
-    <PageGrid>
-      <PrimaryPane>
-        {/* Fleet readout — the screen's hero. One instrument line instead of a
-            row of KPI tiles, and the only place these counts live now (the
-            sidebar summary is the at-a-glance copy; this is the interactive
-            one). Ready/Needs-attention double as table filters; their signal
-            lights stay dark until there's actually something in that state. */}
-        <Readout className="flex-nowrap overflow-x-auto">
-          <ReadoutItem
-            label="Total"
-            value={props.accounts.length}
-            active={statusFilter === "all"}
-            onClick={() => setStatusFilter("all")}
-          />
-          <ReadoutItem
-            label="Ready"
-            value={props.metrics.ready}
-            tone={props.metrics.ready ? "ready" : "idle"}
-            active={statusFilter === "ready"}
-            onClick={() => filterBy("ready")}
-          />
-          <ReadoutItem
-            label="Needs attention"
-            value={props.metrics.attention}
-            tone={props.metrics.attention ? "attention" : "idle"}
-            active={statusFilter === "attention"}
-            onClick={() => filterBy("attention")}
-          />
-          <ReadoutItem
-            label="Known dialogs"
-            value={props.metrics.knownDialogs}
-          />
-        </Readout>
-        <Panel tone="raised" className="space-y-3 overflow-hidden">
+    <div className="space-y-4">
+      {/* Fleet stat cards — the row of KPI tiles from the dashboard language.
+          Ready / Needs-attention double as one-tap table filters; a coral ring
+          marks the active filter. Total clears any filter. */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Total"
+          value={props.accounts.length}
+          onClick={() => setStatusFilter("all")}
+        />
+        <StatCard
+          label="Ready"
+          value={props.metrics.ready}
+          primary
+          active={statusFilter === "ready"}
+          onClick={() => filterBy("ready")}
+        />
+        <StatCard
+          label="Needs attention"
+          value={props.metrics.attention}
+          active={statusFilter === "attention"}
+          onClick={() => filterBy("attention")}
+        />
+        <StatCard
+          label="Known dialogs"
+          value={props.metrics.knownDialogs.toLocaleString()}
+        />
+      </div>
+
+      <Panel tone="raised" className="space-y-3 overflow-hidden">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <StepHeading
             title="Session fleet"
             detail={`${filteredAccounts.length} of ${props.accounts.length} shown. Select sessions, then run actions or fetch dialogs.`}
           />
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={validateAllAccounts}>
+          <div className="flex flex-wrap gap-2">
+            <Input
+              value={accountSearch}
+              onChange={(event) => setAccountSearch(event.target.value)}
+              placeholder="Search accounts"
+              autoComplete="off"
+              className="w-full sm:w-56"
+            />
+            <Select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+              className="sm:w-40"
+            >
+              <option value="all">All statuses</option>
+              <option value="ready">Ready</option>
+              <option value="attention">Needs attention</option>
+              <option value="pending">Pending login</option>
+              <option value="needs login">Needs login</option>
+              <option value="error">Error</option>
+            </Select>
+            <Button variant="outline" size="lg" onClick={validateAllAccounts}>
               <IconShieldCheck className="size-3.5" />
-              Validate All
-            </Button>
-            <Button variant="outline" size="sm" onClick={fetchDialogsForSelection} className="lg:hidden">
-              Fetch Dialogs
-            </Button>
-            <Button size="sm" onClick={runActionWithSelection} className="lg:hidden">
-              Run Action <IconArrowRight />
+              Validate all
             </Button>
           </div>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-[minmax(14rem,1fr)_10rem]">
-          <Input
-            value={accountSearch}
-            onChange={(event) => setAccountSearch(event.target.value)}
-            placeholder="Search accounts"
-            autoComplete="off"
-          />
-          <Select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
-          >
-            <option value="all">All statuses</option>
-            <option value="ready">Ready</option>
-            <option value="attention">Needs attention</option>
-            <option value="pending">Pending login</option>
-            <option value="needs login">Needs login</option>
-            <option value="error">Error</option>
-          </Select>
         </div>
         {noMatches ? (
           <EmptyState
@@ -191,30 +176,37 @@ export function FleetTab({ props }: { props: AccountsScreenProps }) {
             onAddAccount={() => props.setAccountsTab("login")}
           />
         )}
-      </Panel>
-      </PrimaryPane>
-      <SidePane>
-        <Panel className="space-y-3">
-          <StepHeading
-            title="Next move"
-            detail="Choose a session, then jump into dialogs or guarded actions without losing context."
-          />
-          <div className="grid gap-2">
-            <Button variant="outline" onClick={fetchDialogsForSelection}>
-              Fetch Dialogs
+
+        {/* Footer action row: the running selection summary on the left, the two
+            forward moves on the right — Fetch dialogs (secondary) and the one
+            coral commit that carries the ready selection into Actions. */}
+        <div className="flex flex-col gap-3 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">
+            {readySelectedIds.length ? (
+              <>
+                <span className="font-mono text-foreground">
+                  {readySelectedIds.length}
+                </span>{" "}
+                ready session{readySelectedIds.length === 1 ? "" : "s"} selected
+              </>
+            ) : (
+              "No ready sessions selected · actions will ask you to choose accounts"
+            )}
+          </p>
+          <div className="flex gap-2">
+            <Button variant="outline" size="lg" onClick={fetchDialogsForSelection}>
+              Fetch dialogs
             </Button>
             <Button size="comfortable" onClick={runActionWithSelection}>
-              Run Action <IconArrowRight />
+              <IconBolt />
+              {readySelectedIds.length
+                ? `Add ${readySelectedIds.length} account${readySelectedIds.length === 1 ? "" : "s"} to batch`
+                : "Run action"}
             </Button>
           </div>
-          <Callout tone="info">
-            {readySelectedIds.length
-              ? `${readySelectedIds.length} selected ready session(s) will be carried forward.`
-              : "No ready sessions selected. Actions will ask you to choose accounts."}
-          </Callout>
-        </Panel>
-      </SidePane>
-    </PageGrid>
+        </div>
+      </Panel>
+    </div>
   )
 }
 

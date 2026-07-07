@@ -4,9 +4,11 @@ import { flushSync } from "react-dom"
 import type { AccountsTab, View } from "../types"
 
 const KNOWN_VIEWS: ReadonlySet<View> = new Set<View>([
+  "overview",
   "accounts",
   "dialogs",
   "actions",
+  "activity",
   "settings",
 ])
 
@@ -15,7 +17,8 @@ export function useViewState() {
     const hash = window.location.hash.replace("#", "")
     // Schedules merged into Actions; keep old #schedules deep-links working.
     if (hash === "schedules") return "actions"
-    return KNOWN_VIEWS.has(hash as View) ? (hash as View) : "accounts"
+    // Overview is the default landing surface — the at-a-glance dashboard.
+    return KNOWN_VIEWS.has(hash as View) ? (hash as View) : "overview"
   })
   // Which Accounts sub-tab is active. Lifted to app state so other surfaces (the
   // header "Add Account" button) can deep-link straight to the login form.

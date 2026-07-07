@@ -34,6 +34,7 @@ export function AppShell({
   onRefresh,
   onExit,
   onAddAccount,
+  onClearQueue,
   children,
 }: AppShellProps) {
   const shellData = telemetry || { accounts, metrics, queue, runs, schedules }
@@ -101,8 +102,10 @@ export function AppShell({
         />
       ) : null}
       {/* Grid region fills the space above the footer. min-h-0 is essential:
-          without it the grid refuses to shrink and pushes the footer off-screen. */}
-      <div className="grid min-h-0 flex-1 lg:grid-cols-[18rem_minmax(0,1fr)] 2xl:grid-cols-[18rem_minmax(0,1fr)_20rem]">
+          without it the grid refuses to shrink and pushes the footer off-screen.
+          Two columns only — the queue state now lives in the floating batch dock
+          + footer pulse, so content gets the full width. */}
+      <div className="grid min-h-0 flex-1 lg:grid-cols-[18rem_minmax(0,1fr)]">
         <Sidebar
           accounts={shellData.accounts}
           metrics={shellData.metrics}
@@ -123,27 +126,28 @@ export function AppShell({
             selectedCount={selectedCount}
             showSelectedCount={view === "accounts"}
             onAddAccount={onAddAccount}
+            onRefresh={onRefresh}
             openActions={() => openView("actions")}
-            openSettings={() => openView("settings")}
             openSidebar={() => setSidebarOpen(true)}
             openPalette={palette.openPalette}
           />
           <div className="mx-auto w-full max-w-[92rem]">{children}</div>
         </main>
-
-        <OperationsRail
-          queue={shellData.queue}
-          runs={shellData.runs}
-          activeRun={activeRun}
-          openView={openView}
-        />
       </div>
+
+      <OperationsRail
+        queue={shellData.queue}
+        view={view}
+        onClear={onClearQueue}
+        openView={openView}
+      />
 
       <StatusBar
         version={version}
         activeRun={activeRun}
+        queue={shellData.queue}
+        readyCount={shellData.metrics.ready}
         theme={theme}
-        onRefresh={onRefresh}
         onToggleTheme={toggleTheme}
       />
       <CommandPalette

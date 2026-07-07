@@ -1,193 +1,65 @@
-import {
-  IconAlertTriangle,
-  IconInfoCircle,
-  IconPlayerPlay,
-} from "@tabler/icons-react"
+import { IconBolt, IconChevronRight } from "@tabler/icons-react"
 
-import { queueRunProgress, relTime, statusTone } from "../../lib/helpers"
-import { isHeldPhase, runPhase, secondsUntil } from "../../lib/run-lifecycle"
-import { formatDuration } from "../../lib/action-meta"
-import { Badge, Callout, Readout, ReadoutItem } from "../ui"
-import type { QueueRun, QueueStep, View } from "../../types"
-import {
-  countDestructiveOperations,
-  countQueueOperations,
-} from "./queue-metrics"
+import { Button } from "../../ui/button"
+import type { QueueStep, View } from "../../types"
+import { countQueueOperations } from "./queue-metrics"
 
-// The right rail carries only what genuinely benefits from staying visible while
-// you move between screens: the live queue and the last run. Fleet and schedule
-// counts live on their own screens (sidebar + Accounts + Actions) and were
-// duplicated here before — showing the same number three places just makes a
-// normal user wonder which one to trust.
+// The floating batch dock — a corner pill that stays visible on every screen
+// whenever operations are staged, so the queue is always one click from running.
+// It replaces the old right-rail column: the ambient queue state now lives here
+// (and the live run pulse lives in the footer), freeing the full content width.
 //
-// Flat by design: two divider-separated sections (no nested cards), and the
-// queue metrics use the same Readout instrument as the Actions screen so the
-// "steps · operations" reading is the one shape the operator learns once.
+// "Run batch" / "Choose action" both jump to the Actions screen, where the real,
+// fully-guarded commit lives — the dock never runs a queue behind the guards.
 export function OperationsRail({
   queue,
-  runs,
-  activeRun,
+  view,
+  onClear,
   openView,
 }: {
   queue: QueueStep[]
-  runs: QueueRun[]
-  activeRun: QueueRun | null
+  view: View
+  onClear: () => void
   openView: (view: View) => void
 }) {
   const operationCount = countQueueOperations(queue)
-  const destructiveCount = countDestructiveOperations(queue)
-  const lastRun = runs[0]
+  if (operationCount === 0) return null
+
+  // Distinct chats (targets) and accounts across the staged queue — the two
+  // numbers the operator reasons about ("N chats · N accounts").
+  const chats = new Set<string>()
+  const accounts = new Set<string>()
+  for (const step of queue) {
+    for (const target of step.targets) chats.add(target)
+    for (const accountId of step.account_ids) accounts.add(accountId)
+  }
+
+  const onActions = view === "actions"
 
   return (
-    <aside className="hidden border-l border-border bg-card/30 px-4 py-4 2xl:sticky 2xl:top-0 2xl:block 2xl:h-full 2xl:overflow-auto">
-      <p className="type-eyebrow mb-4 text-muted-foreground">Activity</p>
-      <div className="space-y-5">
-        <section className="space-y-3">
-          <RailHeader
-            icon={IconPlayerPlay}
-            title="Queue"
-            action="Open Actions"
-            onAction={() => openView("actions")}
-          />
-          <Readout>
-            <ReadoutItem
-              tone={queue.length ? "ready" : "idle"}
-              value={queue.length}
-              label="steps"
-            />
-            <ReadoutItem value={operationCount} label="operations" />
-          </Readout>
-          {activeRun ? (
-            <ActiveRunProgress activeRun={activeRun} />
-          ) : destructiveCount ? (
-            <Callout tone="danger" icon={IconAlertTriangle}>
-              {destructiveCount} destructive queued
-            </Callout>
-          ) : (
-            <p className="text-xs leading-5 text-muted-foreground">
-              Queue state stays visible while you move between screens.
-            </p>
-          )}
-        </section>
-
-        <section className="space-y-3 border-t border-border pt-5">
-          <RailHeader icon={IconInfoCircle} title="Last run" />
-          {lastRun ? (
-            <LastRunSummary lastRun={lastRun} />
-          ) : (
-            <p className="text-xs leading-5 text-muted-foreground">
-              Run history appears after the first queued execution.
-            </p>
-          )}
-        </section>
-      </div>
-    </aside>
-  )
-}
-
-// Section header for the rail: accent icon-square + title, with an optional
-// trailing text action. No card chrome — the section is grouped by spacing and
-// (for the second one) a hairline divider.
-function RailHeader({
-  icon: Icon,
-  title,
-  action,
-  onAction,
-}: {
-  icon: React.ElementType
-  title: string
-  action?: string
-  onAction?: () => void
-}) {
-  return (
-    <div className="flex items-center justify-between gap-2">
-      <div className="flex items-center gap-2">
-        <span className="grid size-7 place-items-center rounded-md bg-primary/10 text-primary">
-          <Icon className="size-3.5" />
+    <div className="tm-toast-in fixed right-4 bottom-12 z-30 sm:right-6">
+      <div className="flex items-center gap-3 rounded-2xl border border-border bg-card/95 py-2 pr-2 pl-3 shadow-lg backdrop-blur-sm">
+        <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+          <IconBolt className="size-4" />
         </span>
-        <h3 className="type-subheading text-foreground">{title}</h3>
-      </div>
-      {action && onAction ? (
+        <div className="min-w-0 leading-tight">
+          <p className="text-sm font-semibold text-foreground">Batch ready</p>
+          <p className="font-mono text-[0.7rem] text-muted-foreground">
+            {chats.size} chats · {accounts.size} accounts
+          </p>
+        </div>
         <button
           type="button"
-          onClick={onAction}
-          className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+          onClick={onClear}
+          className="ml-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
         >
-          {action}
+          Clear
         </button>
-      ) : null}
-    </div>
-  )
-}
-
-// The live run, shown in the Queue section while something is executing. Mirrors
-// the footer pulse but with a progress bar (the rail has room; the footer
-// doesn't), so the two read as one system rather than duplicates.
-function ActiveRunProgress({ activeRun }: { activeRun: QueueRun }) {
-  const { completedCount, operationCount, failedCount, progress } =
-    queueRunProgress(activeRun)
-  const phase = runPhase(activeRun)
-  const held = isHeldPhase(phase)
-  const floodRemaining =
-    phase === "waiting" ? secondsUntil(activeRun.resume_at) : 0
-
-  // Amber while held (paused / flood wait), sky while moving — matches the banner.
-  const tone = held
-    ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"
-    : "border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400"
-
-  return (
-    <div className={`space-y-1.5 rounded-md border p-2 text-xs ${tone}`}>
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-medium capitalize">{RAIL_PHASE_LABEL[phase]}</span>
-        <span className="font-mono">
-          {completedCount}/{operationCount}
-          {failedCount ? ` · ${failedCount} failed` : ""}
-        </span>
+        <Button size="comfortable" onClick={() => openView("actions")}>
+          {onActions ? "Choose action" : "Run batch"}
+          <IconChevronRight />
+        </Button>
       </div>
-      {phase === "waiting" && floodRemaining > 0 ? (
-        <p className="font-mono">resume in {formatDuration(floodRemaining)}</p>
-      ) : null}
-      <div className="h-1 overflow-hidden rounded-full bg-current/20">
-        <div
-          className="h-full rounded-full bg-current transition-all"
-          style={{ width: `${progress}%` }}
-        />
-      </div>
-    </div>
-  )
-}
-
-const RAIL_PHASE_LABEL: Record<string, string> = {
-  running: "Running",
-  canceling: "Canceling",
-  pausing: "Pausing",
-  paused: "Paused",
-  waiting: "Flood wait",
-  terminal: "Done",
-}
-
-// A human last-run line: outcome + relative time, instead of the raw UUID the
-// rail used to print (which told an operator nothing).
-function LastRunSummary({ lastRun }: { lastRun: QueueRun }) {
-  const { completedCount, operationCount, failedCount } =
-    queueRunProgress(lastRun)
-  const when = relTime(lastRun.created_at)
-
-  return (
-    <div className="space-y-2 text-xs">
-      <div className="flex items-center justify-between gap-2">
-        <Badge tone={statusTone(lastRun.status)}>
-          {lastRun.status.replace("_", " ")}
-        </Badge>
-        {when ? <span className="text-muted-foreground">{when}</span> : null}
-      </div>
-      <p className="font-mono text-muted-foreground">
-        {failedCount ? (
-          <span className="text-destructive">✗ {failedCount} failed · </span>
-        ) : null}
-        {completedCount}/{operationCount} operations
-      </p>
     </div>
   )
 }

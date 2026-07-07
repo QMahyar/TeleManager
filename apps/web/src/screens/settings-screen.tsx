@@ -5,7 +5,6 @@ import {
   IconShieldLock,
   IconSun,
   IconSunMoon,
-  IconTimeline,
 } from "@tabler/icons-react"
 import * as React from "react"
 
@@ -17,7 +16,7 @@ import {
   useTheme,
   type Accent,
 } from "../components/theme-provider"
-import { Field, InfoHint, Input, Panel, StepHeading, Tabs } from "../components/ui"
+import { Field, InfoHint, Input, Panel, StepHeading } from "../components/ui"
 import { api } from "../lib/api"
 import {
   ensureNotifyPermission,
@@ -30,9 +29,8 @@ import type {
   Flash,
   SafetySettings,
 } from "../types"
-import { ActivityScreen } from "./activity-screen"
 
-type SettingsTab = "api" | "appearance" | "safety" | "activity"
+type SettingsTab = "api" | "appearance" | "safety"
 
 type SettingsScreenProps = {
   safety: SafetySettings
@@ -49,30 +47,68 @@ type SettingsScreenProps = {
   activity: ActivityEvent[]
 }
 
+const SETTINGS_NAV: Array<{
+  id: SettingsTab
+  label: string
+  detail: string
+  icon: React.ElementType
+}> = [
+  { id: "api", label: "API credentials", detail: "Telegram app ID & hash", icon: IconKey },
+  { id: "appearance", label: "Appearance", detail: "Theme, accent, dialogs", icon: IconPalette },
+  { id: "safety", label: "Safety defaults", detail: "Pacing & run bounds", icon: IconShieldLock },
+]
+
+// Settings is a two-column preferences surface: a left sub-nav card lists the
+// sections, the right column renders the active one. Activity got promoted to a
+// top-level screen, so it's no longer a tab here.
 export function SettingsScreen(props: SettingsScreenProps) {
   const [tab, setTab] = React.useState<SettingsTab>("api")
 
   return (
-    <div className="space-y-4">
-      <Tabs<SettingsTab>
-        value={tab}
-        onChange={setTab}
-        items={[
-          { id: "api", label: "API", icon: IconKey },
-          { id: "appearance", label: "Appearance", icon: IconPalette },
-          { id: "safety", label: "Safety", icon: IconShieldLock },
-          {
-            id: "activity",
-            label: "Activity",
-            icon: IconTimeline,
-            badge: props.activity.length || undefined,
-          },
-        ]}
-      />
-      {tab === "api" ? <ApiPanel {...props} /> : null}
-      {tab === "appearance" ? <AppearancePanel {...props} /> : null}
-      {tab === "safety" ? <SafetyPanel {...props} /> : null}
-      {tab === "activity" ? <ActivityScreen activity={props.activity} /> : null}
+    <div className="grid gap-4 lg:grid-cols-[15rem_minmax(0,1fr)]">
+      <nav className="lg:sticky lg:top-4 lg:self-start">
+        <ul className="flex gap-2 overflow-x-auto rounded-xl border border-border bg-card p-2 shadow-md lg:flex-col lg:overflow-visible">
+          {SETTINGS_NAV.map((item) => {
+            const Icon = item.icon
+            const active = tab === item.id
+            return (
+              <li key={item.id} className="min-w-max lg:min-w-0">
+                <button
+                  type="button"
+                  aria-current={active ? "page" : undefined}
+                  onClick={() => setTab(item.id)}
+                  className={[
+                    "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors",
+                    active
+                      ? "bg-secondary text-foreground"
+                      : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                  ].filter(Boolean).join(" ")}
+                >
+                  <span
+                    className={[
+                      "grid size-7 shrink-0 place-items-center rounded-md [&_svg]:size-4",
+                      active ? "bg-primary/10 text-primary" : "text-muted-foreground"
+                    ].filter(Boolean).join(" ")}
+                  >
+                    <Icon />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-medium">{item.label}</span>
+                    <span className="hidden truncate text-xs text-muted-foreground lg:block">
+                      {item.detail}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      </nav>
+      <div className="min-w-0">
+        {tab === "api" ? <ApiPanel {...props} /> : null}
+        {tab === "appearance" ? <AppearancePanel {...props} /> : null}
+        {tab === "safety" ? <SafetyPanel {...props} /> : null}
+      </div>
     </div>
   )
 }

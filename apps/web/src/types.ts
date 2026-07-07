@@ -7,9 +7,11 @@ export type ToastTone = "info" | "success" | "error"
 export type Flash = (message: string, tone?: ToastTone) => void
 
 export type View =
+  | "overview"
   | "accounts"
   | "dialogs"
   | "actions"
+  | "activity"
   | "schedules"
   | "settings"
   | "about"

@@ -1,23 +1,28 @@
 import {
-  IconCommand,
   IconMenu2,
-  IconPlayerPlay,
+  IconPlus,
+  IconRefresh,
+  IconSearch,
 } from "@tabler/icons-react"
 
 import { Button } from "../../ui/button"
-import { Badge, SignalDot } from "../ui"
+import { Badge } from "../ui"
 import type { QueueStep } from "../../types"
 import { countQueueOperations } from "./queue-metrics"
 import type { NavItem } from "./types"
 
+// The page header. A title + one-line subtitle on the left (both sourced from the
+// active nav item), and the app's global controls on the right: a click-to-open
+// command search, a refresh, and the one coral "Add account" commit action. It's
+// a dumb renderer — every screen's framing copy lives in `navItems`.
 export function Header({
   activeItem,
   queue,
   selectedCount,
   showSelectedCount,
   onAddAccount,
+  onRefresh,
   openActions,
-  openSettings,
   openSidebar,
   openPalette,
 }: {
@@ -26,41 +31,30 @@ export function Header({
   selectedCount: number
   showSelectedCount: boolean
   onAddAccount: () => void
+  onRefresh: () => void
   openActions: () => void
-  openSettings: () => void
   openSidebar: () => void
   openPalette: () => void
 }) {
   return (
-    <header className="frosted sticky top-0 z-20 -mx-4 mb-6 flex flex-col gap-3 border-b border-sidebar-border px-4 py-3.5 sm:-mx-6 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:-mx-7 lg:px-7 xl:-mx-8 xl:px-8">
-      <div className="flex items-start gap-3">
+    <header className="frosted sticky top-0 z-20 -mx-4 mb-6 flex flex-col gap-3 border-b border-sidebar-border px-4 py-4 sm:-mx-6 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:-mx-7 lg:px-7 xl:-mx-8 xl:px-8">
+      <div className="flex items-center gap-3">
         <Button
           variant="outline"
           size="icon"
-          className="mt-0.5 lg:hidden"
+          className="lg:hidden"
           onClick={openSidebar}
           aria-label="Open navigation"
         >
           <IconMenu2 />
         </Button>
-        {/* Instrument header: a live gauge line (signal dot + mono breadcrumb
-            path) above the engraved nameplate title. The dot promotes the app's
-            SignalDot status-light motif into the most-seen chrome, so the header
-            reads as an instrument panel rather than a plain page title. */}
         <div className="min-w-0">
-          <p className="type-eyebrow flex items-center gap-2 text-muted-foreground">
-            <SignalDot tone={queue.length > 0 ? "live" : "ready"} />
-            <span>{activeItem?.group || "Workspace"}</span>
-            {activeItem?.label ? (
-              <span className="text-muted-foreground/40" aria-hidden>
-                /
-              </span>
-            ) : null}
-            <span className="text-foreground/70">{activeItem?.label}</span>
-          </p>
-          <h1 className="type-title mt-1.5 text-foreground">
-            {activeItem?.label}
-          </h1>
+          <h1 className="type-title text-foreground">{activeItem?.label}</h1>
+          {activeItem?.description ? (
+            <p className="mt-1 truncate text-sm text-muted-foreground">
+              {activeItem.description}
+            </p>
+          ) : null}
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -75,24 +69,37 @@ export function Header({
           <button
             type="button"
             onClick={openActions}
-            className="hidden items-center gap-2 rounded-md border border-primary/30 bg-primary/10 px-2.5 py-1.5 text-xs text-primary sm:flex"
+            className="hidden items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1.5 text-xs text-primary sm:flex"
           >
-            <IconPlayerPlay className="size-3.5" />
             {countQueueOperations(queue)} operations staged
           </button>
         ) : null}
+        {/* Click-to-open search that reads like a real field but delegates to the
+            command palette (Ctrl K), so there's one search surface, not two. */}
+        <button
+          type="button"
+          onClick={openPalette}
+          aria-label="Search (Ctrl K)"
+          className="hidden h-9 w-56 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm text-muted-foreground shadow-sm transition-colors hover:text-foreground md:flex xl:w-64"
+        >
+          <IconSearch className="size-4" />
+          <span className="flex-1 text-left">Search…</span>
+          <kbd className="rounded border border-border px-1 font-mono text-[0.65rem]">
+            Ctrl K
+          </kbd>
+        </button>
         <Button
           variant="outline"
-          className="hidden sm:inline-flex"
-          onClick={openPalette}
+          size="icon"
+          onClick={onRefresh}
+          aria-label="Refresh data"
         >
-          <IconCommand />
-          <span className="font-mono">Ctrl K</span>
+          <IconRefresh />
         </Button>
-        <Button variant="outline" onClick={openSettings}>
-          Settings
+        <Button size="comfortable" onClick={onAddAccount}>
+          <IconPlus />
+          Add account
         </Button>
-        <Button onClick={onAddAccount}>Add Account</Button>
       </div>
     </header>
   )
