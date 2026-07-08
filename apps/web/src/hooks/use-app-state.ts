@@ -20,11 +20,7 @@ export function useAppState(flash: (message: string) => void) {
   const accountState = useAccountState()
   const dialogState = useDialogState()
   const resourceState = useResourceState(viewState.view)
-  const queueState = useQueueState(
-    accountState.actionAccountIds,
-    flash,
-    resourceState.safety
-  )
+  const queueState = useQueueState()
   // Run-polling lives at app scope (not on the Actions screen) so the footer +
   // rail can show a live "running…" pulse no matter which screen is open.
   const runState = useRunPolling(

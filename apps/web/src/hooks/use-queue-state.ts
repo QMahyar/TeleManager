@@ -9,19 +9,13 @@ import { splitTargets } from "../lib/helpers"
 import { partitionTargets } from "../lib/targeting"
 import type {
   ActionDraft,
-  Flash,
   QueueStep,
   QuickActionContext,
   SafetySettings,
   ScheduleSeed,
 } from "../types"
 
-export function useQueueState(
-  actionAccountIds: Set<string>,
-  flash: Flash,
-  safety: SafetySettings
-) {
-  const [queue, setQueue] = React.useState<QueueStep[]>([])
+export function useQueueState() {
   const [pendingAccountId, setPendingAccountId] = React.useState("")
   const [actionDraft, setActionDraft] = React.useState<ActionDraft>({
     action_type: "join_chat",
@@ -35,50 +29,13 @@ export function useQueueState(
     null
   )
 
-  function addQueueStep() {
-    const account_ids = [...actionAccountIds]
-    if (!account_ids.length) return flash("Select action accounts first.")
-    const { valid, invalid } = partitionTargets(
-      splitTargets(actionDraft.target),
-      actionDraft.action_type
-    )
-    if (!valid.length) {
-      return flash(
-        invalid.length
-          ? "No compatible targets for this action — every target was greyed out."
-          : "Add at least one target."
-      )
-    }
-    const blocker = actionDraftBlocker(actionDraft)
-    if (blocker) return flash(blocker)
-
-    setQueue((current) => [
-      ...current,
-      queueStepFromDraft(actionDraft, valid, account_ids),
-    ])
-    // Keep the action + filled fields so "same message, next batch" is one edit;
-    // only clear the targets that were just queued.
-    setActionDraft((current) => ({ ...current, target: "" }))
-    setQuickActionContext(null)
-    flash(
-      invalid.length
-        ? `Queued ${valid.length} target(s); skipped ${invalid.length} incompatible.`
-        : "Action step added to queue."
-    )
-  }
-
   return {
     actionDraft,
-    addQueueStep,
     pendingAccountId,
-    queue,
-    // confirm is set at run time by the Run dialog, the backend requires it true.
-    queuePayload: { steps: queue, ...safety },
     quickActionContext,
     scheduleSeed,
     setActionDraft,
     setPendingAccountId,
-    setQueue,
     setQuickActionContext,
     setScheduleSeed,
   }

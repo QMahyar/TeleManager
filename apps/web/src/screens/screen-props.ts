@@ -10,7 +10,6 @@ import type {
   Flash,
   Preset,
   QueueRun,
-  QueueStep,
   SafetySettings,
   Schedule,
   ScheduleSeed,
@@ -48,9 +47,6 @@ export type AppScreenProps = {
     setter: React.Dispatch<React.SetStateAction<Set<string>>>
   ) => void
   presets: Preset[]
-  queue: QueueStep[]
-  setQueue: React.Dispatch<React.SetStateAction<QueueStep[]>>
-  queuePayload: { steps: QueueStep[] } & SafetySettings
   loadPresets: () => Promise<void>
   safety: SafetySettings
   setSafety: React.Dispatch<React.SetStateAction<SafetySettings>>
@@ -63,7 +59,6 @@ export type AppScreenProps = {
   setQuickActionContext: React.Dispatch<
     React.SetStateAction<import("../types").QuickActionContext | null>
   >
-  addQueueStep: () => void
   runs: QueueRun[]
   loadRuns: () => Promise<void>
   activeRunId: string | null
@@ -127,9 +122,6 @@ export type ActionsScreenProps = Pick<
   | "setActionAccountIds"
   | "toggleSelected"
   | "presets"
-  | "queue"
-  | "setQueue"
-  | "queuePayload"
   | "loadPresets"
   | "safety"
   | "setSafety"
@@ -138,7 +130,6 @@ export type ActionsScreenProps = Pick<
   | "quickActionContext"
   | "setActionDraft"
   | "setQuickActionContext"
-  | "addQueueStep"
   | "runs"
   | "loadRuns"
   | "activeRunId"
