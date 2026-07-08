@@ -1,7 +1,7 @@
 import * as React from "react"
 
 import type { navItems } from "../../lib/constants"
-import type { Account, QueueRun, QueueStep, Schedule, View } from "../../types"
+import type { Account, QueueRun, Schedule, View } from "../../types"
 
 export type ShellMetrics = {
   ready: number
@@ -12,7 +12,6 @@ export type ShellMetrics = {
 export type ShellTelemetry = {
   accounts: Account[]
   metrics: ShellMetrics
-  queue: QueueStep[]
   runs: QueueRun[]
   schedules: Schedule[]
 }
@@ -21,6 +20,9 @@ export type AppShellProps = React.PropsWithChildren<
   ShellTelemetry & {
     view: View
     telemetry?: ShellTelemetry
+    // The staged batch: chats (targets) × accounts the next action runs on.
+    stagedChats: number
+    stagedAccounts: number
     selectedCount: number
     version?: string
     activeRun: QueueRun | null
@@ -28,7 +30,7 @@ export type AppShellProps = React.PropsWithChildren<
     onRefresh: () => void
     onExit: () => void
     onAddAccount: () => void
-    onClearQueue: () => void
+    onClearBatch: () => void
   }
 >
 

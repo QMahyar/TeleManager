@@ -19,11 +19,13 @@ import {
   Tabs,
 } from "../components/ui"
 import { useActionBusy } from "../hooks/use-action-busy"
+import { buildDraftPayload } from "../hooks/use-queue-state"
 import { defaultRecurrenceForm, type RecurrenceForm } from "../lib/schedules"
-import type { QueueStep, SchedulePreview } from "../types"
+import type { ActionDraft, SchedulePreview } from "../types"
+import { AccountsBar } from "./actions/accounts-bar"
+import { ActionPicker } from "./actions/action-picker"
 import { ActiveRunBanner } from "./actions/run-banner"
-import { BuilderColumn } from "./actions/builder"
-import { QueueColumn } from "./actions/queue"
+import { RunPanel } from "./actions/run-panel"
 import { SyncPanel } from "./actions/sync"
 import type { ActionsScreenProps } from "./screen-props"
 
@@ -68,20 +70,27 @@ export function ActionsScreen(props: ActionsScreenProps) {
         safety={props.safety}
         actionsMeta={props.actionsMeta}
       />
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem] 2xl:grid-cols-[minmax(0,1fr)_24rem]">
-        <BuilderColumn props={props} />
-        <QueueColumn
+      <AccountsBar props={props} />
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
+        <ActionPicker props={props} />
+        <RunPanel
           props={props}
           actionBusy={actionBusy}
           activeRunId={queueRunner.activeRunId}
           pollQueueRun={queueRunner.pollQueueRun}
-          composer={composer}
+          onSchedule={() => composer.setScheduleOpen(true)}
         />
       </div>
       <ScheduleModal
         open={composer.scheduleOpen}
         onClose={() => composer.setScheduleOpen(false)}
-        queuePayload={props.queuePayload}
+        queuePayload={
+          buildDraftPayload(
+            props.actionDraft,
+            props.actionAccountIds,
+            props.safety
+          ).payload
+        }
         form={composer.form}
         setForm={composer.setForm}
         name={composer.name}
@@ -158,21 +167,23 @@ function useScheduleComposer(props: ActionsScreenProps) {
   )
   const [name, setName] = React.useState("")
   const [form, setForm] = React.useState<RecurrenceForm>(defaultRecurrenceForm)
-  // The preview is tagged with the queue it was computed for; it is shown only
-  // while that exact queue is still current, so a queue edit silently
-  // invalidates a stale preview with no effect or ref needed.
+  // The preview is tagged with the draft it was computed for; it is shown only
+  // while that exact draft is still current, so an edit to the action/targets
+  // silently invalidates a stale preview with no effect or ref needed.
   const [previewState, setPreviewState] = React.useState<{
     data: SchedulePreview
-    queue: QueueStep[]
+    draft: ActionDraft
   } | null>(null)
 
   const setPreview = React.useCallback(
     (data: SchedulePreview | null) =>
-      setPreviewState(data ? { data, queue: props.queue } : null),
-    [props.queue]
+      setPreviewState(data ? { data, draft: props.actionDraft } : null),
+    [props.actionDraft]
   )
   const preview =
-    previewState && previewState.queue === props.queue ? previewState.data : null
+    previewState && previewState.draft === props.actionDraft
+      ? previewState.data
+      : null
 
   return {
     scheduleOpen,

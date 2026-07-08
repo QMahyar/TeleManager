@@ -7,6 +7,7 @@ import { WelcomeModal } from "./components/welcome-modal"
 import { useAppState } from "./hooks/use-app-state"
 import { useLoading } from "./hooks/use-loading"
 import { api } from "./lib/api"
+import { splitTargets } from "./lib/helpers"
 import { AppScreens } from "./screens/app-screens"
 import type { ToastTone } from "./types"
 
@@ -73,17 +74,23 @@ export function App() {
     loading,
   }
 
+  // The staged "batch" = the chats (targets) and accounts the next action fans
+  // out to. It's the single draft (not a multi-step queue), surfaced across the
+  // shell (footer, dock) so it's visible from any screen.
+  const stagedChats = splitTargets(appState.actionDraft.target).length
+  const stagedAccounts = appState.actionAccountIds.size
+
   const shellProps = {
     view: appState.view,
     accounts: appState.accounts,
     metrics: appState.metrics,
-    queue: appState.queue,
+    stagedChats,
+    stagedAccounts,
     runs: appState.runs,
     schedules: appState.schedules,
     telemetry: {
       accounts: appState.accounts,
       metrics: appState.metrics,
-      queue: appState.queue,
       runs: appState.runs,
       schedules: appState.schedules,
     },
@@ -97,7 +104,10 @@ export function App() {
       appState.setAccountsTab("login")
       appState.setView("accounts")
     },
-    onClearQueue: () => appState.setQueue([]),
+    onClearBatch: () => {
+      appState.setActionDraft((current) => ({ ...current, target: "" }))
+      appState.setActionAccountIds(new Set())
+    },
   }
 
   return (

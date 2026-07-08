@@ -7,8 +7,6 @@ import {
 
 import { Button } from "../../ui/button"
 import { Badge } from "../ui"
-import type { QueueStep } from "../../types"
-import { countQueueOperations } from "./queue-metrics"
 import type { NavItem } from "./types"
 
 // The page header. A title + one-line subtitle on the left (both sourced from the
@@ -17,7 +15,7 @@ import type { NavItem } from "./types"
 // a dumb renderer — every screen's framing copy lives in `navItems`.
 export function Header({
   activeItem,
-  queue,
+  stagedChats,
   selectedCount,
   showSelectedCount,
   onAddAccount,
@@ -27,7 +25,7 @@ export function Header({
   openPalette,
 }: {
   activeItem?: NavItem
-  queue: QueueStep[]
+  stagedChats: number
   selectedCount: number
   showSelectedCount: boolean
   onAddAccount: () => void
@@ -65,13 +63,13 @@ export function Header({
             </Badge>
           </span>
         ) : null}
-        {queue.length > 0 ? (
+        {stagedChats > 0 ? (
           <button
             type="button"
             onClick={openActions}
             className="hidden items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1.5 text-xs text-primary sm:flex"
           >
-            {countQueueOperations(queue)} operations staged
+            {stagedChats} chat{stagedChats === 1 ? "" : "s"} staged
           </button>
         ) : null}
         {/* Click-to-open search that reads like a real field but delegates to the

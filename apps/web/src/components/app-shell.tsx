@@ -23,7 +23,8 @@ export function AppShell({
   view,
   accounts,
   metrics,
-  queue,
+  stagedChats,
+  stagedAccounts,
   runs,
   schedules,
   telemetry,
@@ -34,10 +35,10 @@ export function AppShell({
   onRefresh,
   onExit,
   onAddAccount,
-  onClearQueue,
+  onClearBatch,
   children,
 }: AppShellProps) {
-  const shellData = telemetry || { accounts, metrics, queue, runs, schedules }
+  const shellData = telemetry || { accounts, metrics, runs, schedules }
   const { theme, setTheme } = useTheme()
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
   const activeItem = navItems.find((item) => item.id === view)
@@ -122,7 +123,7 @@ export function AppShell({
         <main className="flex min-h-0 min-w-0 flex-col overflow-y-auto px-4 pb-8 sm:px-6 lg:px-7 xl:px-8">
           <Header
             activeItem={activeItem}
-            queue={shellData.queue}
+            stagedChats={stagedChats}
             selectedCount={selectedCount}
             showSelectedCount={view === "accounts"}
             onAddAccount={onAddAccount}
@@ -136,16 +137,17 @@ export function AppShell({
       </div>
 
       <OperationsRail
-        queue={shellData.queue}
+        stagedChats={stagedChats}
+        stagedAccounts={stagedAccounts}
         view={view}
-        onClear={onClearQueue}
+        onClear={onClearBatch}
         openView={openView}
       />
 
       <StatusBar
         version={version}
         activeRun={activeRun}
-        queue={shellData.queue}
+        stagedChats={stagedChats}
         readyCount={shellData.metrics.ready}
         theme={theme}
         onToggleTheme={toggleTheme}

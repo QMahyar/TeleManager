@@ -4,8 +4,7 @@ import { Button } from "../../ui/button"
 
 import { queueRunProgress } from "../../lib/helpers"
 import { isHeldPhase, runPhase } from "../../lib/run-lifecycle"
-import { countQueueOperations } from "./queue-metrics"
-import type { QueueRun, QueueStep } from "../../types"
+import type { QueueRun } from "../../types"
 
 // The footer status bar — the device that makes a browser app read as a desktop
 // application. It carries ambient *environment* state: the local address + app
@@ -15,19 +14,18 @@ import type { QueueRun, QueueStep } from "../../types"
 export function StatusBar({
   version,
   activeRun,
-  queue,
+  stagedChats,
   readyCount,
   theme,
   onToggleTheme,
 }: {
   version?: string
   activeRun: QueueRun | null
-  queue: QueueStep[]
+  stagedChats: number
   readyCount: number
   theme: "dark" | "light" | "system"
   onToggleTheme: () => void
 }) {
-  const stagedOps = countQueueOperations(queue)
   // The address the app is actually served from (dev proxy aside). Falls back to
   // the documented local bind when the host is empty (e.g. file://).
   const host = window.location.host || "127.0.0.1:8000"
@@ -41,10 +39,10 @@ export function StatusBar({
           <span className="hidden text-muted-foreground/70 sm:inline">
             {" · "}v{version ?? "—"}
           </span>
-          {stagedOps > 0 ? (
+          {stagedChats > 0 ? (
             <span className="hidden md:inline">
               {" · "}
-              {stagedOps} operations staged
+              {stagedChats} chat{stagedChats === 1 ? "" : "s"} staged
             </span>
           ) : null}
         </span>

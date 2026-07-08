@@ -1,38 +1,30 @@
 import { IconBolt, IconChevronRight } from "@tabler/icons-react"
 
 import { Button } from "../../ui/button"
-import type { QueueStep, View } from "../../types"
-import { countQueueOperations } from "./queue-metrics"
+import type { View } from "../../types"
 
 // The floating batch dock — a corner pill that stays visible on every screen
-// whenever operations are staged, so the queue is always one click from running.
-// It replaces the old right-rail column: the ambient queue state now lives here
+// whenever a batch is staged, so the action is always one click from running.
+// It replaces the old right-rail column: the ambient batch state now lives here
 // (and the live run pulse lives in the footer), freeing the full content width.
 //
 // "Run batch" / "Choose action" both jump to the Actions screen, where the real,
-// fully-guarded commit lives — the dock never runs a queue behind the guards.
+// fully-guarded commit lives — the dock never runs an action behind the guards.
 export function OperationsRail({
-  queue,
+  stagedChats,
+  stagedAccounts,
   view,
   onClear,
   openView,
 }: {
-  queue: QueueStep[]
+  stagedChats: number
+  stagedAccounts: number
   view: View
   onClear: () => void
   openView: (view: View) => void
 }) {
-  const operationCount = countQueueOperations(queue)
-  if (operationCount === 0) return null
-
-  // Distinct chats (targets) and accounts across the staged queue — the two
-  // numbers the operator reasons about ("N chats · N accounts").
-  const chats = new Set<string>()
-  const accounts = new Set<string>()
-  for (const step of queue) {
-    for (const target of step.targets) chats.add(target)
-    for (const accountId of step.account_ids) accounts.add(accountId)
-  }
+  // The batch is "staged" once there's at least one chat to act on.
+  if (stagedChats === 0) return null
 
   const onActions = view === "actions"
 
@@ -45,7 +37,7 @@ export function OperationsRail({
         <div className="min-w-0 leading-tight">
           <p className="text-sm font-semibold text-foreground">Batch ready</p>
           <p className="font-mono text-[0.7rem] text-muted-foreground">
-            {chats.size} chats · {accounts.size} accounts
+            {stagedChats} chats · {stagedAccounts} accounts
           </p>
         </div>
         <button

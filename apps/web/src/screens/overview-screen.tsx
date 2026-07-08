@@ -14,14 +14,12 @@ import { Avatar } from "../components/avatar"
 import { Button } from "../ui/button"
 import { Card } from "../ui/card"
 import { Badge, SignalDot, StatCard, type SignalTone } from "../components/ui"
-import { accountStatus, queueRunProgress, relTime } from "../lib/helpers"
+import { accountStatus, queueRunProgress, relTime, splitTargets } from "../lib/helpers"
 import { canPauseRun, runPhase } from "../lib/run-lifecycle"
-import { countQueueOperations } from "../components/shell/queue-metrics"
 import type {
   Account,
   ActivityEvent,
   QueueRun,
-  QueueStep,
   View,
 } from "../types"
 import type { AppScreenProps } from "./screen-props"
@@ -30,12 +28,14 @@ type OverviewScreenProps = AppScreenProps & { activity: ActivityEvent[] }
 
 // The Overview dashboard — the default landing surface. It's an at-a-glance
 // read-only assembly of state the other screens own: fleet totals, the live
-// queue, the audit tail, and one-tap jumps into the real workflows. It never
+// run, the audit tail, and one-tap jumps into the real workflows. It never
 // mutates Telegram state itself; every commit lives behind its own screen.
 export function OverviewScreen(props: OverviewScreenProps) {
-  const { accounts, metrics, queue, activeRun, activity, setView } = props
+  const { accounts, metrics, activeRun, activity, setView } = props
   const readyCount = metrics.ready
-  const stagedOps = countQueueOperations(queue)
+  // The staged batch: chats (targets) × accounts the next action fans out to.
+  const stagedChats = splitTargets(props.actionDraft.target).length
+  const stagedAccounts = props.actionAccountIds.size
 
   return (
     <div className="space-y-4">
@@ -57,10 +57,12 @@ export function OverviewScreen(props: OverviewScreenProps) {
           detail="cached locally across accounts"
         />
         <StatCard
-          label="Queued operations"
-          value={stagedOps}
+          label="Staged chats"
+          value={stagedChats}
           detail={
-            stagedOps ? `${queue.length} steps staged` : "nothing queued"
+            stagedChats
+              ? `across ${stagedAccounts} account${stagedAccounts === 1 ? "" : "s"}`
+              : "nothing staged"
           }
         />
       </div>
@@ -68,8 +70,8 @@ export function OverviewScreen(props: OverviewScreenProps) {
       <div className="grid gap-4 xl:grid-cols-2">
         <QueuePanel
           activeRun={activeRun}
-          queue={queue}
-          stagedOps={stagedOps}
+          stagedChats={stagedChats}
+          stagedAccounts={stagedAccounts}
           setView={setView}
           onPause={props.pauseActiveRun}
           onCancel={props.cancelActiveRun}
@@ -98,15 +100,15 @@ export function OverviewScreen(props: OverviewScreenProps) {
 // footer pulse but with the room to show progress + lifecycle controls.
 function QueuePanel({
   activeRun,
-  queue,
-  stagedOps,
+  stagedChats,
+  stagedAccounts,
   setView,
   onPause,
   onCancel,
 }: {
   activeRun: QueueRun | null
-  queue: QueueStep[]
-  stagedOps: number
+  stagedChats: number
+  stagedAccounts: number
   setView: (view: View) => void
   onPause: () => Promise<void>
   onCancel: () => Promise<void>
@@ -131,7 +133,7 @@ function QueuePanel({
             <p className="mt-0.5 text-sm text-muted-foreground">
               {activeRun.action_type
                 ? `Running ${activeRun.action_type.replace(/_/g, " ")}`
-                : "Processing queued operations"}
+                : "Processing staged operations"}
             </p>
           </div>
           <Badge tone="border-primary/30 bg-primary/10 text-primary">
@@ -184,15 +186,16 @@ function QueuePanel({
         <span className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary">
           <IconBolt className="size-4" />
         </span>
-        <h2 className="type-heading text-foreground">Queue</h2>
+        <h2 className="type-heading text-foreground">Batch</h2>
       </div>
-      {stagedOps ? (
+      {stagedChats ? (
         <>
           <p className="text-sm text-muted-foreground">
-            <span className="font-mono text-foreground">{stagedOps}</span>{" "}
-            operations staged across{" "}
-            <span className="font-mono text-foreground">{queue.length}</span>{" "}
-            steps, ready to run under the safety guards.
+            <span className="font-mono text-foreground">{stagedChats}</span> chat
+            {stagedChats === 1 ? "" : "s"} staged across{" "}
+            <span className="font-mono text-foreground">{stagedAccounts}</span>{" "}
+            account{stagedAccounts === 1 ? "" : "s"}, ready to run under the safety
+            guards.
           </p>
           <Button
             size="comfortable"
@@ -205,8 +208,8 @@ function QueuePanel({
       ) : (
         <>
           <p className="text-sm text-muted-foreground">
-            Nothing is queued right now. Stage chats from Dialogs or build an
-            action to get started.
+            Nothing staged right now. Stage chats from Dialogs or build an action
+            to get started.
           </p>
           <Button
             variant="outline"
