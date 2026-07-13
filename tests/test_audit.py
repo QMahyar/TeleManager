@@ -16,3 +16,30 @@ def test_activity_log_is_capped(app_context: dict, monkeypatch: pytest.MonkeyPat
     # Most recent events are kept; oldest are trimmed away.
     assert events[0]["title"] == "event 39"
     assert all(event["title"] != "event 0" for event in events)
+
+
+def test_audit_queue_request_strips_message_bodies(app_context: dict) -> None:
+    import json
+
+    from telemanager.action_queue_service import ActionQueueRequest, ActionQueueStep, _audit_queue_request
+
+    req = ActionQueueRequest(
+        steps=[
+            ActionQueueStep(
+                action_type="send_message",
+                account_ids=["acc-1"],
+                targets=["@x"],
+                message="super secret outbound text",
+            )
+        ],
+        confirm=True,
+    )
+    dumped = _audit_queue_request(req)
+    step = dumped["steps"][0]
+    assert "super secret outbound text" not in json.dumps(dumped)
+    assert step.get("has_message") is True
+    assert step.get("message") in (None, "", False) or "message" not in step
+    # High-level shape is preserved for operators reading the activity trail.
+    assert step["action_type"] == "send_message"
+    assert step["targets"] == ["@x"]
+    assert step["account_ids"] == ["acc-1"]

@@ -318,7 +318,11 @@ async def process_action_queue(
                 "telegram_action_queue",
                 "Telegram action queue completed",
                 f"{run['ok_count']}/{len(run['results'])} operations succeeded",
-                {"request": request.model_dump(), "results": run["results"], "error": run["error"]},
+                {
+                    "request": _audit_queue_request(request),
+                    "results": run["results"],
+                    "error": run["error"],
+                },
             )
             run["audit_event_id"] = event["id"]
             save_action_runs(queue_runs)
@@ -520,6 +524,20 @@ def _update_run_counts(run: dict) -> None:
     run["skipped_count"] = sum(1 for item in results if item.get("skipped"))
     run["ok_count"] = sum(1 for item in results if item.get("ok") and not item.get("skipped"))
     run["failed_count"] = sum(1 for item in results if not item.get("ok"))
+
+
+
+def _audit_queue_request(request: ActionQueueRequest) -> dict[str, Any]:
+    """Queue request snapshot for the audit trail — message bodies omitted.
+
+    Run history still keeps full step messages for the operator UI; the always-on
+    activity JSONL only needs high-level shape (who/what/targets), not outbound text.
+    """
+    payload = request.model_dump()
+    for step in payload.get("steps") or []:
+        original = step.pop("message", None)
+        step["has_message"] = bool((original or "").strip())
+    return payload
 
 
 def mark_remaining_operations(operations: list[dict]) -> None:
