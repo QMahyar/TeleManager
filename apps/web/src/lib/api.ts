@@ -15,7 +15,11 @@ export async function api<T>(
       ? await response.json().catch(() => ({}))
       : null
     if (!response.ok) {
-      throw new Error(payload?.detail || "Request failed")
+      const error = new Error(payload?.detail || "Request failed")
+      if (response.status === 401) {
+        error.name = "AuthRequiredError"
+      }
+      throw error
     }
     const data = payload ?? response
     if (schema) {

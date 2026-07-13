@@ -72,7 +72,12 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
-    """Check app password if enabled. Exempt auth endpoints and static assets."""
+    """Check app password if enabled. Exempt auth endpoints and static assets.
+
+    When a password is set and the session is missing, `/api/*` (except
+    `/api/auth/*`) returns 401 JSON. Non-API paths still load so the SPA can
+    render a login gate — the browser needs HTML/JS before it can authenticate.
+    """
     # Skip auth for login/status endpoints and static files
     if request.url.path.startswith(("/api/auth/", "/assets/", "/favicon.ico")):
         return await call_next(request)
@@ -88,7 +93,11 @@ async def auth_middleware(request: Request, call_next):
     if session_token and is_session_valid(session_token, active_sessions):
         return await call_next(request)
 
-    # No valid session - return 401
+    # SPA shell + brand assets must load without a session so the login gate runs.
+    # Only the API is gated — never return 200 for /api/* without a valid session.
+    if not request.url.path.startswith("/api/"):
+        return await call_next(request)
+
     return JSONResponse(
         status_code=401,
         content={"detail": "Authentication required. Log in to continue."},

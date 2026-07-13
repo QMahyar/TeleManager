@@ -1,5 +1,6 @@
 import {
   IconKey,
+  IconLock,
   IconMoon,
   IconPalette,
   IconShieldLock,
@@ -30,7 +31,7 @@ import type {
   SafetySettings,
 } from "../types"
 
-type SettingsTab = "api" | "appearance" | "safety"
+type SettingsTab = "api" | "appearance" | "safety" | "security"
 
 type SettingsScreenProps = {
   safety: SafetySettings
@@ -56,6 +57,7 @@ const SETTINGS_NAV: Array<{
   { id: "api", label: "API credentials", detail: "Telegram app ID & hash", icon: IconKey },
   { id: "appearance", label: "Appearance", detail: "Theme, accent, dialogs", icon: IconPalette },
   { id: "safety", label: "Safety defaults", detail: "Pacing & run bounds", icon: IconShieldLock },
+  { id: "security", label: "Security", detail: "Optional app password", icon: IconLock },
 ]
 
 // Settings is a two-column preferences surface: a left sub-nav card lists the
@@ -108,6 +110,7 @@ export function SettingsScreen(props: SettingsScreenProps) {
         {tab === "api" ? <ApiPanel {...props} /> : null}
         {tab === "appearance" ? <AppearancePanel {...props} /> : null}
         {tab === "safety" ? <SafetyPanel {...props} /> : null}
+        {tab === "security" ? <SecurityPanel {...props} /> : null}
       </div>
     </div>
   )
@@ -488,6 +491,154 @@ function SafetyPanel({
         <IconShieldLock />
         Save Safety Defaults
       </Button>
+    </Panel>
+  )
+}
+
+function SecurityPanel({
+  guarded,
+  loading,
+  flash,
+}: SettingsScreenProps) {
+  const [passwordEnabled, setPasswordEnabled] = React.useState(false)
+  const [statusLoaded, setStatusLoaded] = React.useState(false)
+  const [password, setPassword] = React.useState("")
+  const [confirm, setConfirm] = React.useState("")
+  const [currentPassword, setCurrentPassword] = React.useState("")
+
+  React.useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const status = await api<{ password_enabled: boolean }>("/api/auth/status")
+        if (!cancelled) {
+          setPasswordEnabled(status.password_enabled)
+          setStatusLoaded(true)
+        }
+      } catch (error) {
+        if (!cancelled) {
+          flash(error instanceof Error ? error.message : "Could not load auth status.", "error")
+          setStatusLoaded(true)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [flash])
+
+  async function savePassword(event: React.SyntheticEvent<HTMLFormElement>) {
+    event.preventDefault()
+    await guarded(async () => {
+      if (!passwordEnabled) {
+        if (!password.trim()) return flash("Enter a password to enable protection.")
+        if (password !== confirm) return flash("Password and confirmation do not match.")
+        await api("/api/auth/setup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password }),
+        })
+        setPasswordEnabled(true)
+        setPassword("")
+        setConfirm("")
+        flash("App password enabled. You will need it next time you open TeleManager.", "success")
+        return
+      }
+
+      if (!currentPassword.trim()) return flash("Current password is required.")
+      if (password && password !== confirm) {
+        return flash("New password and confirmation do not match.")
+      }
+      await api("/api/auth/setup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          password,
+          current_password: currentPassword,
+        }),
+      })
+      const disabled = !password.trim()
+      setPasswordEnabled(!disabled)
+      setPassword("")
+      setConfirm("")
+      setCurrentPassword("")
+      flash(
+        disabled ? "App password disabled." : "App password updated.",
+        "success"
+      )
+    })
+  }
+
+  async function logout() {
+    await guarded(async () => {
+      await api("/api/auth/logout", { method: "POST" })
+      flash("Logged out. Unlock with the app password to continue.", "success")
+      // Full reload so AppPasswordGate remounts and shows the lock screen.
+      window.location.reload()
+    })
+  }
+
+  return (
+    <Panel className="max-w-2xl space-y-4">
+      <StepHeading
+        title="App password"
+        detail="Optional protection for shared machines. When enabled, TeleManager asks for this password before loading the console. It is local-only — not a remote multi-user login."
+      />
+      <p className="text-sm text-muted-foreground">
+        Status:{" "}
+        <span className="font-medium text-foreground">
+          {!statusLoaded ? "…" : passwordEnabled ? "Enabled" : "Disabled"}
+        </span>
+      </p>
+      <form className="grid gap-3" onSubmit={savePassword}>
+        {passwordEnabled ? (
+          <Field
+            label="Current password"
+            hint="Required to change or disable the app password."
+          >
+            <Input
+              type="password"
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={(event) => setCurrentPassword(event.target.value)}
+              placeholder="Current app password"
+            />
+          </Field>
+        ) : null}
+        <Field
+          label={passwordEnabled ? "New password" : "Password"}
+          hint={
+            passwordEnabled
+              ? "Leave blank and save to disable password protection."
+              : "Choose a password for this machine."
+          }
+        >
+          <Input
+            type="password"
+            autoComplete="new-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder={passwordEnabled ? "Leave blank to disable" : "App password"}
+          />
+        </Field>
+        <Field label="Confirm password">
+          <Input
+            type="password"
+            autoComplete="new-password"
+            value={confirm}
+            onChange={(event) => setConfirm(event.target.value)}
+            placeholder="Repeat password"
+          />
+        </Field>
+        <Button type="submit" size="comfortable" loading={loading}>
+          {passwordEnabled ? "Update password" : "Enable app password"}
+        </Button>
+      </form>
+      {passwordEnabled ? (
+        <Button type="button" variant="outline" loading={loading} onClick={logout}>
+          Log out this browser
+        </Button>
+      ) : null}
     </Panel>
   )
 }

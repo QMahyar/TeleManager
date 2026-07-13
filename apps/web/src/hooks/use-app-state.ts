@@ -15,7 +15,12 @@ import { useViewState } from "./use-view-state"
 // version). useAppState just wires them together and flattens the result into the
 // single object App.tsx spreads to the screens, so the screens' surface is
 // unchanged by the split.
-export function useAppState(flash: (message: string) => void) {
+export function useAppState(
+  flash: (message: string) => void,
+  // When false (app-password gate still locked), skip the bootstrap fetch so we
+  // don't 401-spam every resource endpoint before the operator unlocks.
+  enabled = true
+) {
   const viewState = useViewState()
   const accountState = useAccountState()
   const dialogState = useDialogState()
@@ -31,6 +36,7 @@ export function useAppState(flash: (message: string) => void) {
   const version = useVersion()
 
   useInitialLoad({
+    enabled,
     flash,
     loadActionsMeta: resourceState.loadActionsMeta,
     loadAppSettings: resourceState.loadAppSettings,
@@ -52,6 +58,7 @@ export function useAppState(flash: (message: string) => void) {
 }
 
 function useInitialLoad({
+  enabled,
   flash,
   loadActionsMeta,
   loadAppSettings,
@@ -59,6 +66,7 @@ function useInitialLoad({
   loadRuns,
   refresh,
 }: {
+  enabled: boolean
   flash: Flash
   loadActionsMeta: () => Promise<void>
   loadAppSettings: () => Promise<void>
@@ -67,6 +75,7 @@ function useInitialLoad({
   refresh: () => Promise<void>
 }) {
   React.useEffect(() => {
+    if (!enabled) return
     const task = window.setTimeout(() => {
       Promise.all([
         refresh(),
@@ -78,7 +87,7 @@ function useInitialLoad({
     }, 0)
 
     return () => window.clearTimeout(task)
-  }, [flash, loadActionsMeta, loadAppSettings, loadPresets, loadRuns, refresh])
+  }, [enabled, flash, loadActionsMeta, loadAppSettings, loadPresets, loadRuns, refresh])
 }
 
 function toggleSelected(
