@@ -8,6 +8,9 @@
 (README.md shows the version via a dynamic shields.io release badge, so it needs
 no propagation.)
 
+Root package.json is a script shim; bump manually or ignore — web package version
+is the UI source.
+
 It also keeps requirements.txt generated from pyproject's `[project] dependencies`
 (the release builds — PyInstaller and the Termux package — pip-install from that
 file), so the runtime pins live in exactly one place.

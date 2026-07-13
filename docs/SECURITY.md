@@ -19,7 +19,7 @@ Never commit or share:
 - `.env` or `.env.*`
 - local phone-number/account test lists
 - real Telegram target inventories
-- `AGENTS.md`
+- untracked local operator notes / agent scratch (not the tracked `AGENTS.md` guide)
 
 ## Session Risk
 
