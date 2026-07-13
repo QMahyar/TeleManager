@@ -22,7 +22,6 @@ from .telegram_actions import (
     TelegramActionResult,
     TelegramActionType,
     action_tier,
-    safe_delay,
     validate_target_for_action,
 )
 from .telegram_errors import classify_telegram_error
@@ -241,12 +240,10 @@ async def process_action_queue(
                     delay = inter_operation_delay(
                         previous["account_id"], operation["account_id"], operation["action_type"], delays
                     )
-                    await safe_delay(delay)
-                    # A cancel can land during the inter-op pause (up to 120s); honour it
-                    # here too so the queue stops promptly instead of running one more
-                    # operation. The op is still "pending", so it's marked skipped.
-                    if run.get("cancel_requested"):
-                        cancel_now(expanded[index:])
+                    # Cancellable: cancel mid-delay stops before the next op (not after a
+                    # full non-interruptible sleep of up to ~120s).
+                    if not await _cancellable_sleep(delay, run):
+                        cancel_now(expanded[index:], during="during the inter-operation delay")
                         break
                 operation["status"] = "running"
                 operation["started_at"] = now_iso()
@@ -450,7 +447,10 @@ async def execute_operation(
     except TimeoutError:
         logger.warning(
             "Queue %s: %s on %s timed out after %ss",
-            run["id"], operation["action_type"], operation["account_id"], QUEUE_OPERATION_TIMEOUT_SECONDS,
+            run["id"],
+            operation["action_type"],
+            operation["account_id"],
+            QUEUE_OPERATION_TIMEOUT_SECONDS,
         )
         return _fail_payload(operation, f"Operation timed out after {int(QUEUE_OPERATION_TIMEOUT_SECONDS)}s.")
     except Exception as exc:
