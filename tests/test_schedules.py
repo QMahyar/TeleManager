@@ -381,3 +381,91 @@ def test_create_native_dispatches_media_to_media_creator(app_context: dict, monk
     message_id = asyncio.run(ss._create_native(object(), "@chat", payload, ss.utcnow()))
     assert message_id == 999
     assert calls == {"target": "@chat", "file": "E:/p.jpg", "caption": "hi", "parse_mode": "markdown"}
+
+
+def test_idle_tick_does_not_rewrite_schedules(app_context: dict, monkeypatch) -> None:
+    """An active runner schedule that is not yet due must not rewrite schedules.json."""
+    ss = _ss()
+    add_account(app_context, "acc-idle", "Idle One")
+    service = app_context["main"].scheduler
+
+    now = ss.utcnow()
+    schedule = ss.build_schedule(
+        ss.ScheduleRequest(
+            name="Idle runner",
+            queue={
+                "steps": [
+                    {
+                        "action_type": "leave_chat",
+                        "account_ids": ["acc-idle"],
+                        "targets": ["@group"],
+                    }
+                ],
+                "max_operations": 10,
+            },
+            recurrence=_recurrence(interval_value=30),
+        )
+    )
+    # Force a far-future next fire so the tick is a pure idle early-return.
+    schedule["next_fire_at"] = ss.iso(now + timedelta(hours=2))
+    ss.save_schedules({schedule["id"]: schedule})
+
+    saves = {"n": 0}
+    real_save = ss.save_schedules
+
+    def counting_save(data):
+        saves["n"] += 1
+        return real_save(data)
+
+    monkeypatch.setattr(ss, "save_schedules", counting_save)
+
+    before = saves["n"]
+    asyncio.run(service.tick())
+    assert saves["n"] == before  # idle tick must not rewrite
+
+
+def test_due_tick_rewrites_schedules(app_context: dict, monkeypatch) -> None:
+    """A due runner fire mutates next_fire_at and must persist schedules.json."""
+    ss = _ss()
+    add_account(app_context, "acc-due", "Due One")
+    service = app_context["main"].scheduler
+
+    # Avoid spawning a real queue task during the fire.
+    monkeypatch.setattr(
+        ss,
+        "start_action_queue",
+        lambda *a, **k: {"run_id": "run-test", "status": "queued", "operation_count": 1},
+    )
+
+    now = ss.utcnow()
+    schedule = ss.build_schedule(
+        ss.ScheduleRequest(
+            name="Due runner",
+            queue={
+                "steps": [
+                    {
+                        "action_type": "leave_chat",
+                        "account_ids": ["acc-due"],
+                        "targets": ["@group"],
+                    }
+                ],
+                "max_operations": 10,
+            },
+            recurrence=_recurrence(interval_value=5),
+        )
+    )
+    schedule["next_fire_at"] = ss.iso(now - timedelta(seconds=1))
+    ss.save_schedules({schedule["id"]: schedule})
+
+    saves = {"n": 0}
+    real_save = ss.save_schedules
+
+    def counting_save(data):
+        saves["n"] += 1
+        return real_save(data)
+
+    monkeypatch.setattr(ss, "save_schedules", counting_save)
+
+    before = saves["n"]
+    asyncio.run(service.tick())
+    assert saves["n"] > before  # fire path must persist
