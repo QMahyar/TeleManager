@@ -668,8 +668,8 @@ function RunProgressBar({
       ) : null}
       <div className={compact ? "h-1.5 overflow-hidden rounded-full bg-muted/50" : "h-2 overflow-hidden rounded-full border border-border bg-muted/40"}>
         <div
-          className="h-full rounded-full bg-primary transition-[width] duration-300"
-          style={{ width: `${progress}%` }}
+          className="h-full w-full origin-left rounded-full bg-primary transition-transform duration-300"
+          style={{ transform: `scaleX(${progress / 100})` }}
         />
       </div>
     </div>

@@ -50,7 +50,10 @@
     --popover: #ffffff;
     --popover-foreground: #1a1a1f;
     --primary: #ff5f5f;
-    --primary-foreground: #ffffff;
+    /* Dark ink on coral fills (segmented controls, solid primary chips). White
+       fails ~2.97:1 on #ff5f5f; warm near-black matches --sunset-ink and dark
+       mode's ink-on-coral pairing. Non-coral accents keep their own light ink. */
+    --primary-foreground: #2b1a14;
     --secondary: #fff4ea;
     --secondary-foreground: #3a3a42;
     --muted: #f4ece3;
@@ -83,7 +86,7 @@
     --sidebar: #fbf2ea;
     --sidebar-foreground: #1a1a1f;
     --sidebar-primary: #ff5f5f;
-    --sidebar-primary-foreground: #ffffff;
+    --sidebar-primary-foreground: #2b1a14;
     --sidebar-accent: #fff4ea;
     --sidebar-accent-foreground: #3a3a42;
     --sidebar-border: #ece5db;

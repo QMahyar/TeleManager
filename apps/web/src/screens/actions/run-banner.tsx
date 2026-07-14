@@ -122,10 +122,10 @@ export function ActiveRunBanner({
           one state. */}
       <div className="h-1.5 overflow-hidden rounded-full bg-background/60">
         <div
-          className={`h-full rounded-full transition-[width] duration-500 ${
+          className={`h-full w-full origin-left rounded-full transition-transform duration-500 ${
             held ? "bg-warning" : "bg-info"
           }`}
-          style={{ width: `${progress}%` }}
+          style={{ transform: `scaleX(${progress / 100})` }}
         />
       </div>
     </div>

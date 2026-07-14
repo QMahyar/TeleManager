@@ -79,9 +79,7 @@ From the 2026-07-14 design audit (Hallmark), found but NOT planned:
 - `theme-provider.tsx` hex literals (favicon tile + canvas fallback):
   **correct as-is** — favicon renders in browser chrome detached from CSS
   custom properties (file comment explains).
-- Light-mode `--primary-foreground` white-on-coral in the segmented control
-  (`settings-screen.tsx:329`): **deferred** — fixing it means rethinking the
-  `--primary-foreground` pairing across sidebar/badges; tracked in plans
-  009/011 maintenance notes.
+- Light-mode `--primary-foreground` white-on-coral: **fixed** on main before
+  1.16.0 (coral/light now uses `#2b1a14`, matching `--sunset-ink`).
 - Spinners (`animate-spin`) under `prefers-reduced-motion`: **kept** —
   loading indication is information, not decoration.
