@@ -11,6 +11,58 @@ section below, with auto-generated commit/PR notes appended.
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-07-15
+
+Ships everything since 1.14.0 that was prepared but untagged (queue lifecycle
+as 1.15.0) plus the optional app-password gate, a batch-first Actions redesign,
+account settings, and an Arc design-system accessibility pass. Backend suite
+241 passing; frontend 54 Vitest + lint/typecheck/build green.
+
+### Added
+
+- **Optional app password.** Local gate for the operator console: setup,
+  unlock, logout, middleware 401 for protected routes, and a UI gate that
+  unlocks before bootstrap. Covered by unit + HTTP tests.
+- **Account settings.** Profile, sessions, contacts, blocked list, and
+  self-destruct TTL — per-account management behind the existing session lock.
+  HTTP coverage with mocked Telethon.
+- **Batch-first Actions redesign.** Action-card grid + RUN panel replaces the
+  multi-step queue draft; dormant multi-step queue state removed from app
+  wiring.
+- **Dashboard shell restyle.** Overview as a read-only assembly of fleet
+  totals / live run / audit tail, floating batch dock, search header,
+  nameplate type voice (Fraunces + Inter + Geist Mono).
+- **Accessible Arc color tokens.** Semantic `--warning` / `--info`,
+  text-safe `--primary-text`, `--sunset-ink` for gradient fills, stronger
+  light-mode rings, warmer muted-foreground and canvas wash; Tailwind
+  `@theme` maps for the new families.
+
+### Changed
+
+- **Primary button + focus discipline.** Sunset-ink on the gradient primary
+  (clears 4.5:1 on both gradient stops); outline-based focus rings that appear
+  instantly at full ring strength; enumerated transitions instead of
+  `transition-all`; progress bars animate via `scaleX`, not width.
+- **Status-color migration.** Amber/sky improvisation replaced with
+  `warning`/`info` tokens end-to-end (including `statusTone`,
+  `TIER_BADGE_CLASS`, `engineTone` helpers). Accent-colored glyphs use
+  `text-primary-text`; decorative art keeps brand-fill `text-primary`.
+- **Light coral ink.** `--primary-foreground` / `--sidebar-primary-foreground`
+  on coral light mode switch from white (~2.97:1) to warm near-black, matching
+  `--sunset-ink` and dark mode's ink-on-coral pairing.
+- **Appearance swatches** derive five of six accents from `[data-accent]` CSS
+  (coral keeps an annotated `:root` hex). Typographic apostrophes in rendered
+  copy.
+
+### Fixed
+
+- **Cancel during inter-op delay** is honoured instead of waiting out the full
+  delay before noticing.
+- **Queue audit events** no longer retain message bodies in the local audit
+  log.
+- **Scheduler idle ticks** skip rewriting `schedules.json` when nothing changed.
+- **Reduced-motion gates** on the remaining live-run ping/pulse indicators.
+
 ## [1.15.0] - 2026-07-02
 
 Run lifecycle control for long batch jobs. Until now a running queue could only
