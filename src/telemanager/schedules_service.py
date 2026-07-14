@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import logging
 import uuid
 from datetime import datetime, timedelta
@@ -593,18 +594,19 @@ class SchedulerService:
         for schedule in schedules.values():
             if schedule.get("status") != "active":
                 continue
+            before = copy.deepcopy(schedule)
             try:
                 if schedule.get("engine") == "native":
                     wake = await self._tick_native(schedule, now)
                 else:
                     wake = await self._tick_runner(schedule, now)
-                schedule["last_error"] = schedule.get("last_error")
             except Exception as exc:  # noqa: BLE001 - isolate one schedule's failure
                 logger.exception("Schedule %s failed", schedule.get("id"))
                 schedule["status"] = "error"
                 schedule["last_error"] = str(exc)
                 wake = now + timedelta(minutes=5)
-            dirty = True
+            if schedule != before:
+                dirty = True
             if wake and wake < soonest:
                 soonest = wake
         if dirty:
@@ -681,23 +683,33 @@ class SchedulerService:
         due = last_reconcile is None or (now - last_reconcile) >= NATIVE_RECONCILE_INTERVAL
 
         deferred = False
+        changed = False
         if due:
             if await self._reconcile_native(schedule, now):
                 schedule["last_reconcile_at"] = iso(now)
+                changed = True
             else:
                 # An account was busy with a run; the buffer top-up is skipped this
                 # round. Leave last_reconcile_at so it stays "due" and retry soon.
                 deferred = True
 
-        schedule["fires_done"] = fires_elapsed(anchor, recurrence, now)
+        fires_done = fires_elapsed(anchor, recurrence, now)
+        if schedule.get("fires_done") != fires_done:
+            schedule["fires_done"] = fires_done
+            changed = True
         upcoming = next_future_slot(anchor, recurrence, now)
-        schedule["next_fire_at"] = iso(upcoming) if upcoming else None
-        schedule["updated_at"] = iso(now)
+        next_fire_at = iso(upcoming) if upcoming else None
+        if schedule.get("next_fire_at") != next_fire_at:
+            schedule["next_fire_at"] = next_fire_at
+            changed = True
 
         planned = total_planned(recurrence)
         if upcoming is None and (planned is not None or parse_iso(recurrence.get("end_until"))):
             self._complete(schedule)
             return None
+
+        if changed:
+            schedule["updated_at"] = iso(now)
 
         next_reconcile = now + (NATIVE_RECONCILE_DEFER if deferred else NATIVE_RECONCILE_INTERVAL)
         candidates = [next_reconcile]
