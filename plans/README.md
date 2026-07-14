@@ -18,9 +18,9 @@ your row when done.
 | 005  | Account-settings route integration tests (mocked Telethon) | P2 | M | — | DONE (branch `advisor/005-account-settings-route-tests` @ 0dbf083) |
 | 006  | Docs/theme single source of truth + root version hygiene | P2 | S | — | DONE (branch `advisor/006-docs-theme-version` @ 044bab1) |
 | 007  | Scheduler: only rewrite schedules.json when dirty | P3 | S | — | DONE (branch `advisor/007-scheduler-dirty-flag` @ 1e66366) |
-| 008  | Accessible color tokens (warning/info, primary-text, sunset-ink, ring) | P1 | S | — | DONE (branch `advisor/008-accessible-color-tokens` @ 9ff0a3c) |
-| 009  | Primary-button legibility, focus rings, motion discipline (primitives) | P1 | M | 008 | TODO |
-| 010  | Migrate amber/sky status colors to warning/info tokens | P2 | S | 008 | TODO |
+| 008  | Accessible color tokens (warning/info, primary-text, sunset-ink, ring) | P1 | S | — | DONE (branch `advisor/008-accessible-color-tokens` @ 473c489) |
+| 009  | Primary-button legibility, focus rings, motion discipline (primitives) | P1 | M | 008 | DONE (branch `advisor/009-primitives-focus-motion` @ 81c6c18) |
+| 010  | Migrate amber/sky status colors to warning/info tokens | P2 | S | 008 | IN PROGRESS |
 | 011  | Migrate accent-colored glyphs to `text-primary-text` | P2 | M | 008 | TODO |
 | 012  | Copy punctuation + self-updating accent swatches | P3 | S | — | TODO |
 
