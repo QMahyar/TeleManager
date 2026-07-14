@@ -1,5 +1,10 @@
-"""Pure-helper checks for account_settings_service (no live client)."""
+"""Pure-helper checks for account_settings_service (no live client).
+
+Also includes HTTP route tests that mock the service boundary so CI stays offline.
+"""
+
 import pytest
+from conftest import add_account
 
 from telemanager.account_settings_service import (
     _authorization_dict,
@@ -64,3 +69,202 @@ def test_account_settings_router_is_mounted():
     paths = {route.path for route in app.routes}
     assert "/api/accounts/{account_id}/profile" in paths
     assert "/api/accounts/{account_id}/sessions" in paths
+
+
+# ---------------------------------------------------------------------------
+# HTTP route tests — mock service boundary so CI stays offline (plan 005)
+# ---------------------------------------------------------------------------
+
+SVC = "telemanager.routes.account_settings.svc"
+
+
+def test_get_profile_ok(app_context, client, monkeypatch):
+    add_account(app_context, "acc-1", "Primary")
+
+    async def fake_get_profile(manager, account_id):
+        assert account_id == "acc-1"
+        return {
+            "first_name": "Ada",
+            "last_name": None,
+            "username": "ada",
+            "phone": None,
+            "about": "hi",
+        }
+
+    monkeypatch.setattr(f"{SVC}.get_profile", fake_get_profile)
+    response = client.get("/api/accounts/acc-1/profile")
+    assert response.status_code == 200
+    assert response.json()["first_name"] == "Ada"
+
+
+def test_get_profile_value_error_is_400(app_context, client, monkeypatch):
+    add_account(app_context, "acc-1", "Primary")
+
+    async def boom(manager, account_id):
+        raise ValueError("nope")
+
+    monkeypatch.setattr(f"{SVC}.get_profile", boom)
+    response = client.get("/api/accounts/acc-1/profile")
+    assert response.status_code == 400
+    assert response.json()["detail"] == "nope"
+
+
+def test_update_profile_ok(app_context, client, monkeypatch):
+    add_account(app_context, "acc-1", "Primary")
+
+    async def fake_update_profile(manager, account_id, **kwargs):
+        assert account_id == "acc-1"
+        assert kwargs["first_name"] == "Ada"
+        return {"id": account_id, "label": "Primary", "first_name": "Ada"}
+
+    monkeypatch.setattr(f"{SVC}.update_profile", fake_update_profile)
+    response = client.post("/api/accounts/acc-1/profile", json={"first_name": "Ada"})
+    assert response.status_code == 200
+    assert response.json()["account"]["first_name"] == "Ada"
+
+
+def test_update_username_ok(app_context, client, monkeypatch):
+    add_account(app_context, "acc-1", "Primary")
+
+    async def fake_update_username(manager, account_id, username):
+        assert username == "cool_user"
+        return {"id": account_id, "username": "cool_user"}
+
+    monkeypatch.setattr(f"{SVC}.update_username", fake_update_username)
+    response = client.post("/api/accounts/acc-1/username", json={"username": "cool_user"})
+    assert response.status_code == 200
+    assert response.json()["account"]["username"] == "cool_user"
+
+
+def test_list_sessions_ok(app_context, client, monkeypatch):
+    add_account(app_context, "acc-1", "Primary")
+
+    async def fake_list_sessions(manager, account_id):
+        return {"sessions": []}
+
+    monkeypatch.setattr(f"{SVC}.list_sessions", fake_list_sessions)
+    response = client.get("/api/accounts/acc-1/sessions")
+    assert response.status_code == 200
+    assert response.json()["sessions"] == []
+
+
+def test_terminate_session_ok(app_context, client, monkeypatch):
+    add_account(app_context, "acc-1", "Primary")
+
+    async def fake_terminate(manager, account_id, session_hash):
+        assert session_hash == "12345"
+        return {"ok": True}
+
+    monkeypatch.setattr(f"{SVC}.terminate_session", fake_terminate)
+    response = client.post("/api/accounts/acc-1/sessions/terminate", json={"hash": "12345"})
+    assert response.status_code == 200
+    assert response.json()["ok"]
+
+
+def test_terminate_others_ok(app_context, client, monkeypatch):
+    add_account(app_context, "acc-1", "Primary")
+
+    async def fake_terminate_others(manager, account_id):
+        return {"ok": True}
+
+    monkeypatch.setattr(f"{SVC}.terminate_other_sessions", fake_terminate_others)
+    response = client.post("/api/accounts/acc-1/sessions/terminate-others")
+    assert response.status_code == 200
+    assert response.json()["ok"]
+
+
+def test_list_contacts_ok(app_context, client, monkeypatch):
+    add_account(app_context, "acc-1", "Primary")
+
+    async def fake_list_contacts(manager, account_id):
+        return {"contacts": [{"id": "1", "username": "bob"}]}
+
+    monkeypatch.setattr(f"{SVC}.list_contacts", fake_list_contacts)
+    response = client.get("/api/accounts/acc-1/contacts")
+    assert response.status_code == 200
+    assert response.json()["contacts"][0]["username"] == "bob"
+
+
+def test_add_contact_ok(app_context, client, monkeypatch):
+    add_account(app_context, "acc-1", "Primary")
+
+    async def fake_add_contact(manager, account_id, **kwargs):
+        assert kwargs["identifier"] == "@bob"
+        assert kwargs["first_name"] == "Bob"
+        return {"ok": True}
+
+    monkeypatch.setattr(f"{SVC}.add_contact", fake_add_contact)
+    response = client.post(
+        "/api/accounts/acc-1/contacts",
+        json={"identifier": "@bob", "first_name": "Bob"},
+    )
+    assert response.status_code == 200
+    assert response.json()["ok"]
+
+
+def test_delete_contact_ok(app_context, client, monkeypatch):
+    add_account(app_context, "acc-1", "Primary")
+
+    async def fake_delete_contact(manager, account_id, identifier):
+        assert identifier == "@bob"
+        return {"ok": True}
+
+    monkeypatch.setattr(f"{SVC}.delete_contact", fake_delete_contact)
+    response = client.delete("/api/accounts/acc-1/contacts", params={"identifier": "@bob"})
+    assert response.status_code == 200
+    assert response.json()["ok"]
+
+
+def test_list_blocked_ok(app_context, client, monkeypatch):
+    add_account(app_context, "acc-1", "Primary")
+
+    async def fake_list_blocked(manager, account_id):
+        return {"blocked": []}
+
+    monkeypatch.setattr(f"{SVC}.list_blocked", fake_list_blocked)
+    response = client.get("/api/accounts/acc-1/blocked")
+    assert response.status_code == 200
+    assert response.json()["blocked"] == []
+
+
+def test_get_ttl_ok(app_context, client, monkeypatch):
+    add_account(app_context, "acc-1", "Primary")
+
+    async def fake_get_ttl(manager, account_id):
+        return {"days": 180}
+
+    monkeypatch.setattr(f"{SVC}.get_account_ttl", fake_get_ttl)
+    response = client.get("/api/accounts/acc-1/ttl")
+    assert response.status_code == 200
+    assert response.json()["days"] == 180
+
+
+def test_set_ttl_ok(app_context, client, monkeypatch):
+    add_account(app_context, "acc-1", "Primary")
+
+    async def fake_set_ttl(manager, account_id, days):
+        assert days == 90
+        return {"days": 90}
+
+    monkeypatch.setattr(f"{SVC}.set_account_ttl", fake_set_ttl)
+    response = client.post("/api/accounts/acc-1/ttl", json={"days": 90})
+    assert response.status_code == 200
+    assert response.json()["days"] == 90
+
+
+def test_set_ttl_validation_422_or_400(app_context, client):
+    add_account(app_context, "acc-1", "Primary")
+    # 45 is accepted by pydantic Field(ge=1, le=730) but rejected by service
+    # validate_ttl_days → ValueError → 400. If schema tightens later, 422 is ok.
+    response = client.post("/api/accounts/acc-1/ttl", json={"days": 45})
+    assert response.status_code in {400, 422}
+
+
+def test_missing_account_bubbles_400(app_context, client, monkeypatch):
+    async def boom(manager, account_id):
+        raise ValueError("Account was not found.")
+
+    monkeypatch.setattr(f"{SVC}.get_profile", boom)
+    response = client.get("/api/accounts/missing-id/profile")
+    assert response.status_code == 400
+    assert "not found" in response.json()["detail"].lower()
