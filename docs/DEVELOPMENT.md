@@ -125,7 +125,7 @@ docs/                   ARCHITECTURE.md, SECURITY.md, ROADMAP.md, this file
 
 ## Frontend theme
 
-**Console** — dark-first, warm-charcoal neutrals, dim-teal accent. Geist + Geist Mono (self-hosted). All design tokens live in `apps/web/src/ui/globals.css`; shared primitives in `apps/web/src/components/ui.tsx`. Restyle at the token/primitive layer, not per-screen.
+**Arc** — light-first peach-cream canvas, coral accent, with a warm-charcoal dark variant. Fraunces leads titles, Inter carries prose, Geist Mono is machine data (all self-hosted). Design tokens live in `apps/web/src/ui/globals.css`; shared primitives in `apps/web/src/components/ui.tsx`. Restyle at the token/primitive layer, not per-screen. Full agent-oriented blurb: [AGENTS.md](../AGENTS.md).
 
 ---
 
