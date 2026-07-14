@@ -305,7 +305,7 @@ function ChatScheduleCard({
             {chat.count}
           </Badge>
           {chat.owned_count > 0 ? (
-            <Badge tone="text-primary border-primary/30 bg-primary/10">
+            <Badge tone="text-primary-text border-primary/30 bg-primary/10">
               {chat.owned_count} ours
             </Badge>
           ) : null}
@@ -346,7 +346,7 @@ function ChatScheduleCard({
               {message.text || <em className="text-muted-foreground">(no text)</em>}
             </span>
             {message.owned ? (
-              <Badge tone="text-primary border-primary/30 bg-primary/10">
+              <Badge tone="text-primary-text border-primary/30 bg-primary/10">
                 TeleManager
               </Badge>
             ) : (
@@ -436,7 +436,7 @@ function ManualInspect({
     <Disclosure label="Check another chat">
       <div className="space-y-3">
         <p className="text-xs text-muted-foreground">
-          Look up a specific chat that your schedules don't already target (Telegram
+          Look up a specific chat that your schedules don’t already target (Telegram
           has no way to list every scheduled chat automatically).
         </p>
         <div className="grid gap-3 lg:grid-cols-[16rem_1fr_auto] lg:items-end">
@@ -571,7 +571,7 @@ function ManualResult({
               {message.text || <em className="text-muted-foreground">(no text)</em>}
             </span>
             {message.owned ? (
-              <Badge tone="text-primary border-primary/30 bg-primary/10">
+              <Badge tone="text-primary-text border-primary/30 bg-primary/10">
                 TeleManager
               </Badge>
             ) : (

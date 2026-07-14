@@ -123,7 +123,7 @@ function QueuePanel({
       <Card className="hero-run space-y-4 p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="type-eyebrow flex items-center gap-2 text-primary">
+            <p className="type-eyebrow flex items-center gap-2 text-primary-text">
               <SignalDot tone={running ? "live" : "attention"} />
               Live
             </p>
@@ -136,7 +136,7 @@ function QueuePanel({
                 : "Processing staged operations"}
             </p>
           </div>
-          <Badge tone="border-primary/30 bg-primary/10 text-primary">
+          <Badge tone="border-primary/30 bg-primary/10 text-primary-text">
             {running ? "Moving" : phase}
           </Badge>
         </div>
@@ -151,8 +151,8 @@ function QueuePanel({
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-primary/15">
             <div
-              className="h-full rounded-full bg-sunset transition-all"
-              style={{ width: `${progress}%` }}
+              className="h-full w-full origin-left rounded-full bg-sunset transition-transform"
+              style={{ transform: `scaleX(${progress / 100})` }}
             />
           </div>
         </div>
@@ -171,7 +171,7 @@ function QueuePanel({
           <button
             type="button"
             onClick={() => setView("actions")}
-            className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-primary-text hover:underline"
           >
             Open Actions <IconArrowRight className="size-3.5" />
           </button>
@@ -183,7 +183,7 @@ function QueuePanel({
   return (
     <Card className="flex flex-col gap-3 p-5">
       <div className="flex items-center gap-2">
-        <span className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary">
+        <span className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary-text">
           <IconBolt className="size-4" />
         </span>
         <h2 className="type-heading text-foreground">Batch</h2>
@@ -251,7 +251,7 @@ function RecentActivity({
         <ul className="space-y-3">
           {recent.map((entry, index) => (
             <li key={entry.id || index} className="flex items-start gap-3">
-              <Badge tone="border-primary/20 bg-primary/10 text-primary">
+              <Badge tone="border-primary/20 bg-primary/10 text-primary-text">
                 {(entry.event_type || "event").replace(/_/g, " ")}
               </Badge>
               <div className="min-w-0 flex-1">
@@ -377,9 +377,9 @@ function QuickActions({
               key={tile.label}
               type="button"
               onClick={tile.onClick}
-              className="flex items-center gap-2.5 rounded-xl border border-border bg-background/40 px-3.5 py-3 text-left text-sm font-medium text-foreground transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
+              className="flex items-center gap-2.5 rounded-xl border border-border bg-background/40 px-3.5 py-3 text-left text-sm font-medium text-foreground transition-transform hover:-translate-y-0.5"
             >
-              <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+              <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary-text">
                 <Icon className="size-4" />
               </span>
               {tile.label}

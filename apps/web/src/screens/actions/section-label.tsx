@@ -18,7 +18,7 @@ export function SectionLabel({
     <div className="flex items-center justify-between gap-3">
       <div className="flex min-w-0 items-center gap-2.5">
         {Icon ? (
-          <span className="grid size-7 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
+          <span className="grid size-7 shrink-0 place-items-center rounded-md bg-primary/10 text-primary-text">
             <Icon className="size-4" />
           </span>
         ) : null}

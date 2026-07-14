@@ -130,7 +130,7 @@ export function TargetComposer({
             <span>
               {targets.length} target(s)
               {invalidCount ? (
-                <span className="ml-1 text-amber-600 dark:text-amber-400">
+                <span className="ml-1 text-warning">
                   · {invalidCount} greyed, skipped
                 </span>
               ) : null}
@@ -193,7 +193,7 @@ function TargetChip({
         invalid
           ? "border-border/60 bg-muted/40 text-muted-foreground line-through opacity-60"
           : warning
-            ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+            ? "border-warning/40 bg-warning/10 text-warning"
             : "border-primary/30 bg-primary/5 text-foreground"
       ].filter(Boolean).join(" ")}
     >

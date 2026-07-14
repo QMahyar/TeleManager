@@ -226,6 +226,6 @@ export function engineLabel(engine: Schedule["engine"]): string {
 
 export function engineTone(engine: Schedule["engine"]): string {
   return engine === "native"
-    ? "text-primary border-primary/30 bg-primary/10"
-    : "text-amber-600 border-amber-500/30 bg-amber-500/10 dark:text-amber-400"
+    ? "text-primary-text border-primary/30 bg-primary/10"
+    : "text-warning border-warning/40 bg-warning/10"
 }

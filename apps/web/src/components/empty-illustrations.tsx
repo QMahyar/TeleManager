@@ -2,6 +2,7 @@
 // the muted tone of the EmptyState wrapper and the active accent where used.
 // Each leans on the beacon/signal motif so empties feel part of the same system
 // rather than generic clip-art.
+// Stays on text-primary (not -text): decorative aria-hidden art, no contrast requirement.
 
 const BASE = "size-14"
 

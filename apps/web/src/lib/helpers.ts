@@ -29,10 +29,10 @@ export function accountStatus(account: Account) {
 
 export function statusTone(status: string) {
   if (["ready", "ok", "completed", "active"].includes(status)) {
-    return "text-primary border-primary/30 bg-primary/10"
+    return "text-primary-text border-primary/30 bg-primary/10"
   }
   if (["running", "queued", "canceling", "pausing"].includes(status)) {
-    return "text-sky-600 border-sky-500/30 bg-sky-500/10 dark:text-sky-400"
+    return "text-info border-info/40 bg-info/10"
   }
   if (
     [
@@ -44,7 +44,7 @@ export function statusTone(status: string) {
       "paused",
     ].includes(status)
   ) {
-    return "text-amber-600 border-amber-500/30 bg-amber-500/10 dark:text-amber-400"
+    return "text-warning border-warning/40 bg-warning/10"
   }
   if (["error", "failed", "canceled", "interrupted"].includes(status)) {
     return "text-destructive border-destructive/30 bg-destructive/10"

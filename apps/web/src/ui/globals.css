@@ -54,13 +54,26 @@
     --secondary: #fff4ea;
     --secondary-foreground: #3a3a42;
     --muted: #f4ece3;
-    --muted-foreground: #83838b;
+    --muted-foreground: #6f6b66;
     --accent: #ff5f5f;
     --accent-foreground: #ffffff;
+    /* Coral that can carry GLYPHS (words and icons). --primary (#ff5f5f) is a
+       fill/brand color at ~2.97:1 on white; this darker coral clears 4.5:1 on
+       every light surface. Non-coral accents alias this to their --primary,
+       which is already dark enough. Use text-primary-text wherever coral
+       colors a glyph; text-primary stays for fills (bg-*, ring-*, solid dots)
+       and decorative aria-hidden art. */
+    --primary-text: #c73b3b;
     --destructive: #ef5350;
+    /* Semantic status hues. Warning covers "needs attention / held / flood-wait",
+       info covers "live / in-flight". Defined here so screens stop improvising
+       from Tailwind's raw amber/sky palette; both are dark enough to carry
+       small text on the light surfaces (≥4.5:1 on card white and canvas). */
+    --warning: #b45309;
+    --info: #0369a1;
     --border: #ece5db;
     --input: #ece5db;
-    --ring: #ff7a6b;
+    --ring: var(--primary-text);
     --radius: 0.75rem;
     /* Softer, larger shadows than a flat UI — cards read as raised panels
        floating on the warm canvas (Arc's whole surface language). */
@@ -74,13 +87,17 @@
     --sidebar-accent: #fff4ea;
     --sidebar-accent-foreground: #3a3a42;
     --sidebar-border: #ece5db;
-    --sidebar-ring: #ff7a6b;
+    --sidebar-ring: var(--primary-text);
     /* Sunset — the brand gradient on the primary commit action, brand mark and
        hero panels. Coral default; alternate accents override it below. */
     --sunset: linear-gradient(135deg, #ff7e5f, #feb47b);
+    /* Ink that sits ON the sunset gradient (primary button, hero panels).
+       White fails at the peach stop (~1.75:1); a warm near-black clears 4.5:1
+       against both stops and matches dark mode's ink-on-coral pairing. */
+    --sunset-ink: #2b1a14;
     /* Radial canvas washes (light only; dark zeroes them out). */
     --wash-1: rgb(255 126 95 / 16%);
-    --wash-2: rgb(183 148 244 / 12%);
+    --wash-2: rgb(255 178 102 / 10%);
 }
 
 .dark {
@@ -102,7 +119,10 @@
     --muted-foreground: oklch(0.71 0.014 60);
     --accent: oklch(0.72 0.165 26);
     --accent-foreground: oklch(0.20 0.03 25);
+    --primary-text: var(--primary);
     --destructive: oklch(0.64 0.17 22);
+    --warning: oklch(0.83 0.16 84);
+    --info: oklch(0.746 0.15 233);
     --border: oklch(0.325 0.008 55);
     --input: oklch(0.345 0.009 55);
     --ring: oklch(0.72 0.16 26);
@@ -118,6 +138,7 @@
     --sidebar-border: oklch(0.325 0.008 55);
     --sidebar-ring: oklch(0.72 0.16 26);
     --sunset: linear-gradient(135deg, oklch(0.72 0.16 30), oklch(0.78 0.13 55));
+    --sunset-ink: oklch(0.20 0.03 25);
     --wash-1: transparent;
     --wash-2: transparent;
 }
@@ -134,10 +155,11 @@
     --primary-foreground: oklch(0.99 0.01 190);
     --accent: oklch(0.56 0.12 190);
     --accent-foreground: oklch(0.99 0.01 190);
-    --ring: oklch(0.60 0.12 190);
+    --primary-text: var(--primary);
+    --ring: var(--primary);
     --sidebar-primary: oklch(0.56 0.12 190);
     --sidebar-primary-foreground: oklch(0.99 0.01 190);
-    --sidebar-ring: oklch(0.60 0.12 190);
+    --sidebar-ring: var(--primary);
     --sunset: linear-gradient(135deg, color-mix(in oklab, var(--primary), white 12%), var(--primary));
 }
 .dark[data-accent="teal"] {
@@ -145,6 +167,7 @@
     --primary-foreground: oklch(0.20 0.02 185);
     --accent: oklch(0.74 0.11 186);
     --accent-foreground: oklch(0.20 0.02 185);
+    --primary-text: var(--primary);
     --ring: oklch(0.72 0.11 186);
     --sidebar-primary: oklch(0.74 0.11 186);
     --sidebar-primary-foreground: oklch(0.20 0.02 185);
@@ -158,10 +181,11 @@
     --primary-foreground: oklch(0.99 0.005 264);
     --accent: oklch(0.54 0.18 264);
     --accent-foreground: oklch(0.99 0.005 264);
-    --ring: oklch(0.60 0.17 264);
+    --primary-text: var(--primary);
+    --ring: var(--primary);
     --sidebar-primary: oklch(0.54 0.18 264);
     --sidebar-primary-foreground: oklch(0.99 0.005 264);
-    --sidebar-ring: oklch(0.60 0.17 264);
+    --sidebar-ring: var(--primary);
     --sunset: linear-gradient(135deg, color-mix(in oklab, var(--primary), white 12%), var(--primary));
 }
 .dark[data-accent="moonlight"] {
@@ -169,6 +193,7 @@
     --primary-foreground: oklch(0.17 0.03 264);
     --accent: oklch(0.68 0.16 264);
     --accent-foreground: oklch(0.17 0.03 264);
+    --primary-text: var(--primary);
     --ring: oklch(0.70 0.15 264);
     --sidebar-primary: oklch(0.68 0.16 264);
     --sidebar-primary-foreground: oklch(0.17 0.03 264);
@@ -182,10 +207,11 @@
     --primary-foreground: oklch(0.99 0.01 85);
     --accent: oklch(0.58 0.13 72);
     --accent-foreground: oklch(0.99 0.01 85);
-    --ring: oklch(0.64 0.13 72);
+    --primary-text: var(--primary);
+    --ring: var(--primary);
     --sidebar-primary: oklch(0.58 0.13 72);
     --sidebar-primary-foreground: oklch(0.99 0.01 85);
-    --sidebar-ring: oklch(0.64 0.13 72);
+    --sidebar-ring: var(--primary);
     --sunset: linear-gradient(135deg, color-mix(in oklab, var(--primary), white 12%), var(--primary));
 }
 .dark[data-accent="amber"] {
@@ -193,6 +219,7 @@
     --primary-foreground: oklch(0.2 0.04 60);
     --accent: oklch(0.77 0.15 75);
     --accent-foreground: oklch(0.2 0.04 60);
+    --primary-text: var(--primary);
     --ring: oklch(0.79 0.14 78);
     --sidebar-primary: oklch(0.77 0.15 75);
     --sidebar-primary-foreground: oklch(0.2 0.04 60);
@@ -206,10 +233,11 @@
     --primary-foreground: oklch(0.99 0.005 215);
     --accent: oklch(0.55 0.11 215);
     --accent-foreground: oklch(0.99 0.005 215);
-    --ring: oklch(0.62 0.11 215);
+    --primary-text: var(--primary);
+    --ring: var(--primary);
     --sidebar-primary: oklch(0.55 0.11 215);
     --sidebar-primary-foreground: oklch(0.99 0.005 215);
-    --sidebar-ring: oklch(0.62 0.11 215);
+    --sidebar-ring: var(--primary);
     --sunset: linear-gradient(135deg, color-mix(in oklab, var(--primary), white 12%), var(--primary));
 }
 .dark[data-accent="arctic"] {
@@ -217,6 +245,7 @@
     --primary-foreground: oklch(0.18 0.03 215);
     --accent: oklch(0.74 0.13 210);
     --accent-foreground: oklch(0.18 0.03 215);
+    --primary-text: var(--primary);
     --ring: oklch(0.76 0.12 210);
     --sidebar-primary: oklch(0.74 0.13 210);
     --sidebar-primary-foreground: oklch(0.18 0.03 215);
@@ -230,10 +259,11 @@
     --primary-foreground: oklch(0.99 0.01 166);
     --accent: oklch(0.55 0.13 163);
     --accent-foreground: oklch(0.99 0.01 166);
-    --ring: oklch(0.6 0.13 163);
+    --primary-text: var(--primary);
+    --ring: var(--primary);
     --sidebar-primary: oklch(0.55 0.13 163);
     --sidebar-primary-foreground: oklch(0.99 0.01 166);
-    --sidebar-ring: oklch(0.6 0.13 163);
+    --sidebar-ring: var(--primary);
     --sunset: linear-gradient(135deg, color-mix(in oklab, var(--primary), white 12%), var(--primary));
 }
 .dark[data-accent="emerald"] {
@@ -241,6 +271,7 @@
     --primary-foreground: oklch(0.18 0.04 166);
     --accent: oklch(0.7 0.15 163);
     --accent-foreground: oklch(0.18 0.04 166);
+    --primary-text: var(--primary);
     --ring: oklch(0.72 0.15 163);
     --sidebar-primary: oklch(0.7 0.15 163);
     --sidebar-primary-foreground: oklch(0.18 0.04 166);
@@ -265,6 +296,10 @@
     --color-accent: var(--accent);
     --color-accent-foreground: var(--accent-foreground);
     --color-destructive: var(--destructive);
+    --color-warning: var(--warning);
+    --color-info: var(--info);
+    --color-primary-text: var(--primary-text);
+    --color-sunset-ink: var(--sunset-ink);
     --color-border: var(--border);
     --color-input: var(--input);
     --color-ring: var(--ring);
@@ -334,8 +369,8 @@
    to comfortable sizes without changing widths of full-width buttons. */
 @media (pointer: coarse) {
   [data-slot="button"] {
-    min-height: 2.5rem;
-    min-width: 2.5rem;
+    min-height: 2.75rem;
+    min-width: 2.75rem;
     }
   [data-slot="input"], [data-slot="select"] {
     min-height: 2.75rem;

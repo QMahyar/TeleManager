@@ -142,7 +142,7 @@ export function AboutScreen({ flash }: { flash: Flash }) {
       <Panel tone="raised" className="space-y-4 xl:col-span-2">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <BrandLockup size={44} tagline="local session ops" />
-          <Badge tone="border-primary/30 bg-primary/10 text-primary">
+          <Badge tone="border-primary/30 bg-primary/10 text-primary-text">
             {version ? `v${version}` : "version unavailable"}
           </Badge>
         </div>
@@ -326,7 +326,7 @@ function WalletRow({
       <div className="flex items-center justify-between gap-2">
         <strong className="text-sm text-foreground">{wallet.chain}</strong>
         {wallet.recommended ? (
-          <Badge tone="border-primary/30 bg-primary/10 text-primary">
+          <Badge tone="border-primary/30 bg-primary/10 text-primary-text">
             recommended
           </Badge>
         ) : null}

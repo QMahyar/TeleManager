@@ -20,7 +20,7 @@ const toneStyles: Record<
   success: {
     container: "border-primary/40",
     icon: IconCircleCheck,
-    iconClass: "text-primary",
+    iconClass: "text-primary-text",
   },
   error: {
     container: "border-destructive/50",

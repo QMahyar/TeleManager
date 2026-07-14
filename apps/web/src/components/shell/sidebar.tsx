@@ -189,7 +189,7 @@ function FleetStat({
   return (
     <div className="space-y-0.5">
       <span className="type-meta block text-muted-foreground">{label}</span>
-      <strong className={["font-mono text-lg", good && "text-primary"].filter(Boolean).join(" ")}>
+      <strong className={["font-mono text-lg", good && "text-primary-text"].filter(Boolean).join(" ")}>
         {value}
       </strong>
     </div>

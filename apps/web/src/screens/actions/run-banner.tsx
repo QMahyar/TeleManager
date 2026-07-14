@@ -77,8 +77,8 @@ export function ActiveRunBanner({
 
   // Accent: amber while held (paused / waiting on Telegram), sky while moving.
   const accent = held
-    ? "border-amber-500/40 bg-amber-500/10"
-    : "border-sky-500/40 bg-sky-500/10"
+    ? "border-warning/40 bg-warning/10"
+    : "border-info/40 bg-info/10"
 
   return (
     <div
@@ -123,7 +123,7 @@ export function ActiveRunBanner({
       <div className="h-1.5 overflow-hidden rounded-full bg-background/60">
         <div
           className={`h-full rounded-full transition-[width] duration-500 ${
-            held ? "bg-amber-500" : "bg-sky-500"
+            held ? "bg-warning" : "bg-info"
           }`}
           style={{ width: `${progress}%` }}
         />
@@ -143,13 +143,13 @@ const PHASE_HEADING: Record<string, string> = {
 
 function PhaseIcon({ phase }: { phase: string }) {
   if (phase === "paused")
-    return <IconPlayerPause className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+    return <IconPlayerPause className="size-4 shrink-0 text-warning" />
   if (phase === "waiting")
-    return <IconHourglassHigh className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+    return <IconHourglassHigh className="size-4 shrink-0 text-warning" />
   if (phase === "pausing")
-    return <IconClockPause className="size-4 shrink-0 animate-pulse text-sky-600 dark:text-sky-400" />
+    return <IconClockPause className="size-4 shrink-0 animate-pulse motion-reduce:animate-none text-info" />
   return (
-    <IconLoader2 className="size-4 shrink-0 animate-spin text-sky-600 dark:text-sky-400" />
+    <IconLoader2 className="size-4 shrink-0 animate-spin text-info" />
   )
 }
 
@@ -164,7 +164,7 @@ function BannerSubline({
 }) {
   if (phase === "waiting") {
     return (
-      <p className="text-xs text-amber-600 dark:text-amber-400">
+      <p className="text-xs text-warning">
         {floodRemaining > 0
           ? `Telegram rate-limited this account — auto-resuming in ${formatDuration(floodRemaining)}.`
           : "Rate limit cleared — resuming…"}

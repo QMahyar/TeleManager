@@ -244,7 +244,7 @@ function RunHistoryRow({
         <div className="flex min-w-0 items-center gap-2">
           <strong className="truncate font-mono text-xs">{run.id}</strong>
           {run.schedule_id ? (
-            <Badge tone="border-primary/30 bg-primary/10 text-primary">
+            <Badge tone="border-primary/30 bg-primary/10 text-primary-text">
               scheduled
             </Badge>
           ) : null}
@@ -467,7 +467,7 @@ function FilterChip({
       onClick={onClick}
       className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
         active
-          ? "border-primary/40 bg-primary/10 text-primary"
+          ? "border-primary/40 bg-primary/10 text-primary-text"
           : "border-border text-muted-foreground hover:bg-muted/40"
       }`}
     >
@@ -484,7 +484,7 @@ function CurrentOperationPanel({ current }: { current: QueueRun["current"] }) {
   return (
     <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 text-sm">
       <div className="flex items-center gap-2">
-        <IconProgressCheck className="size-4 text-primary" />
+        <IconProgressCheck className="size-4 text-primary-text" />
         <strong>Current operation</strong>
       </div>
       <p className="mt-1 text-xs text-muted-foreground">

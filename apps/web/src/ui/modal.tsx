@@ -145,7 +145,7 @@ export function ModalShell({
             <p
               className={[
                 "type-eyebrow",
-                danger ? "text-destructive" : "text-primary"
+                danger ? "text-destructive" : "text-primary-text"
               ].filter(Boolean).join(" ")}
             >
               {kicker}

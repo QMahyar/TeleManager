@@ -49,7 +49,7 @@ export function SectionTitle({
     <div className="space-y-1">
       {kicker ? (
         <p className="type-eyebrow text-muted-foreground">
-          <span className="text-primary">›</span> {kicker}
+          <span className="text-primary-text">›</span> {kicker}
         </p>
       ) : null}
       <h2 className="type-heading text-foreground">{title}</h2>
@@ -142,7 +142,7 @@ export function StepHeading({
     <div className="flex items-start justify-between gap-3">
       <div className="flex items-start gap-3">
         {step != null ? (
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 font-heading text-sm text-primary [&_svg]:size-4">
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 font-heading text-sm text-primary-text [&_svg]:size-4">
             {step}
           </span>
         ) : null}
@@ -366,7 +366,7 @@ export function Skeleton({ className }: { className?: string }) {
   return (
     <div
       aria-hidden
-      className={["animate-pulse rounded-md bg-muted/60", className].filter(Boolean).join(" ")}
+      className={["animate-pulse rounded-md bg-muted/60 motion-reduce:animate-none", className].filter(Boolean).join(" ")}
     />
   )
 }
@@ -394,9 +394,9 @@ export function StatCard({
     // one highlighted metric (coral number); `active` is the filter indicator
     // (ring only) — kept separate so a filterable tile isn't forced coral just by
     // being the current filter.
-    "rounded-xl border border-border bg-card p-4 text-left shadow-md transition-all",
+    "rounded-xl border border-border bg-card p-4 text-left shadow-md transition-transform",
     (primary || active) && "ring-1 ring-primary/40",
-    onClick && "hover:-translate-y-0.5 hover:shadow-lg"
+    onClick && "hover:-translate-y-0.5"
   ].filter(Boolean).join(" ")
   const body = (
     <>
@@ -404,7 +404,7 @@ export function StatCard({
       <strong
         className={[
           "mt-1 block type-stat",
-          primary && "text-primary"
+          primary && "text-primary-text"
         ].filter(Boolean).join(" ")}
       >
         {value}
@@ -444,11 +444,12 @@ export function StatCard({
 export type SignalTone = "ready" | "attention" | "error" | "idle" | "live"
 
 const signalToneClass: Record<SignalTone, string> = {
+  // ready stays text-primary (not -text): the dot is decorative fill, the adjacent word carries meaning.
   ready: "text-primary",
-  attention: "text-amber-500 dark:text-amber-400",
+  attention: "text-warning",
   error: "text-destructive",
   idle: "text-muted-foreground/50",
-  live: "text-sky-500 dark:text-sky-400",
+  live: "text-info",
 }
 
 // Color comes from one `text-*` tone class; the center, halo, and (live) pulse
@@ -828,7 +829,7 @@ const calloutToneClass: Record<CalloutTone, string> = {
   info: "border-border bg-muted/30 text-muted-foreground",
   primary: "border-primary/30 bg-primary/10 text-foreground",
   warning:
-    "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+    "border-warning/40 bg-warning/10 text-warning",
   danger: "border-destructive/40 bg-destructive/10 text-destructive",
 }
 

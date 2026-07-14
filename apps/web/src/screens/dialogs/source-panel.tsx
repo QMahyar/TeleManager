@@ -142,7 +142,7 @@ export function DialogsSourcePanel({
               Bulk actions only show options valid for every selected chat.
             </p>
           </div>
-          <IconBolt className="size-4 text-primary" />
+          <IconBolt className="size-4 text-primary-text" />
         </div>
         <SelectionBreakdown counts={kindCounts} hasSelection={hasSelection} />
         <Button

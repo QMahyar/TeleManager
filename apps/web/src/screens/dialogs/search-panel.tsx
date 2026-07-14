@@ -108,7 +108,7 @@ export function DialogSearchModal({
                 className="rounded-lg border border-border p-3 text-sm"
               >
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone="border-primary/30 bg-primary/10 text-primary">
+                  <Badge tone="border-primary/30 bg-primary/10 text-primary-text">
                     {hit.chat_username ? `@${hit.chat_username}` : hit.chat_title}
                   </Badge>
                   {hit.out ? (

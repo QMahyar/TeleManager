@@ -39,7 +39,7 @@ export function InfoHint({
             className={[
               "inline-flex size-4 shrink-0 cursor-help items-center justify-center rounded-full text-muted-foreground/70 outline-none transition-colors",
               "hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
-              "data-[popup-open]:text-primary",
+              "data-[popup-open]:text-primary-text",
               className
             ].filter(Boolean).join(" ")}
           >

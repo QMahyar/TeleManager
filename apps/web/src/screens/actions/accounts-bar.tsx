@@ -35,7 +35,7 @@ export function AccountsBar({ props }: { props: ActionsScreenProps }) {
         label="Run as"
         defaultOpen={actionAccountIds.size === 0}
         hint={
-          <span className={actionAccountIds.size ? "text-primary" : undefined}>
+          <span className={actionAccountIds.size ? "text-primary-text" : undefined}>
             {summary}
           </span>
         }
@@ -129,7 +129,7 @@ function QuickActionNotice({
       title={
         <>
           <strong>{quickActionContext.title}</strong>
-          <Badge tone="border-primary/30 bg-background text-primary">
+          <Badge tone="border-primary/30 bg-background text-primary-text">
             from dialogs
           </Badge>
           <Badge tone="border-border bg-background text-muted-foreground">

@@ -83,7 +83,7 @@ function LoginReadinessPanel({
     <Panel className="border-primary/20 bg-primary/5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="space-y-1">
-          <p className="type-label text-primary">Login Readiness</p>
+          <p className="type-label text-primary-text">Login Readiness</p>
           <p className="text-sm text-foreground">{configStatus}</p>
           <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
             Codes are sent by Telegram to the official Telegram app for this
@@ -234,7 +234,7 @@ function FinishLoginPanel({
             onSubmit={onCodeSubmit}
           >
             <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <IconMessage2Bolt className="size-4 text-primary" />
+              <IconMessage2Bolt className="size-4 text-primary-text" />
               Telegram code
             </div>
             <Field label="Telegram Code">
@@ -272,7 +272,7 @@ function FinishLoginPanel({
             onSubmit={onPasswordSubmit}
           >
             <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <IconLockPassword className="size-4 text-primary" />
+              <IconLockPassword className="size-4 text-primary-text" />
               Two-factor password
             </div>
             <Field label="2FA Password">

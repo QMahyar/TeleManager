@@ -258,7 +258,7 @@ export function DialogPicker({
             onClick={() => setKindFilter(item.id)}
             className={`rounded-md border px-2 py-0.5 text-xs transition-colors ${
               kindFilter === item.id
-                ? "border-primary/40 bg-primary/10 text-primary"
+                ? "border-primary/40 bg-primary/10 text-primary-text"
                 : "border-border text-muted-foreground hover:bg-muted/40"
             }`}
           >
@@ -308,12 +308,12 @@ export function DialogPicker({
                 />
                 <span className="min-w-0 flex-1 truncate">{dialog.title}</span>
                 {!compatible && !added ? (
-                  <Badge tone="border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                  <Badge tone="border-warning/40 bg-warning/10 text-warning">
                     skipped
                   </Badge>
                 ) : null}
                 {added ? (
-                  <Badge tone="text-primary border-primary/30 bg-primary/10">
+                  <Badge tone="text-primary-text border-primary/30 bg-primary/10">
                     added
                   </Badge>
                 ) : null}
