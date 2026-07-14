@@ -10,7 +10,7 @@ your row when done.
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
 | 001  | Finish optional app-password (middleware, setup hardening, logout, UI) | P1 | M | — | DONE (branch `advisor/001-finish-app-password` @ f5de098) |
-| 002  | HTTP tests for app-password middleware and auth routes | P1 | S | 001 | IN PROGRESS |
+| 002  | HTTP tests for app-password middleware and auth routes | P1 | S | 001 | DONE (branch `advisor/002-app-password-http-tests` @ 4146276; includes 001) |
 | 003  | Cancellable inter-operation queue delay | P1 | S | — | DONE (branch `advisor/003-cancellable-queue-delay` @ bf8ee35) |
 | 004  | Redact message text from queue audit events | P1 | S | — | DONE (branch `advisor/004-redact-queue-audit-payload` @ a97391f) |
 | 005  | Account-settings route integration tests (mocked Telethon) | P2 | M | — | DONE (branch `advisor/005-account-settings-route-tests` @ 0dbf083) |
