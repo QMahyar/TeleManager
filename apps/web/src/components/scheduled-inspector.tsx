@@ -436,7 +436,7 @@ function ManualInspect({
     <Disclosure label="Check another chat">
       <div className="space-y-3">
         <p className="text-xs text-muted-foreground">
-          Look up a specific chat that your schedules don't already target (Telegram
+          Look up a specific chat that your schedules don’t already target (Telegram
           has no way to list every scheduled chat automatically).
         </p>
         <div className="grid gap-3 lg:grid-cols-[16rem_1fr_auto] lg:items-end">

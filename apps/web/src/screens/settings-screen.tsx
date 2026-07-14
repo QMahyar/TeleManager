@@ -212,36 +212,36 @@ function ApiPanel({
   )
 }
 
-const ACCENT_META: Record<Accent, { label: string; detail: string; swatch: string }> = {
+// Swatches derive --primary from [data-accent] blocks in globals.css. Coral is
+// the :root default (no override block), so it alone keeps an annotated hex.
+const ACCENT_META: Record<
+  Accent,
+  { label: string; detail: string; swatch?: string }
+> = {
   coral: {
     label: "Coral",
     detail: "Sunset coral",
-    swatch: "#ff5f5f",
+    swatch: "#ff5f5f", // :root default — no [data-accent] block to derive from
   },
   teal: {
     label: "Teal",
     detail: "Dim teal signal",
-    swatch: "#3FB8A6",
   },
   moonlight: {
     label: "Moonlight",
     detail: "Cool azure",
-    swatch: "#5B9DFF",
   },
   amber: {
     label: "Amber",
     detail: "Warm gold",
-    swatch: "#F5A524",
   },
   arctic: {
     label: "Arctic",
     detail: "Bright cyan",
-    swatch: "#38BDF8",
   },
   emerald: {
     label: "Emerald",
     detail: "Refined green",
-    swatch: "#34D399",
   },
 }
 
@@ -295,8 +295,12 @@ function AppearancePanel({
 
       <div className="flex items-center gap-4 rounded-lg border border-border bg-muted/20 p-4">
         <span
+          data-accent={accent}
+          aria-hidden
           className="size-12 shrink-0 rounded-md border border-border"
-          style={{ backgroundColor: ACCENT_META[accent].swatch }}
+          style={{
+            backgroundColor: ACCENT_META[accent].swatch ?? "var(--primary)",
+          }}
         />
         <div className="space-y-0.5">
           <p className="font-mono text-sm font-medium text-foreground">
@@ -360,8 +364,12 @@ function AppearancePanel({
                 ].filter(Boolean).join(" ")}
               >
                 <span
+                  data-accent={option}
+                  aria-hidden
                   className="size-6 shrink-0 rounded-full border border-black/10"
-                  style={{ backgroundColor: meta.swatch }}
+                  style={{
+                    backgroundColor: meta.swatch ?? "var(--primary)",
+                  }}
                 />
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-medium text-foreground">

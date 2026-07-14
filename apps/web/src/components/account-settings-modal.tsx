@@ -301,7 +301,7 @@ function AccountTtl({ account, flash }: { account: Account; flash: Flash }) {
     <Field
       label="Delete account if away for"
       htmlFor="account-ttl"
-      hint="Telegram automatically deletes this account if you don't come online within this period."
+      hint="Telegram automatically deletes this account if you don’t come online within this period."
     >
       <Select
         id="account-ttl"
@@ -351,7 +351,7 @@ function SessionsTab({ account, flash }: { account: Account; flash: Flash }) {
     <div className="space-y-3">
       <Callout tone="warning" icon={IconDeviceDesktop} title="Active logins for this account">
         Ending a session signs that device out immediately. The current session
-        can't be ended here — use Logout on the account row.
+        can’t be ended here — use Logout on the account row.
       </Callout>
       {hasOthers ? (
         <div className="flex justify-end">

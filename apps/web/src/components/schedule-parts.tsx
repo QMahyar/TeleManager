@@ -192,7 +192,7 @@ export function RecurrenceFields({
           onChange={(event) => update({ stagger: event.target.checked })}
         />
         Stagger sends across chats (offset each chat by ~30s so identical
-        messages don't all fire at once)
+        messages don’t all fire at once)
       </label>
     </section>
   )

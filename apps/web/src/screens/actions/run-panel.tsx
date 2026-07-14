@@ -378,7 +378,7 @@ function ConditionDisclosure({
       hint={
         enabled
           ? `if ${describeCondition(condition)}`
-          : "optional — skip targets that don't match"
+          : "optional — skip targets that don’t match"
       }
       defaultOpen={enabled}
     >
