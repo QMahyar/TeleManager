@@ -27,13 +27,12 @@ export const TIER_BLURB: Record<ActionTier, string> = {
     "Content-creating or spam-prone action Telegram limits hardest (send, forward, join). Spaced the longest, with jitter.",
 }
 
-// Badge colour per tier. Fast = calm primary, standard = neutral, careful = amber
+// Badge colour per tier. Fast = calm primary, standard = neutral, careful =
 // warning — so the operator reads relative risk at a glance.
 export const TIER_BADGE_CLASS: Record<ActionTier, string> = {
-  instant: "border-primary/30 bg-primary/10 text-primary",
+  instant: "border-primary/30 bg-primary/10 text-primary-text",
   standard: "border-border bg-muted text-muted-foreground",
-  sensitive:
-    "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  sensitive: "border-warning/40 bg-warning/10 text-warning",
 }
 
 export function tierForAction(
