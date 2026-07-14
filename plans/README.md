@@ -20,8 +20,8 @@ your row when done.
 | 007  | Scheduler: only rewrite schedules.json when dirty | P3 | S | — | DONE (branch `advisor/007-scheduler-dirty-flag` @ 1e66366) |
 | 008  | Accessible color tokens (warning/info, primary-text, sunset-ink, ring) | P1 | S | — | DONE (branch `advisor/008-accessible-color-tokens` @ 473c489) |
 | 009  | Primary-button legibility, focus rings, motion discipline (primitives) | P1 | M | 008 | DONE (branch `advisor/009-primitives-focus-motion` @ 81c6c18) |
-| 010  | Migrate amber/sky status colors to warning/info tokens | P2 | S | 008 | IN PROGRESS |
-| 011  | Migrate accent-colored glyphs to `text-primary-text` | P2 | M | 008 | TODO |
+| 010  | Migrate amber/sky status colors to warning/info tokens | P2 | S | 008 | DONE (branch `advisor/010-warning-info-tokens` @ 0ec3d3d; residual amber/sky in out-of-scope `lib/*.ts`) |
+| 011  | Migrate accent-colored glyphs to `text-primary-text` | P2 | M | 008 | IN PROGRESS |
 | 012  | Copy punctuation + self-updating accent swatches | P3 | S | — | TODO |
 
 Status values: `TODO` | `IN PROGRESS` | `DONE` | `BLOCKED` | `REJECTED`
