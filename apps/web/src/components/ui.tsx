@@ -445,10 +445,10 @@ export type SignalTone = "ready" | "attention" | "error" | "idle" | "live"
 
 const signalToneClass: Record<SignalTone, string> = {
   ready: "text-primary",
-  attention: "text-amber-500 dark:text-amber-400",
+  attention: "text-warning",
   error: "text-destructive",
   idle: "text-muted-foreground/50",
-  live: "text-sky-500 dark:text-sky-400",
+  live: "text-info",
 }
 
 // Color comes from one `text-*` tone class; the center, halo, and (live) pulse
@@ -828,7 +828,7 @@ const calloutToneClass: Record<CalloutTone, string> = {
   info: "border-border bg-muted/30 text-muted-foreground",
   primary: "border-primary/30 bg-primary/10 text-foreground",
   warning:
-    "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+    "border-warning/40 bg-warning/10 text-warning",
   danger: "border-destructive/40 bg-destructive/10 text-destructive",
 }
 

@@ -308,7 +308,7 @@ export function DialogPicker({
                 />
                 <span className="min-w-0 flex-1 truncate">{dialog.title}</span>
                 {!compatible && !added ? (
-                  <Badge tone="border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                  <Badge tone="border-warning/40 bg-warning/10 text-warning">
                     skipped
                   </Badge>
                 ) : null}

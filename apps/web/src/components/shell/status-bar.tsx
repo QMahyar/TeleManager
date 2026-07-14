@@ -86,7 +86,7 @@ function RunPulse({ activeRun }: { activeRun: QueueRun | null }) {
     <div
       className={[
         "flex min-w-0 flex-1 items-center justify-center gap-2",
-        held ? "text-amber-600 dark:text-amber-400" : "text-sky-600 dark:text-sky-400",
+        held ? "text-warning" : "text-info",
       ].join(" ")}
       role="status"
     >

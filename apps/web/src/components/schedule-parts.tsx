@@ -228,7 +228,7 @@ export function SchedulePreviewCard({ preview }: { preview: SchedulePreview }) {
         </p>
       ) : null}
       {preview.warnings.map((warning) => (
-        <p key={warning} className="text-xs text-amber-600 dark:text-amber-400">
+        <p key={warning} className="text-xs text-warning">
           {warning}
         </p>
       ))}
