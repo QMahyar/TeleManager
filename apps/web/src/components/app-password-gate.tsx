@@ -75,7 +75,7 @@ export function AppPasswordGate({ children }: { children: React.ReactNode }) {
     <div className="grid min-h-dvh place-items-center bg-background px-4">
       <Panel className="w-full max-w-sm space-y-4 shadow-lg">
         <div className="flex items-start gap-3">
-          <span className="grid size-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
+          <span className="grid size-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary-text">
             <IconLock className="size-4.5" />
           </span>
           <StepHeading

@@ -286,12 +286,12 @@ function SyncPreview({ plan, overLimit }: { plan: SyncPlan; overLimit: boolean }
               ) : (
                 <>
                   {account.archiveOps ? (
-                    <Badge tone="border-primary/30 bg-primary/10 text-primary">
+                    <Badge tone="border-primary/30 bg-primary/10 text-primary-text">
                       {account.archiveOps} archive
                     </Badge>
                   ) : null}
                   {account.muteOps ? (
-                    <Badge tone="border-primary/30 bg-primary/10 text-primary">
+                    <Badge tone="border-primary/30 bg-primary/10 text-primary-text">
                       {account.muteOps} mute
                     </Badge>
                   ) : null}

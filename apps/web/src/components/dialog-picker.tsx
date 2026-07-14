@@ -258,7 +258,7 @@ export function DialogPicker({
             onClick={() => setKindFilter(item.id)}
             className={`rounded-md border px-2 py-0.5 text-xs transition-colors ${
               kindFilter === item.id
-                ? "border-primary/40 bg-primary/10 text-primary"
+                ? "border-primary/40 bg-primary/10 text-primary-text"
                 : "border-border text-muted-foreground hover:bg-muted/40"
             }`}
           >
@@ -313,7 +313,7 @@ export function DialogPicker({
                   </Badge>
                 ) : null}
                 {added ? (
-                  <Badge tone="text-primary border-primary/30 bg-primary/10">
+                  <Badge tone="text-primary-text border-primary/30 bg-primary/10">
                     added
                   </Badge>
                 ) : null}

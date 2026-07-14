@@ -89,7 +89,7 @@ export function SettingsScreen(props: SettingsScreenProps) {
                   <span
                     className={[
                       "grid size-7 shrink-0 place-items-center rounded-md [&_svg]:size-4",
-                      active ? "bg-primary/10 text-primary" : "text-muted-foreground"
+                      active ? "bg-primary/10 text-primary-text" : "text-muted-foreground"
                     ].filter(Boolean).join(" ")}
                   >
                     <Icon />
@@ -372,7 +372,7 @@ function AppearancePanel({
                   </span>
                 </span>
                 {active ? (
-                  <span className="type-label text-primary">Active</span>
+                  <span className="type-label text-primary-text">Active</span>
                 ) : null}
               </button>
             )

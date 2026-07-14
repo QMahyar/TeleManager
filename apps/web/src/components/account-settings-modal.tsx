@@ -380,7 +380,7 @@ function SessionsTab({ account, flash }: { account: Account; flash: Flash }) {
               <div className="flex items-center gap-2 font-medium text-foreground">
                 {s.device_model || s.app_name || "Unknown device"}
                 {s.current ? (
-                  <span className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[0.65rem] text-primary">
+                  <span className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[0.65rem] text-primary-text">
                     current
                   </span>
                 ) : null}

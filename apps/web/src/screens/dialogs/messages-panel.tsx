@@ -97,7 +97,7 @@ export function DialogMessagesPanel({
                       #{message.id}
                     </Badge>
                     {message.out ? (
-                      <Badge tone="border-primary/30 bg-primary/10 text-primary">
+                      <Badge tone="border-primary/30 bg-primary/10 text-primary-text">
                         outgoing
                       </Badge>
                     ) : null}

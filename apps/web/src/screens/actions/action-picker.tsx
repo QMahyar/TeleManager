@@ -140,7 +140,7 @@ function ActionCard({
         className={[
           "grid size-8 shrink-0 place-items-center rounded-lg [&_svg]:size-4",
           selected
-            ? "bg-primary/15 text-primary"
+            ? "bg-primary/15 text-primary-text"
             : destructive
               ? "bg-destructive/10 text-destructive"
               : "bg-muted text-muted-foreground"

@@ -214,7 +214,7 @@ function DateTimeField({
             type="button"
             className={`rounded-md border px-2 py-1 text-xs transition-colors ${
               value.trim().toLowerCase() === preset.value
-                ? "border-primary bg-primary/10 text-primary"
+                ? "border-primary bg-primary/10 text-primary-text"
                 : "border-border text-muted-foreground hover:bg-muted/40"
             }`}
             onClick={() => onChange(preset.value)}

@@ -58,7 +58,7 @@ export function Header({
       <div className="flex flex-wrap items-center gap-2">
         {showSelectedCount && selectedCount > 0 ? (
           <span className="hidden sm:block">
-            <Badge tone="border-primary/30 bg-primary/10 text-primary">
+            <Badge tone="border-primary/30 bg-primary/10 text-primary-text">
               {selectedCount} selected
             </Badge>
           </span>
@@ -67,7 +67,7 @@ export function Header({
           <button
             type="button"
             onClick={openActions}
-            className="hidden items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1.5 text-xs text-primary sm:flex"
+            className="hidden items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1.5 text-xs text-primary-text sm:flex"
           >
             {stagedChats} chat{stagedChats === 1 ? "" : "s"} staged
           </button>

@@ -305,7 +305,7 @@ function ChatScheduleCard({
             {chat.count}
           </Badge>
           {chat.owned_count > 0 ? (
-            <Badge tone="text-primary border-primary/30 bg-primary/10">
+            <Badge tone="text-primary-text border-primary/30 bg-primary/10">
               {chat.owned_count} ours
             </Badge>
           ) : null}
@@ -346,7 +346,7 @@ function ChatScheduleCard({
               {message.text || <em className="text-muted-foreground">(no text)</em>}
             </span>
             {message.owned ? (
-              <Badge tone="text-primary border-primary/30 bg-primary/10">
+              <Badge tone="text-primary-text border-primary/30 bg-primary/10">
                 TeleManager
               </Badge>
             ) : (
@@ -571,7 +571,7 @@ function ManualResult({
               {message.text || <em className="text-muted-foreground">(no text)</em>}
             </span>
             {message.owned ? (
-              <Badge tone="text-primary border-primary/30 bg-primary/10">
+              <Badge tone="text-primary-text border-primary/30 bg-primary/10">
                 TeleManager
               </Badge>
             ) : (

@@ -145,7 +145,7 @@ export function RunPanel({
     <div className="space-y-3 rounded-xl border border-primary/20 bg-card p-4 shadow-md xl:sticky xl:top-4 xl:max-h-[calc(100svh-4.5rem)] xl:self-start xl:overflow-auto">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="type-eyebrow flex items-center gap-2 text-primary">
+          <p className="type-eyebrow flex items-center gap-2 text-primary-text">
             <IconPlayerPlay className="size-3.5" />
             Run
           </p>

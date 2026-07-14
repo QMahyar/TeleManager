@@ -206,7 +206,7 @@ export function SchedulePreviewCard({ preview }: { preview: SchedulePreview }) {
           {engineLabel(preview.engine)}
         </Badge>
         {preview.fully_offline ? (
-          <Badge tone="text-primary border-primary/30 bg-primary/10">
+          <Badge tone="text-primary-text border-primary/30 bg-primary/10">
             Fully offline · {preview.total_messages} message(s) pre-scheduled
           </Badge>
         ) : null}
@@ -349,7 +349,7 @@ export function ScheduleModal({
       footer={
         <>
           <p
-            className={`mr-auto text-xs ${blocker ? "text-muted-foreground" : "text-primary"}`}
+            className={`mr-auto text-xs ${blocker ? "text-muted-foreground" : "text-primary-text"}`}
           >
             {blocker || "Ready to schedule."}
           </p>

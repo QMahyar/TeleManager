@@ -95,7 +95,7 @@ export function WelcomeModal({
           const Icon = step.icon
           return (
             <li key={step.title} className="flex items-start gap-3">
-              <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-md bg-primary/10 text-primary [&_svg]:size-4.5">
+              <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-md bg-primary/10 text-primary-text [&_svg]:size-4.5">
                 <Icon />
               </span>
               <div className="space-y-0.5">

@@ -49,7 +49,7 @@ export function SectionTitle({
     <div className="space-y-1">
       {kicker ? (
         <p className="type-eyebrow text-muted-foreground">
-          <span className="text-primary">›</span> {kicker}
+          <span className="text-primary-text">›</span> {kicker}
         </p>
       ) : null}
       <h2 className="type-heading text-foreground">{title}</h2>
@@ -142,7 +142,7 @@ export function StepHeading({
     <div className="flex items-start justify-between gap-3">
       <div className="flex items-start gap-3">
         {step != null ? (
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 font-heading text-sm text-primary [&_svg]:size-4">
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 font-heading text-sm text-primary-text [&_svg]:size-4">
             {step}
           </span>
         ) : null}
@@ -404,7 +404,7 @@ export function StatCard({
       <strong
         className={[
           "mt-1 block type-stat",
-          primary && "text-primary"
+          primary && "text-primary-text"
         ].filter(Boolean).join(" ")}
       >
         {value}
@@ -444,6 +444,7 @@ export function StatCard({
 export type SignalTone = "ready" | "attention" | "error" | "idle" | "live"
 
 const signalToneClass: Record<SignalTone, string> = {
+  // ready stays text-primary (not -text): the dot is decorative fill, the adjacent word carries meaning.
   ready: "text-primary",
   attention: "text-warning",
   error: "text-destructive",

@@ -31,7 +31,7 @@ export function OperationsRail({
   return (
     <div className="tm-toast-in fixed right-4 bottom-12 z-30 sm:right-6">
       <div className="flex items-center gap-3 rounded-2xl border border-border bg-card/95 py-2 pr-2 pl-3 shadow-lg backdrop-blur-sm">
-        <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+        <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary-text">
           <IconBolt className="size-4" />
         </span>
         <div className="min-w-0 leading-tight">
