@@ -5,6 +5,7 @@ Drives the worker directly with a mocked run_warm_action so we assert the two
 properties that matter for a guarded queue: one op failing doesn't abort the run,
 and however a run ends it releases the session locks it held.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -75,10 +76,10 @@ def test_queue_continues_after_single_op_failure(app_context: dict, monkeypatch)
     manager = app_context["main"].manager
     add_account(app_context, "acc-1", "Primary")
 
-    async def no_delay(_seconds):  # keep the inter-op pause from actually sleeping
-        return None
+    async def immediate(_seconds, run):
+        return not run.get("cancel_requested")
 
-    monkeypatch.setattr(qs, "safe_delay", no_delay)
+    monkeypatch.setattr(qs, "_cancellable_sleep", immediate)
 
     # First op fails (ok=False), second succeeds — a single failure must not break the loop.
     outcomes = iter(
@@ -113,10 +114,10 @@ def test_cancel_during_final_op_ends_canceled(app_context: dict, monkeypatch) ->
     manager = app_context["main"].manager
     add_account(app_context, "acc-1", "Primary")
 
-    async def no_delay(_seconds):
-        return None
+    async def immediate(_seconds, run):
+        return not run.get("cancel_requested")
 
-    monkeypatch.setattr(qs, "safe_delay", no_delay)
+    monkeypatch.setattr(qs, "_cancellable_sleep", immediate)
 
     expanded = [_operation("acc-1", "Primary", "@first")]
     queue_runs = {"run-c": _run("run-c", expanded)}
@@ -144,10 +145,10 @@ def test_timeout_fails_fast_without_retry(app_context: dict, monkeypatch) -> Non
     manager = app_context["main"].manager
     add_account(app_context, "acc-1", "Primary")
 
-    async def no_delay(_seconds):
-        return None
+    async def immediate(_seconds, run):
+        return not run.get("cancel_requested")
 
-    monkeypatch.setattr(qs, "safe_delay", no_delay)
+    monkeypatch.setattr(qs, "_cancellable_sleep", immediate)
     # Shrink the ceiling so the test is instant; run_warm_action hangs past it.
     monkeypatch.setattr(qs, "QUEUE_OPERATION_TIMEOUT_SECONDS", 0.05)
 
@@ -180,10 +181,6 @@ def test_long_flood_within_cap_auto_resumes(app_context: dict, monkeypatch) -> N
     manager = app_context["main"].manager
     add_account(app_context, "acc-1", "Primary")
 
-    async def no_delay(_seconds):
-        return None
-
-    monkeypatch.setattr(qs, "safe_delay", no_delay)
     # Don't actually sleep the flood duration; just let the retry proceed.
     slept: list[float] = []
 
@@ -226,10 +223,10 @@ def test_long_flood_beyond_cap_stops_queue(app_context: dict, monkeypatch) -> No
     manager = app_context["main"].manager
     add_account(app_context, "acc-1", "Primary")
 
-    async def no_delay(_seconds):
-        return None
+    async def immediate(_seconds, run):
+        return not run.get("cancel_requested")
 
-    monkeypatch.setattr(qs, "safe_delay", no_delay)
+    monkeypatch.setattr(qs, "_cancellable_sleep", immediate)
 
     async def fake_run_warm_action(_action):
         raise _flood(4000)  # > 900s cap
@@ -255,10 +252,10 @@ def test_pause_gate_holds_then_resumes(app_context: dict, monkeypatch) -> None:
     manager = app_context["main"].manager
     add_account(app_context, "acc-1", "Primary")
 
-    async def no_delay(_seconds):
-        return None
+    async def immediate(_seconds, run):
+        return not run.get("cancel_requested")
 
-    monkeypatch.setattr(qs, "safe_delay", no_delay)
+    monkeypatch.setattr(qs, "_cancellable_sleep", immediate)
     # Speed up the pause gate poll so the test doesn't wait a real second.
     monkeypatch.setattr(qs, "CONTROL_POLL_SECONDS", 0.01)
 
@@ -319,6 +316,41 @@ def test_retry_failed_carries_condition_and_defaults(app_context: dict) -> None:
     assert step.condition is not None and step.condition.field == "unread_count"
     # Delays default from safety settings, not stale hardcoded values.
     assert request.delay_between_actions == qs.safety_defaults()["delay_between_actions"]
+
+
+def test_cancel_during_inter_op_delay_stops_before_next_op(app_context: dict, monkeypatch) -> None:
+    """Cancel mid inter-op delay must stop before the next op runs (not after a full sleep)."""
+    qs = _qs()
+    actions = importlib.import_module("telemanager.telegram_actions")
+    manager = app_context["main"].manager
+    add_account(app_context, "acc-1", "Primary")
+
+    calls = {"n": 0}
+
+    async def cancel_on_first_delay(_seconds, run):
+        # First call is the inter-op delay between op1 and op2.
+        calls["n"] += 1
+        if calls["n"] == 1:
+            run["cancel_requested"] = True
+            return False
+        return not run.get("cancel_requested")
+
+    monkeypatch.setattr(qs, "_cancellable_sleep", cancel_on_first_delay)
+
+    async def fake_run_warm_action(_action):
+        return actions.TelegramActionResult("acc-1", "Primary", True, "send_message", "sent")
+
+    monkeypatch.setattr(manager, "run_warm_action", fake_run_warm_action)
+
+    expanded = [_operation("acc-1", "Primary", "@first"), _operation("acc-1", "Primary", "@second")]
+    queue_runs = {"run-d": _run("run-d", expanded)}
+    asyncio.run(qs.process_action_queue(manager, queue_runs, "run-d", _request(qs), expanded))
+
+    run = queue_runs["run-d"]
+    assert run["status"] == "canceled"
+    assert expanded[0]["status"] == "ok"
+    assert expanded[1]["status"] == "skipped_canceled"
+    assert manager.is_account_busy("acc-1") is False
 
 
 def test_failed_run_releases_session_locks(app_context: dict, monkeypatch) -> None:
