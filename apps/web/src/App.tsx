@@ -2,6 +2,7 @@ import * as React from "react"
 
 import { Toast } from "./ui/toast"
 import { useAppDialog } from "./components/app-dialog"
+import { AppPasswordGate } from "./components/app-password-gate"
 import { AppShell } from "./components/app-shell"
 import { WelcomeModal } from "./components/welcome-modal"
 import { useAppState } from "./hooks/use-app-state"
@@ -14,6 +15,16 @@ import type { ToastTone } from "./types"
 type ToastState = { message: string; tone: ToastTone } | null
 
 export function App() {
+  return (
+    <AppPasswordGate>
+      <AppBody />
+    </AppPasswordGate>
+  )
+}
+
+// Mounted only after the password gate unlocks (or when no password is set), so
+// useAppState's bootstrap fetch never races the login form.
+function AppBody() {
   const [toast, setToast] = React.useState<ToastState>(null)
   const toastTimer = React.useRef<number | null>(null)
   const { loading, run } = useLoading()
