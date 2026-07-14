@@ -366,7 +366,7 @@ export function Skeleton({ className }: { className?: string }) {
   return (
     <div
       aria-hidden
-      className={["animate-pulse rounded-md bg-muted/60", className].filter(Boolean).join(" ")}
+      className={["animate-pulse rounded-md bg-muted/60 motion-reduce:animate-none", className].filter(Boolean).join(" ")}
     />
   )
 }
@@ -394,9 +394,9 @@ export function StatCard({
     // one highlighted metric (coral number); `active` is the filter indicator
     // (ring only) — kept separate so a filterable tile isn't forced coral just by
     // being the current filter.
-    "rounded-xl border border-border bg-card p-4 text-left shadow-md transition-all",
+    "rounded-xl border border-border bg-card p-4 text-left shadow-md transition-transform",
     (primary || active) && "ring-1 ring-primary/40",
-    onClick && "hover:-translate-y-0.5 hover:shadow-lg"
+    onClick && "hover:-translate-y-0.5"
   ].filter(Boolean).join(" ")
   const body = (
     <>

@@ -147,7 +147,7 @@ function PhaseIcon({ phase }: { phase: string }) {
   if (phase === "waiting")
     return <IconHourglassHigh className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
   if (phase === "pausing")
-    return <IconClockPause className="size-4 shrink-0 animate-pulse text-sky-600 dark:text-sky-400" />
+    return <IconClockPause className="size-4 shrink-0 animate-pulse motion-reduce:animate-none text-sky-600 dark:text-sky-400" />
   return (
     <IconLoader2 className="size-4 shrink-0 animate-spin text-sky-600 dark:text-sky-400" />
   )

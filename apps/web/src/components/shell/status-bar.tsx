@@ -94,7 +94,7 @@ function RunPulse({ activeRun }: { activeRun: QueueRun | null }) {
         {/* The ping only reads right for genuine motion; a held run shows a steady
             dot so "paused" doesn't look like it's still working. */}
         {held ? null : (
-          <span className="absolute inline-flex size-full animate-ping rounded-full bg-current opacity-60" />
+          <span className="absolute inline-flex size-full animate-ping rounded-full bg-current opacity-60 motion-reduce:hidden" />
         )}
         <span className="relative inline-flex size-2 rounded-full bg-current" />
       </span>

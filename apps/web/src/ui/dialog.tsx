@@ -47,7 +47,7 @@ function DialogInput({
             onConfirm(inputRef.current?.value.trim())
           }
         }}
-        className="h-9 rounded-md border border-input bg-background px-3 text-base text-foreground outline-none transition-colors focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/30 sm:text-sm"
+        className="h-9 rounded-md border border-input bg-background px-3 text-base text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring sm:text-sm"
       />
     </label>
   )

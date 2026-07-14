@@ -151,8 +151,8 @@ function QueuePanel({
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-primary/15">
             <div
-              className="h-full rounded-full bg-sunset transition-all"
-              style={{ width: `${progress}%` }}
+              className="h-full w-full origin-left rounded-full bg-sunset transition-transform"
+              style={{ transform: `scaleX(${progress / 100})` }}
             />
           </div>
         </div>
@@ -377,7 +377,7 @@ function QuickActions({
               key={tile.label}
               type="button"
               onClick={tile.onClick}
-              className="flex items-center gap-2.5 rounded-xl border border-border bg-background/40 px-3.5 py-3 text-left text-sm font-medium text-foreground transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
+              className="flex items-center gap-2.5 rounded-xl border border-border bg-background/40 px-3.5 py-3 text-left text-sm font-medium text-foreground transition-transform hover:-translate-y-0.5"
             >
               <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
                 <Icon className="size-4" />

@@ -19,14 +19,18 @@ type ButtonProps = React.ComponentProps<"button"> & {
   variant?: ButtonVariant
 }
 
+// Focus uses outline (not ring/box-shadow) so the indicator is instant even
+// while hover transitions animate box-shadow/transform, and at full --ring
+// strength it meets the 3:1 focus-indicator minimum.
 const baseClass =
-  "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-xs/relaxed font-semibold whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-4 focus-visible:ring-ring/20 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
+  "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-xs/relaxed font-semibold whitespace-nowrap transition-[background-color,border-color,color,box-shadow,transform,opacity] outline-none select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
 
 const variants: Record<ButtonVariant, string> = {
   // The signature commit action: the sunset gradient with a coral glow that lifts
-  // on hover. Text is white on the warm gradient in both light and dark.
+  // on hover. Ink is --sunset-ink so both light (near-black) and dark (dark-on-coral)
+  // clear 4.5:1 against the gradient.
   default:
-    "bg-sunset text-white shadow-[0_6px_18px_-4px_color-mix(in_oklab,var(--primary),transparent_50%)] hover:-translate-y-px hover:shadow-[0_10px_26px_-6px_color-mix(in_oklab,var(--primary),transparent_38%)]",
+    "bg-sunset text-sunset-ink shadow-[0_6px_18px_-4px_color-mix(in_oklab,var(--primary),transparent_50%)] hover:-translate-y-px hover:shadow-[0_10px_26px_-6px_color-mix(in_oklab,var(--primary),transparent_38%)]",
   // The everyday secondary action: a raised white chip on the warm canvas.
   outline:
     "border-border bg-card text-foreground shadow-sm hover:bg-secondary hover:text-foreground aria-expanded:bg-secondary aria-expanded:text-foreground",

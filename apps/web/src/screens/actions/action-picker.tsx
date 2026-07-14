@@ -130,10 +130,10 @@ function ActionCard({
       aria-pressed={selected}
       onClick={onSelect}
       className={[
-        "flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-all",
+        "flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-transform",
         selected
           ? "border-primary/40 bg-primary/5 text-foreground shadow-sm ring-1 ring-primary/40"
-          : "border-border bg-card text-foreground hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
+          : "border-border bg-card text-foreground hover:-translate-y-0.5"
       ].filter(Boolean).join(" ")}
     >
       <span
