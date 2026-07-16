@@ -27,7 +27,7 @@ def load_action_runs() -> dict[str, dict[str, Any]]:
 
 def save_action_runs(runs: dict[str, dict[str, Any]]) -> None:
     trimmed = dict(sorted(runs.items(), key=lambda item: item[1].get("created_at", ""), reverse=True)[:100])
-    runs_doc.write(trimmed)
+    runs_doc.write_compact(trimmed)
 
 
 def list_action_runs(runs: dict[str, dict[str, Any]], limit: int = 25) -> list[dict[str, Any]]:

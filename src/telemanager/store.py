@@ -45,6 +45,15 @@ class Document:
         with self._lock:
             write_json(self._path, value)
 
+    def write_compact(self, value: Any) -> None:
+        """Overwrite the whole document under the lock with minimal JSON (no indent).
+
+        Saves disk I/O and file size for large, frequently-updated documents like
+        the action-run history.
+        """
+        with self._lock:
+            write_json(self._path, value, indent=None)
+
     @contextmanager
     def mutate(self, default: T) -> Iterator[T]:
         """Hold the lock across read -> mutate -> write so updates can't be lost.

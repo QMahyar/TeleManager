@@ -46,11 +46,11 @@ def read_json(path: Path, default: Any) -> Any:
         return default
 
 
-def write_json(path: Path, value: Any) -> None:
+def write_json(path: Path, value: Any, *, indent: int | None = 2) -> None:
     ensure_dirs()
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = path.with_suffix(f"{path.suffix}.tmp")
-    tmp_path.write_text(json.dumps(value, indent=2, sort_keys=True), encoding="utf-8")
+    tmp_path.write_text(json.dumps(value, indent=indent, sort_keys=True), encoding="utf-8")
     tmp_path.replace(path)
 
 
