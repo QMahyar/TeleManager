@@ -112,8 +112,7 @@ const ROW_ACTIONS: Record<DialogKind, ActionType[]> = {
     "read_chat",
     "report_spam",
   ],
-  unknown: ["send_message", "export_chat", "delete_chat", "clear_chat", "mute_chat", "archive_chat"],
-  unknown: ["send_message", "delete_chat", "clear_chat", "mute_chat", "archive_chat", "pin_chat"],
+  unknown: ["send_message", "export_chat", "delete_chat", "clear_chat", "mute_chat", "archive_chat", "pin_chat"],
 }
 
 // Bulk actions are limited to ones that make sense applied to many chats at once

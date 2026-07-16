@@ -41,9 +41,9 @@ export function resolveActionMeta(
     description: presentation.description,
     messagePlaceholder: presentation.messagePlaceholder,
     targetHint: presentation.targetHint,
-    // Enforcement fields: prefer API, fall back to constants defaults
-    needsMessage: api?.needs_message ?? presentation.needsMessage,
-    messageOptional: api?.message_optional ?? presentation.messageOptional,
+    // Enforcement fields: prefer API, fall back to safe defaults
+    needsMessage: api?.needs_message ?? false,
+    messageOptional: api?.message_optional ?? false,
     validTargets: api?.valid_targets
       ? new Set(api.valid_targets as TargetKind[])
       : defaultValidTargets(),
