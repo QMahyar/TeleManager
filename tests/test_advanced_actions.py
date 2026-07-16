@@ -283,3 +283,32 @@ def test_forward_message_forwards_multiple_ids(app_context: dict) -> None:
     assert captured["messages"] == [101, 102]
     assert captured["from_peer"] == "@source"
     assert "2 messages" in detail
+
+
+def test_create_scheduled_media_rejects_missing_file(app_context: dict) -> None:
+    actions = _actions_module()
+
+    class FakeClient:
+        async def get_input_entity(self, value):
+            return value
+
+        async def send_file(self, **kwargs):  # pragma: no cover
+            raise AssertionError("send_file must not be called when the file does not exist")
+
+    from datetime import UTC, datetime
+
+    async def run() -> None:
+        await actions.create_scheduled_media(
+            cast(Any, FakeClient()),
+            "@chat",
+            "/nonexistent/path/to/photo.jpg",
+            "",
+            None,
+            datetime(2030, 1, 1, tzinfo=UTC),
+        )
+
+    try:
+        asyncio.run(run())
+        raise AssertionError("Expected ValueError for missing file")
+    except ValueError as exc:
+        assert "not found" in str(exc)
