@@ -39,6 +39,10 @@ class AddContactRequest(BaseModel):
     phone: str = Field(default="", max_length=32)
 
 
+class UnblockUserRequest(BaseModel):
+    user_id: int = Field(gt=0)
+
+
 class AccountTtlRequest(BaseModel):
     days: int = Field(ge=1, le=730)
 
@@ -138,6 +142,14 @@ async def delete_contact(account_id: str, identifier: str) -> dict:
 async def list_blocked(account_id: str) -> dict:
     try:
         return await svc.list_blocked(manager, account_id)
+    except ValueError as exc:
+        raise _bad_request(exc) from exc
+
+
+@router.post("/api/accounts/{account_id}/blocked/unblock")
+async def unblock_user(account_id: str, body: UnblockUserRequest) -> dict:
+    try:
+        return await svc.unblock_user(manager, account_id, body.user_id)
     except ValueError as exc:
         raise _bad_request(exc) from exc
 

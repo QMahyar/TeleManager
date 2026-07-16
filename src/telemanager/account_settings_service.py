@@ -29,6 +29,7 @@ from telethon.tl.functions.contacts import (
     DeleteContactsRequest,
     GetBlockedRequest,
     GetContactsRequest,
+    UnblockRequest,
 )
 from telethon.tl.functions.photos import (
     DeletePhotosRequest,
@@ -281,6 +282,20 @@ async def list_blocked(manager: AccountManager, account_id: str) -> dict[str, An
     async with _client_op(manager, account_id) as (_account, client):
         result = await client(GetBlockedRequest(offset=0, limit=100))
     return {"blocked": [_user_dict(u) for u in getattr(result, "users", [])]}
+
+
+async def unblock_user(manager: AccountManager, account_id: str, user_id: int) -> dict[str, Any]:
+    """Unblock a user by Telegram user ID via the account's session."""
+    async with _client_op(manager, account_id) as (account, client):
+        entity = await client.get_input_entity(user_id)
+        await client(UnblockRequest(id=entity))
+    log_event(
+        "account_user_unblocked",
+        "User unblocked",
+        account.label,
+        {"account_id": account.id, "user_id": user_id},
+    )
+    return {"ok": True}
 
 
 async def get_account_ttl(manager: AccountManager, account_id: str) -> dict[str, Any]:
