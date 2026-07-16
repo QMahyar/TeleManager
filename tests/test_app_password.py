@@ -199,6 +199,66 @@ def test_setup_disable_with_current_password(client) -> None:
     assert open_api.status_code == 200
 
 
+def test_rotate_invalidates_old_session(app_context: dict, client) -> None:
+    """Rotating the password clears all active sessions."""
+    enable_password(client, "old-pass")
+    clear_session_cookies(client)
+
+    # Log in with the original password
+    assert login(client, "old-pass").status_code == 200
+    token = client.cookies.get("telemanager_session")
+    assert token
+    assert token in app_context["main"].active_sessions
+
+    # Rotate — old session must be evicted
+    rotated = client.post(
+        "/api/auth/setup",
+        json={"password": "new-pass", "current_password": "old-pass"},
+    )
+    assert rotated.status_code == 200
+    assert token not in app_context["main"].active_sessions
+
+    # Old cookie is rejected
+    client.cookies.set("telemanager_session", token)
+    assert client.get("/api/config").status_code == 401
+
+    # New password login still works
+    clear_session_cookies(client)
+    assert login(client, "new-pass").status_code == 200
+    assert client.get("/api/config").status_code == 200
+
+
+def test_disable_invalidates_old_session(app_context: dict, client) -> None:
+    """Disabling the password clears all active sessions so re-enabling starts clean."""
+    enable_password(client, "secret-pass")
+    clear_session_cookies(client)
+
+    assert login(client, "secret-pass").status_code == 200
+    token = client.cookies.get("telemanager_session")
+    assert token
+    assert token in app_context["main"].active_sessions
+
+    # Disable — old session must be evicted
+    disabled = client.post(
+        "/api/auth/setup",
+        json={"password": "", "current_password": "secret-pass"},
+    )
+    assert disabled.status_code == 200
+    assert token not in app_context["main"].active_sessions
+    assert len(app_context["main"].active_sessions) == 0
+
+    # Re-enable with a new password — the old token is still gone
+    client.cookies.set("telemanager_session", token)
+    re_enabled = client.post(
+        "/api/auth/setup",
+        json={"password": "fresh-pass"},
+    )
+    assert re_enabled.status_code == 200
+    assert token not in app_context["main"].active_sessions
+    blocked = client.get("/api/config")
+    assert blocked.status_code == 401
+
+
 def test_logout_invalidates_server_session(app_context: dict, client) -> None:
     enable_password(client)
     clear_session_cookies(client)
