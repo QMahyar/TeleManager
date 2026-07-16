@@ -6,6 +6,7 @@ secure localhost access when TeleManager runs on a shared computer.
 from __future__ import annotations
 
 import secrets
+import time
 from datetime import UTC, datetime, timedelta
 
 import bcrypt
@@ -17,6 +18,45 @@ from .documents import app_settings_doc
 
 # Session tokens valid for 24 hours
 SESSION_DURATION_HOURS = 24
+
+# --- Login rate-limiting (in-memory, single-user local app) ---
+MAX_LOGIN_ATTEMPTS = 5
+LOGIN_LOCKOUT_SECONDS = 30
+
+_login_failure_count: int = 0
+_login_locked_until: float = 0.0  # monotonic timestamp
+
+
+def record_failed_login() -> None:
+    """Record a failed login attempt. Locks out after MAX_LOGIN_ATTEMPTS."""
+    global _login_failure_count, _login_locked_until
+    _login_failure_count += 1
+    if _login_failure_count >= MAX_LOGIN_ATTEMPTS:
+        _login_locked_until = time.monotonic() + LOGIN_LOCKOUT_SECONDS
+
+
+def clear_login_failures() -> None:
+    """Reset the failure counter (called on successful login/setup)."""
+    global _login_failure_count, _login_locked_until
+    _login_failure_count = 0
+    _login_locked_until = 0.0
+
+
+def login_backoff_seconds() -> int:
+    """Return 0 if login is allowed, or seconds remaining until lockout expires."""
+    if _login_locked_until <= 0.0:
+        return 0
+    remaining = _login_locked_until - time.monotonic()
+    if remaining <= 0:
+        return 0
+    return int(remaining) + 1  # ceiling-ish: report at least 1 while locked
+
+
+def reset_login_rate_limit() -> None:
+    """Reset rate-limit state. For use in tests only."""
+    global _login_failure_count, _login_locked_until
+    _login_failure_count = 0
+    _login_locked_until = 0.0
 
 
 def is_password_enabled() -> bool:
