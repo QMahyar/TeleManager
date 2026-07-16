@@ -217,3 +217,46 @@ def test_validate_account_route_registered(app_context: dict):
         for method in getattr(route, "methods", None) or ()
     }
     assert ("/api/accounts/{account_id}/validate", "POST") in registered
+
+
+def test_import_session_success(app_context: dict, monkeypatch: pytest.MonkeyPatch):
+    """Upload a minimal .session via TestClient; mock validate_account to avoid
+    Telethon; assert account row + file under sessions dir."""
+    manager = app_context["main"].manager
+    sessions_dir = app_context["sessions_dir"]
+
+    # Mock validate_account to skip Telethon login validation — it just needs
+    # to mark the account as authorized and populate identity fields.
+    async def fake_validate(account_id: str):
+        acct = manager.accounts[account_id]
+        acct.authorized = True
+        acct.username = "imported_user"
+        acct.first_name = "Imported"
+        acct.phone = "+1555000000"
+        manager._save_accounts()
+
+    monkeypatch.setattr(manager, "validate_account", fake_validate)
+
+    # POST a .session file (fake bytes are fine — we skip Telethon validation)
+    response = app_context["client"].post(
+        "/api/sessions/import-files",
+        files=[("files", ("mybot.session", b"fake-sqlite-session-bytes", "application/octet-stream"))],
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload["imported"]) == 1
+    assert payload["failed"] == []
+
+    imported = payload["imported"][0]
+    assert imported["authorized"] is True
+    assert imported["username"] == "imported_user"
+    assert imported["source"] == "import"
+
+    # Verify the .session file exists under the sessions directory
+    session_file = sessions_dir / f"{imported['session_name']}.session"
+    assert session_file.exists()
+    assert session_file.read_bytes() == b"fake-sqlite-session-bytes"
+
+    # Verify account row persisted in the manager
+    assert imported["id"] in manager.accounts

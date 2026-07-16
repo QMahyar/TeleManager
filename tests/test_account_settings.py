@@ -1,15 +1,23 @@
 """Pure-helper checks for account_settings_service (no live client).
 
-Also includes HTTP route tests that mock the service boundary so CI stays offline.
+Also includes HTTP route tests that mock the service boundary so CI stays offline,
+and service-level tests that exercise _client_op / temp_client boundary.
 """
+
+import asyncio
+from contextlib import asynccontextmanager
+from types import SimpleNamespace
 
 import pytest
 from conftest import add_account
+from telethon.errors import RPCError
 
 from telemanager.account_settings_service import (
     _authorization_dict,
     clean_profile_field,
+    get_profile,
     normalize_username,
+    update_profile,
     validate_ttl_days,
     validate_username,
 )
@@ -268,3 +276,124 @@ def test_missing_account_bubbles_400(app_context, client, monkeypatch):
     response = client.get("/api/accounts/missing-id/profile")
     assert response.status_code == 400
     assert "not found" in response.json()["detail"].lower()
+
+
+# ---------------------------------------------------------------------------
+# Service-level tests — mock temp_client boundary, no routes (plan 011)
+# ---------------------------------------------------------------------------
+
+
+class _FakeTelethonClient:
+    """Stub Telethon client that satisfies get_me / GetFullUserRequest etc."""
+
+    def __init__(self, me=None, full_user=None):
+        self._me = me or SimpleNamespace(
+            id=42, first_name="Test", last_name="User", username="testuser", phone="+1555"
+        )
+        self._full_user = full_user or SimpleNamespace(about="bio text")
+        self.calls: list[str] = []
+
+    async def get_me(self):
+        self.calls.append("get_me")
+        return self._me
+
+    async def get_input_entity(self, entity):
+        return SimpleNamespace(user_id=getattr(entity, "id", 0))
+
+    async def __call__(self, request):
+        self.calls.append(type(request).__name__)
+        return SimpleNamespace(full_user=self._full_user)
+
+    async def disconnect(self):
+        return None
+
+
+def test_get_profile_service_layer(app_context: dict, monkeypatch: pytest.MonkeyPatch):
+    """get_profile goes through _client_op -> temp_client and returns the
+    expected dict shape with real Telethon request objects."""
+    account = add_account(app_context, "acc-svc", "SvcAccount")
+    manager = app_context["main"].manager
+
+    fake_client = _FakeTelethonClient()
+
+    @asynccontextmanager
+    async def _ctx(_account_id):
+        yield fake_client
+
+    monkeypatch.setattr(manager, "temp_client", _ctx)
+
+    result = asyncio.run(get_profile(manager, account.id))
+
+    assert result["first_name"] == "Test"
+    assert result["last_name"] == "User"
+    assert result["username"] == "testuser"
+    assert result["phone"] == "+1555"
+    assert result["about"] == "bio text"
+    # Verify both get_me and GetFullUserRequest were called
+    assert "get_me" in fake_client.calls
+    assert "GetFullUserRequest" in fake_client.calls
+
+
+def test_update_profile_service_layer_refreshes_identity(
+    app_context: dict, monkeypatch: pytest.MonkeyPatch,
+):
+    """update_profile calls UpdateProfileRequest then _refresh_account_identity,
+    returning the account's public dict."""
+    account = add_account(app_context, "acc-svc", "SvcAccount")
+    manager = app_context["main"].manager
+
+    fake_client = _FakeTelethonClient()
+    refresh_called = {"called": False}
+
+    async def fake_refresh(acct, client):
+        refresh_called["called"] = True
+        # Simulate what the real refresh does: copy identity from client to account
+        acct.first_name = "Updated"
+        acct.username = "updated_user"
+
+    @asynccontextmanager
+    async def _ctx(_account_id):
+        yield fake_client
+
+    monkeypatch.setattr(manager, "temp_client", _ctx)
+    monkeypatch.setattr(manager, "_refresh_account_identity", fake_refresh)
+
+    result = asyncio.run(update_profile(manager, account.id, first_name="Updated"))
+
+    assert refresh_called["called"] is True
+    assert "UpdateProfileRequest" in fake_client.calls
+    assert result["first_name"] == "Updated"
+
+
+def test_rpc_error_classified_as_value_error(app_context: dict, monkeypatch: pytest.MonkeyPatch):
+    """An RPCError from the Telethon client is caught by _client_op and
+    re-raised as a ValueError with the classified user message."""
+    import telemanager.account_settings_service as svc
+    from telethon.errors import FloodWaitError
+
+    account = add_account(app_context, "acc-svc", "SvcAccount")
+    manager = app_context["main"].manager
+
+    class _BoomClient:
+        async def __call__(self, request):
+            # FloodWaitError(request=None, capture=N) is the correct constructor
+            # for Telethon errors — 'seconds' is derived from 'capture' at init.
+            raise FloodWaitError(request=None, capture=120)
+
+    @asynccontextmanager
+    async def _ctx(_account_id):
+        yield _BoomClient()
+
+    monkeypatch.setattr(manager, "temp_client", _ctx)
+
+    async def _run():
+        async with svc._client_op(manager, account.id) as (_account, client):
+            await client(SimpleNamespace())  # triggers __call__ -> RPCError
+
+    with pytest.raises(ValueError) as exc_info:
+        asyncio.run(_run())
+
+    # classify_telegram_error turns FloodWaitError with seconds>60 into a
+    # "flood_wait_long" category with a message mentioning the wait time.
+    msg = str(exc_info.value)
+    assert "120" in msg or "2m" in msg
