@@ -13,11 +13,16 @@ from telethon import TelegramClient
 from telethon import utils as telethon_utils
 from telethon.errors import FloodWaitError
 from telethon.tl.functions.account import ReportPeerRequest, UpdateNotifySettingsRequest
-from telethon.tl.functions.channels import JoinChannelRequest, LeaveChannelRequest
+from telethon.tl.functions.channels import (
+    EditBannedRequest,
+    JoinChannelRequest,
+    LeaveChannelRequest,
+)
 from telethon.tl.functions.contacts import BlockRequest, UnblockRequest
 from telethon.tl.functions.messages import (
     DeleteHistoryRequest,
     DeleteScheduledMessagesRequest,
+    ExportChatInviteRequest,
     GetScheduledHistoryRequest,
     ImportChatInviteRequest,
     RequestAppWebViewRequest,
@@ -25,6 +30,7 @@ from telethon.tl.functions.messages import (
     StartBotRequest,
 )
 from telethon.tl.types import (
+    ChatBannedRights,
     InputBotAppShortName,
     InputNotifyPeer,
     InputPeerNotifySettings,
@@ -56,6 +62,9 @@ TelegramActionType = Literal[
     "unmute_chat",
     "read_chat",
     "report_spam",
+    "edit_chat_title",
+    "export_invite_link",
+    "kick_or_ban_user",
 ]
 
 
@@ -146,6 +155,12 @@ async def run_telegram_action(client: TelegramClient, action: TelegramAction) ->
             return await read_chat(client, target)
         case "report_spam":
             return await report_spam(client, target)
+        case "edit_chat_title":
+            return await edit_chat_title(client, target, action.message)
+        case "export_invite_link":
+            return await export_invite_link(client, target)
+        case "kick_or_ban_user":
+            return await kick_or_ban_user(client, target, action.message)
     raise ValueError(f"Unsupported action type: {action.action_type}")
 
 
@@ -505,6 +520,108 @@ async def report_spam(client: TelegramClient, target: str) -> str:
         )
     )
     return "Spam reported."
+
+
+# ---------------------------------------------------------------------------
+# Chat & channel admin actions (Plan 013)
+# ---------------------------------------------------------------------------
+
+
+async def edit_chat_title(client: TelegramClient, target: str, message: str | None) -> str:
+    """Edit a chat/channel title and optionally its about text.
+
+    Options (newline key=value in the message/options field):
+        title=New chat title
+        about=New about text (optional, supergroups/channels only)
+
+    Telethon high-level helpers: client.edit_title() and client.edit_about().
+    These dispatch to channels.EditTitleRequest / channels.EditAboutRequest
+    and work on channels and supergroups; basic groups need a different path.
+    """
+    payload = parse_options(message)
+    title = (payload.get("title") or "").strip()
+    about = (payload.get("about") or "").strip()
+    if not title and not about:
+        raise ValueError("Provide at least title=... or about=... in the options field.")
+    peer = await resolve_input_peer(client, target)
+    if title:
+        await client.edit_title(peer, title)
+    if about:
+        await client.edit_about(peer, about)
+    parts = []
+    if title:
+        parts.append(f"title set to '{title}'")
+    if about:
+        parts.append("about updated")
+    return f"Chat {' and '.join(parts)}."
+
+
+async def export_invite_link(client: TelegramClient, target: str) -> str:
+    """Export (create or reuse) a permanent invite link for the target chat.
+
+    Uses messages.ExportChatInviteRequest. The link is returned in the detail
+    string so the audit log records it. Telegram caches per-chat, so calling
+    repeatedly is idempotent — the same link is returned.
+    """
+    peer = await resolve_input_peer(client, target)
+    result = cast(Any, await client(ExportChatInviteRequest(peer=peer)))
+    link = getattr(result, "link", None)
+    if not link:
+        raise ValueError("Telegram did not return an invite link. "
+                         "The account may lack admin rights on this chat.")
+    return f"Invite link: {link}"
+
+
+async def kick_or_ban_user(client: TelegramClient, target: str, message: str | None) -> str:
+    """Kick or ban a single user from a chat.
+
+    Options:
+        user=@username or numeric user ID or t.me link
+        ban=true    — permanently ban (default: kick only, user can rejoin)
+
+    Uses channels.UpdateBannedRequest to set ChatBannedRights. Telegram
+    automatically resolves a kick (send_messages rights = None) vs a ban
+    (all rights revoked). The target user is resolved via get_input_entity.
+    """
+    payload = parse_options(message)
+    user_target = (payload.get("user") or "").strip()
+    if not user_target:
+        raise ValueError("Provide user=@username or user=<numeric_id> in the options field.")
+    do_ban = parse_bool(payload.get("ban"), default=False)
+
+    peer = await resolve_input_peer(client, target)
+    user_entity = await resolve_input_peer(client, user_target)
+
+    # Build the rights payload. For a kick we only revoke send_messages so the
+    # user can rejoin; for a ban we revoke everything including viewing.
+    if do_ban:
+        rights = ChatBannedRights(
+            until_date=None,
+            view_messages=True,
+            send_messages=True,
+            send_media=True,
+            send_stickers=True,
+            send_gifs=True,
+            send_inline=True,
+            embed_links=True,
+            send_polls=True,
+        )
+    else:
+        rights = ChatBannedRights(
+            until_date=None,
+            view_messages=False,
+            send_messages=True,
+            send_media=True,
+            send_stickers=True,
+            send_gifs=True,
+            send_inline=True,
+            embed_links=True,
+            send_polls=True,
+        )
+
+    await client(EditBannedRequest(channel=peer, participant=user_entity, banned_rights=rights))
+    action_word = "banned" if do_ban else "kicked"
+    return f"User {user_target} {action_word} from {target}."
 
 
 # ---------------------------------------------------------------------------
@@ -947,6 +1064,16 @@ ACTION_META: dict[TelegramActionType, ActionMeta] = {
     "unmute_chat": ActionMeta("instant", _CHAT_TARGETS, "management"),
     "read_chat": ActionMeta("instant", _CHAT_TARGETS, "management"),
     "report_spam": ActionMeta("standard", _CHAT_TARGETS, "moderation", destructive=True),
+    # Chat & channel admin (Plan 013)
+    "edit_chat_title": ActionMeta(
+        "standard", _CHAT_TARGETS, "admin", needs_message=True
+    ),
+    "export_invite_link": ActionMeta(
+        "instant", _CHAT_TARGETS, "admin"
+    ),
+    "kick_or_ban_user": ActionMeta(
+        "sensitive", _CHAT_TARGETS, "admin", needs_message=True, destructive=True
+    ),
 }
 
 # Derived projections — keep these as views over ACTION_META, never hand-edited.

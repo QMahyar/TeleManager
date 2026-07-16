@@ -82,6 +82,16 @@ function validateSchedule(value: string): string | null {
   return "Use a date/time, or a relative value like +15m, +2h, +1d."
 }
 
+function validateUsernameOrId(value: string): string | null {
+  const clean = value.trim()
+  if (!clean) return "Enter a username or numeric user id."
+  // Allow @username, bare username, numeric id, or a t.me link
+  if (/^-?\d+$/.test(clean)) return null
+  if (/^@?[A-Za-z0-9_]{4,}$/.test(clean.replace(/^@/, ""))) return null
+  if (/^https?:\/\/(t\.me|telegram\.me)/.test(clean)) return null
+  return "Enter @username, a numeric user id, or a t.me user link."
+}
+
 function validateReferralValue(value: string, all: FieldValues): string | null {
   const clean = value.trim()
   if (!clean) return null
@@ -432,6 +442,73 @@ const SCHEMAS: Partial<Record<ActionType, ActionFormSchema>> = {
         result.referral_value = keyed.start
       }
       return result
+    },
+  },
+  edit_chat_title: {
+    fields: [
+      {
+        name: "title",
+        label: "New title",
+        kind: "text",
+        required: false,
+        placeholder: "New chat title…",
+        help: "Leave empty to keep the current title and only update the about text.",
+        hint: "Sets the display name of the chat or channel visible to all members. Requires admin rights in the target chat.",
+      },
+      {
+        name: "about",
+        label: "About (optional)",
+        kind: "textarea",
+        placeholder: "New about text…",
+        help: "Channel/supergroup description shown in the info screen.",
+        hint: "Updates the 'about' section (chat description). Only channels and supergroups support this. Leave empty to keep the current text.",
+      },
+    ],
+    serialize: (v) => {
+      const lines: string[] = []
+      const title = str(v.title).trim()
+      if (title) lines.push(`title=${title}`)
+      const about = str(v.about).trim()
+      if (about) lines.push(`about=${about}`)
+      return lines.join("\n")
+    },
+    deserialize: (m) => {
+      const { keyed } = splitKeyedLines(m, ["title", "about"])
+      return { title: keyed.title ?? "", about: keyed.about ?? "" }
+    },
+  },
+  export_invite_link: {
+    fields: [],
+    serialize: () => "",
+  },
+  kick_or_ban_user: {
+    fields: [
+      {
+        name: "user",
+        label: "User to kick/ban",
+        kind: "text",
+        required: true,
+        placeholder: "@username or numeric user ID",
+        validate: validateUsernameOrId,
+        help: "The single user to remove. Only one user per action.",
+        hint: "Identifies the user to kick or ban by @username, numeric id, or t.me link. Exactly one user per action — no bulk operations.",
+      },
+      {
+        name: "ban",
+        label: "Ban permanently",
+        kind: "checkbox",
+        default: false,
+        hint: "On permanently prevents the user from rejoining. Off is a kick only — the user can rejoin via a new invite link.",
+      },
+    ],
+    serialize: (v) => {
+      const user = str(v.user).trim()
+      const ban = v.ban === true ? "true" : "false"
+      return `user=${user}\nban=${ban}`
+    },
+    deserialize: (m) => {
+      const { keyed } = splitKeyedLines(m, ["user", "ban"])
+      return { user: keyed.user ?? "", ban: keyed.ban === "true" }
     },
   },
 }

@@ -10,6 +10,7 @@ import {
   IconDownload,
   IconEraser,
   IconFlag,
+  IconLink,
   IconLogout,
   IconMessage,
   IconPencil,
@@ -18,9 +19,11 @@ import {
   IconPinnedOff,
   IconPlus,
   IconRobot,
+  IconTitle,
   IconTrash,
   IconTrashX,
   IconUserCheck,
+  IconUserMinus,
 } from "@tabler/icons-react"
 import type * as React from "react"
 
@@ -53,4 +56,7 @@ export const ACTION_ICONS: Record<ActionType, React.ElementType> = {
   delete_chat: IconTrashX,
   clear_chat: IconEraser,
   report_spam: IconFlag,
+  edit_chat_title: IconTitle,
+  export_invite_link: IconLink,
+  kick_or_ban_user: IconUserMinus,
 }

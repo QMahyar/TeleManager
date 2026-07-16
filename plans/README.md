@@ -23,6 +23,7 @@ your row when done.
 | 010  | Migrate amber/sky status colors to warning/info tokens | P2 | S | 008 | DONE (branch `advisor/010-warning-info-tokens` @ 0ec3d3d; residual `lib/*.ts` fixed in review) |
 | 011  | Migrate accent-colored glyphs to `text-primary-text` | P2 | M | 008 | DONE (branch `advisor/011-primary-text-migration` @ 09fcb5f) |
 | 012  | Copy punctuation + self-updating accent swatches | P3 | S | — | DONE (branch `advisor/012-copy-and-swatches` @ d4d58e2) |
+| 013  | Spike chat & channel admin (ACTION_META) | P2 | M | — | DONE (branch `advisor/013-spike-chat-channel-admin`) |
 
 Status values: `TODO` | `IN PROGRESS` | `DONE` | `BLOCKED` | `REJECTED`
 
