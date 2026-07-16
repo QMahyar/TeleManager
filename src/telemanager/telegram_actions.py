@@ -254,6 +254,8 @@ async def create_scheduled_media(
     clean_file = (file or "").strip()
     if not clean_file:
         raise ValueError("Scheduled media requires a file path.")
+    if not os.path.isfile(clean_file):
+        raise ValueError(f"Media file not found: {clean_file}")
     peer = await resolve_input_peer(client, target)
     kwargs: dict[str, Any] = {"caption": caption or "", "schedule": when}
     if parse_mode:
