@@ -134,6 +134,24 @@ class AccountManager:
             api_id, api_hash = self.get_api_credentials()
             normalized_phone = phone.strip()
             account = self._find_or_create_account(normalized_phone, label)
+
+            # If this account already has a pending login, disconnect the old client
+            # and release its session lock so we can open a fresh one.
+            old_login = self.pending_logins.pop(account.id, None)
+            if old_login is not None:
+                await _disconnect(old_login.client)
+                self.end_exclusive([account.id])
+
+            # Hold the exclusive session lock for the duration of the login flow
+            # (released by _complete_login on success, or in the except block on
+            # failure) so no other task can open a second Telethon client on the
+            # same .session SQLite file.
+            if not await self.try_begin_exclusive([account.id]):
+                raise AccountBusyError(
+                    "This account is busy with a running queue or schedule. "
+                    "Wait for it to finish, then try again."
+                )
+
             client = self._new_client(account.session_name, api_id, api_hash)
             try:
                 await self._connect_client(client)
@@ -155,6 +173,7 @@ class AccountManager:
                 account.status = "error"
                 account.last_error = self._login_error_message(exc)
                 self._save_accounts()
+                self.end_exclusive([account.id])
                 raise ValueError(account.last_error) from exc
 
     async def confirm_code(self, account_id: str, code: str) -> AccountRecord:
@@ -428,6 +447,7 @@ class AccountManager:
         self.clients.pop(account.id, None)
         self.pending_logins.pop(account.id, None)
         self._save_accounts()
+        self.end_exclusive([account.id])
 
     async def _refresh_account_identity(self, account: AccountRecord, client: TelegramClient) -> None:
         me = await client.get_me()
