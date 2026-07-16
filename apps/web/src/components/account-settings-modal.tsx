@@ -3,11 +3,13 @@ import * as React from "react"
 import {
   IconAddressBook,
   IconBan,
+  IconCheck,
   IconDeviceDesktop,
+  IconLoader2,
   IconTrash,
   IconUser,
 } from "@tabler/icons-react"
-import { useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { Button } from "../ui/button"
 import { ModalShell } from "../ui/modal"
@@ -87,7 +89,7 @@ export function AccountSettingsModal({
       {tab === "profile" ? <ProfileTab account={account} flash={flash} /> : null}
       {tab === "sessions" ? <SessionsTab account={account} flash={flash} /> : null}
       {tab === "contacts" ? <ContactsTab account={account} flash={flash} /> : null}
-      {tab === "blocked" ? <BlockedTab account={account} /> : null}
+      {tab === "blocked" ? <BlockedTab account={account} flash={flash} /> : null}
     </ModalShell>
   )
 }
@@ -198,6 +200,9 @@ function ProfileTab({ account, flash }: { account: Account; flash: Flash }) {
       </div>
       <div className="border-t border-border pt-4">
         <AccountTtl account={account} flash={flash} />
+      </div>
+      <div className="border-t border-border pt-4">
+        <FleetApply account={account} saved={saved} flash={flash} />
       </div>
     </div>
   )
@@ -316,6 +321,197 @@ function AccountTtl({ account, flash }: { account: Account; flash: Flash }) {
         ))}
       </Select>
     </Field>
+  )
+}
+
+// --- Fleet Apply ----------------------------------------------------------
+
+type FleetField = "first_name" | "last_name" | "about"
+
+const FLEET_FIELD_LABELS: Record<FleetField, string> = {
+  first_name: "First name",
+  last_name: "Last name",
+  about: "Bio",
+}
+
+type FleetResult = { account_id: string; label: string; ok: boolean; error?: string }
+
+function FleetApply({
+  account,
+  saved,
+  flash,
+}: {
+  account: Account
+  saved: ProfileForm
+  flash: Flash
+}) {
+  const accountsQuery = useQuery({
+    queryKey: ["accounts"],
+    queryFn: () => api<{ accounts: Account[] }>("/api/accounts"),
+  })
+  const [open, setOpen] = React.useState(false)
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
+  const [selectedFields, setSelectedFields] = React.useState<Set<FleetField>>(new Set(["first_name", "last_name", "about"]))
+  const [running, setRunning] = React.useState(false)
+  const [results, setResults] = React.useState<FleetResult[] | null>(null)
+
+  const otherAccounts = (accountsQuery.data?.accounts ?? []).filter(
+    (a) => a.id !== account.id && a.authorized && !a.last_error,
+  )
+
+  function toggleAccount(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleField(field: FleetField) {
+    setSelectedFields((prev) => {
+      const next = new Set(prev)
+      if (next.has(field)) next.delete(field)
+      else next.add(field)
+      return next
+    })
+  }
+
+  async function apply() {
+    if (selectedIds.size === 0 || selectedFields.size === 0) return
+    setRunning(true)
+    setResults(null)
+    const fleetResults: FleetResult[] = []
+    const payload: Record<string, string> = {}
+    for (const field of selectedFields) {
+      payload[field] = saved[field] ?? ""
+    }
+    for (const id of selectedIds) {
+      const acct = otherAccounts.find((a) => a.id === id)
+      const label = acct?.label || acct?.session_name || id
+      try {
+        await api(`/api/accounts/${id}/profile`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+        fleetResults.push({ account_id: id, label, ok: true })
+      } catch (err) {
+        fleetResults.push({ account_id: id, label, ok: false, error: msg(err, "Failed") })
+      }
+    }
+    setResults(fleetResults)
+    setRunning(false)
+    const okCount = fleetResults.filter((r) => r.ok).length
+    const failCount = fleetResults.length - okCount
+    if (failCount === 0) {
+      flash(`Applied to ${okCount} account${okCount === 1 ? "" : "s"}.`, "success")
+    } else {
+      flash(`Applied: ${okCount} ok, ${failCount} failed.`, "error")
+    }
+  }
+
+  if (!open) {
+    return (
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-foreground">Apply to fleet</p>
+          <p className="text-xs text-muted-foreground">Copy safe profile fields to other accounts.</p>
+        </div>
+        <Button size="sm" variant="outline" disabled={otherAccounts.length === 0} onClick={() => setOpen(true)}>
+          Apply to fleet
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium text-foreground">Apply to fleet</p>
+        <Button size="sm" variant="ghost" onClick={() => { setOpen(false); setResults(null) }}>
+          Close
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Copy profile fields from this account to other ready accounts. Username and photo are excluded.
+      </p>
+      {accountsQuery.isLoading ? (
+        <SectionLoader label="Loading accounts…" />
+      ) : otherAccounts.length === 0 ? (
+        <p className="text-xs text-muted-foreground">No other ready accounts available.</p>
+      ) : (
+        <>
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-muted-foreground">Target accounts</p>
+            {otherAccounts.map((a) => (
+              <label
+                key={a.id}
+                className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface-well/30 px-3 py-2 text-xs"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(a.id)}
+                  onChange={() => toggleAccount(a.id)}
+                  disabled={running}
+                  className="size-3.5 rounded border-border accent-primary"
+                />
+                <span className="truncate font-medium text-foreground">{a.label || a.session_name}</span>
+                {a.username ? <span className="text-muted-foreground">@{a.username}</span> : null}
+              </label>
+            ))}
+          </div>
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-muted-foreground">Fields to apply</p>
+            {(["first_name", "last_name", "about"] as FleetField[]).map((field) => (
+              <label
+                key={field}
+                className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface-well/30 px-3 py-2 text-xs"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedFields.has(field)}
+                  onChange={() => toggleField(field)}
+                  disabled={running}
+                  className="size-3.5 rounded border-border accent-primary"
+                />
+                <span className="font-medium text-foreground">{FLEET_FIELD_LABELS[field]}</span>
+                <span className="text-muted-foreground">"{saved[field] || ""}"</span>
+              </label>
+            ))}
+          </div>
+          <div className="flex justify-end">
+            <Button
+              size="comfortable"
+              disabled={running || selectedIds.size === 0 || selectedFields.size === 0}
+              onClick={() => void apply()}
+            >
+              {running ? <IconLoader2 className="size-4 animate-spin" /> : <IconCheck className="size-4" />}
+              {running ? "Applying…" : `Apply to ${selectedIds.size} account${selectedIds.size === 1 ? "" : "s"}`}
+            </Button>
+          </div>
+        </>
+      )}
+      {results ? (
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-muted-foreground">Results</p>
+          {results.map((r) => (
+            <div
+              key={r.account_id}
+              className="flex items-center gap-2 rounded-lg border border-border bg-surface-well/30 px-3 py-1.5 text-xs"
+            >
+              {r.ok ? (
+                <IconCheck className="size-3.5 shrink-0 text-primary-text" />
+              ) : (
+                <IconBan className="size-3.5 shrink-0 text-destructive" />
+              )}
+              <span className="truncate font-medium text-foreground">{r.label}</span>
+              {r.error ? <span className="text-muted-foreground">{r.error}</span> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
   )
 }
 
@@ -521,10 +717,24 @@ function ContactsTab({ account, flash }: { account: Account; flash: Flash }) {
 
 // --- Blocked -------------------------------------------------------------
 
-function BlockedTab({ account }: { account: Account }) {
+function BlockedTab({ account, flash }: { account: Account; flash: Flash }) {
+  const queryClient = useQueryClient()
   const query = useQuery({
     queryKey: ["account-blocked", account.id],
     queryFn: () => api<{ blocked: ContactUser[] }>(`/api/accounts/${account.id}/blocked`),
+  })
+  const unblockMutation = useMutation({
+    mutationFn: (userId: number) =>
+      api(`/api/accounts/${account.id}/blocked/unblock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId }),
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["account-blocked", account.id] })
+      flash("User unblocked.", "success")
+    },
+    onError: (err: unknown) => flash(msg(err, "Could not unblock user."), "error"),
   })
 
   if (query.isLoading) return <SectionLoader label="Loading blocked users…" />
@@ -536,16 +746,23 @@ function BlockedTab({ account }: { account: Account }) {
   }
   return (
     <div className="space-y-1.5">
-      <Callout tone="info">
-        Unblock a user from the Actions screen (block / unblock action).
-        {blocked.length >= 100 ? " Showing the first 100 blocked users." : ""}
-      </Callout>
+      {blocked.length >= 100 ? (
+        <Callout tone="info">Showing the first 100 blocked users.</Callout>
+      ) : null}
       {blocked.map((u) => (
         <div
           key={u.id ?? u.username}
-          className="rounded-lg border border-border bg-surface-well/30 px-3 py-2 text-xs"
+          className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface-well/30 px-3 py-2 text-xs"
         >
           <ContactIdentity user={u} />
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={unblockMutation.isPending || u.id == null}
+            onClick={() => u.id != null && unblockMutation.mutate(u.id)}
+          >
+            Unblock
+          </Button>
         </div>
       ))}
     </div>

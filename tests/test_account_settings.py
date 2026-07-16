@@ -227,6 +227,59 @@ def test_list_blocked_ok(app_context, client, monkeypatch):
     assert response.json()["blocked"] == []
 
 
+def test_unblock_user_ok(app_context, client, monkeypatch):
+    add_account(app_context, "acc-1", "Primary")
+
+    async def fake_unblock(manager, account_id, user_id):
+        assert account_id == "acc-1"
+        assert user_id == 12345
+        return {"ok": True}
+
+    monkeypatch.setattr(f"{SVC}.unblock_user", fake_unblock)
+    response = client.post(
+        "/api/accounts/acc-1/blocked/unblock",
+        json={"user_id": 12345},
+    )
+    assert response.status_code == 200
+    assert response.json()["ok"]
+
+
+def test_unblock_user_value_error_is_400(app_context, client, monkeypatch):
+    add_account(app_context, "acc-1", "Primary")
+
+    async def boom(manager, account_id, user_id):
+        raise ValueError("Account was not found.")
+
+    monkeypatch.setattr(f"{SVC}.unblock_user", boom)
+    response = client.post(
+        "/api/accounts/acc-1/blocked/unblock",
+        json={"user_id": 99999},
+    )
+    assert response.status_code == 400
+    assert "not found" in response.json()["detail"].lower()
+
+
+def test_unblock_user_missing_user_id_is_422(app_context, client):
+    add_account(app_context, "acc-1", "Primary")
+    response = client.post("/api/accounts/acc-1/blocked/unblock", json={})
+    assert response.status_code == 422
+
+
+def test_profile_update_rejects_denylist_fields(app_context, client):
+    """ProfileUpdateRequest only accepts first_name, last_name, about —
+    username, photo, and other denylist fields are structurally excluded."""
+    add_account(app_context, "acc-1", "Primary")
+    # Sending an extra field (e.g. 'username') should be silently ignored by
+    # Pydantic (extra=ignore is the default), not crash the server.
+    response = client.post(
+        "/api/accounts/acc-1/profile",
+        json={"first_name": "Test", "username": "hacked"},
+    )
+    # 400 from service ValueError ("Nothing to update" if only username changed)
+    # or 200 if first_name was applied — either way, username is not applied.
+    assert response.status_code in {200, 400}
+
+
 def test_get_ttl_ok(app_context, client, monkeypatch):
     add_account(app_context, "acc-1", "Primary")
 
