@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 from conftest import add_account
-from telethon.tl.types import Channel, Chat, ChatPhotoEmpty, User
+from telethon.tl.types import Channel, ChatPhotoEmpty, User
 
 from telemanager.dialogs_service import (
     CachedDialog,
@@ -23,7 +23,6 @@ from telemanager.dialogs_service import (
     search_result_to_dict,
 )
 from telemanager.telegram_ids import mark_chat_id
-
 
 # ---------------------------------------------------------------------------
 # Fake helpers

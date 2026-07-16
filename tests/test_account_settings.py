@@ -10,7 +10,6 @@ from types import SimpleNamespace
 
 import pytest
 from conftest import add_account
-from telethon.errors import RPCError
 
 from telemanager.account_settings_service import (
     _authorization_dict,
@@ -421,8 +420,9 @@ def test_update_profile_service_layer_refreshes_identity(
 def test_rpc_error_classified_as_value_error(app_context: dict, monkeypatch: pytest.MonkeyPatch):
     """An RPCError from the Telethon client is caught by _client_op and
     re-raised as a ValueError with the classified user message."""
-    import telemanager.account_settings_service as svc
     from telethon.errors import FloodWaitError
+
+    import telemanager.account_settings_service as svc
 
     account = add_account(app_context, "acc-svc", "SvcAccount")
     manager = app_context["main"].manager

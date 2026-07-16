@@ -11,14 +11,12 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from conftest import add_account
 from telethon.errors import (
     PasswordHashInvalidError,
     PhoneCodeInvalidError,
     SessionPasswordNeededError,
 )
-
-from conftest import add_account
-
 
 PHONE = "+15551234567"
 
