@@ -240,6 +240,18 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
     description: "Restore notifications for a muted chat.",
     targetHint: HINT_CHAT_TARGET,
   },
+  pin_chat: {
+    label: "Pin chat",
+    category: "management",
+    description: "Pin a chat to the top of the chat list.",
+    targetHint: HINT_CHAT_TARGET,
+  },
+  unpin_chat: {
+    label: "Unpin chat",
+    category: "management",
+    description: "Unpin a chat from the top of the chat list.",
+    targetHint: HINT_CHAT_TARGET,
+  },
   read_chat: {
     label: "Mark as read",
     category: "management",

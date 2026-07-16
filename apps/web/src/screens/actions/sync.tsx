@@ -32,6 +32,7 @@ type AccountSummary = {
   dialogCount: number
   archiveOps: number
   muteOps: number
+  pinOps: number
   total: number
 }
 
@@ -69,6 +70,7 @@ export function SyncPanel({
   const [options, setOptions] = React.useState<SyncOptions>({
     archive: true,
     mute: true,
+    pin: false,
   })
   const [plan, setPlan] = React.useState<SyncPlan | null>(null)
 
@@ -92,7 +94,7 @@ export function SyncPanel({
     if (!sourceId) return flash("Pick a source account.", "error")
     const targets = [...targetIds].filter((id) => id !== sourceId)
     if (!targets.length) return flash("Pick at least one target account.", "error")
-    if (!options.archive && !options.mute) {
+    if (!options.archive && !options.mute && !options.pin) {
       return flash("Pick at least one state to sync.", "error")
     }
     await guarded(async () => {
@@ -115,6 +117,7 @@ export function SyncPanel({
           dialogCount: dialogs.length,
           archiveOps: ops.filter((op) => op.action_type.includes("archive")).length,
           muteOps: ops.filter((op) => op.action_type.includes("mute")).length,
+          pinOps: ops.filter((op) => op.action_type.includes("pin")).length,
           total: ops.length,
         })
       })
@@ -138,7 +141,7 @@ export function SyncPanel({
         <EmptyState
           icon={IconArrowsLeftRight}
           title="Need two logged-in accounts"
-          detail="Sync copies archive and mute state from one account's chats onto another's. Log in at least two accounts to use it."
+          detail="Sync copies archive, mute, and pin state from one account's chats onto another's. Log in at least two accounts to use it."
         />
       </div>
     )
@@ -149,10 +152,10 @@ export function SyncPanel({
       <SectionTitle
         kicker="Multi-account"
         title="Sync chat state"
-        detail="Copy archive and mute state from a source account onto the matching chats (same @username or id) of one or more targets. Only chats both accounts share are touched; it runs through the guarded action queue."
+        detail="Copy archive, mute, and pin state from a source account onto the matching chats (same @username or id) of one or more targets. Only chats both accounts share are touched; it runs through the guarded action queue."
       />
       <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Source account" hint="The account whose archive/mute state is copied FROM. Targets are changed to match it.">
+        <Field label="Source account" hint="The account whose archive/mute/pin state is copied FROM. Targets are changed to match it.">
           <Select
             value={sourceId}
             onChange={(event) => {
@@ -197,6 +200,17 @@ export function SyncPanel({
                 }}
               />
               Mute / unmute
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={options.pin}
+                onChange={(event) => {
+                  setOptions((o) => ({ ...o, pin: event.target.checked }))
+                  setPlan(null)
+                }}
+              />
+              Pin / unpin
             </label>
           </div>
         </div>
@@ -293,6 +307,11 @@ function SyncPreview({ plan, overLimit }: { plan: SyncPlan; overLimit: boolean }
                   {account.muteOps ? (
                     <Badge tone="border-primary/30 bg-primary/10 text-primary-text">
                       {account.muteOps} mute
+                    </Badge>
+                  ) : null}
+                  {account.pinOps ? (
+                    <Badge tone="border-primary/30 bg-primary/10 text-primary-text">
+                      {account.pinOps} pin
                     </Badge>
                   ) : null}
                 </>

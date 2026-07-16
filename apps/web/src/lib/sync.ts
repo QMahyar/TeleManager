@@ -1,15 +1,15 @@
 import { dialogTarget } from "./dialog-resolver"
 import type { ActionType, QueueStep, TelegramDialog } from "../types"
 
-// Multi-account sync: copy archive/mute state from one account's chats onto the
-// matching chats of other accounts. This is purely a *queue builder* — the diff
-// becomes ordinary archive/mute steps that run through the existing guarded,
-// rate-limited, audited action queue. No new backend action type is involved.
+// Multi-account sync: copy archive/mute/pin state from one account's chats onto
+// the matching chats of other accounts. This is purely a *queue builder* — the
+// diff becomes ordinary archive/mute/pin steps that run through the existing
+// guarded, rate-limited, audited action queue.
 
 // Queue validation caps a step at 25 targets; chunk wider diffs across steps.
 export const MAX_TARGETS_PER_STEP = 25
 
-export type SyncOptions = { archive: boolean; mute: boolean }
+export type SyncOptions = { archive: boolean; mute: boolean; pin: boolean }
 export type SyncTargetAccount = { accountId: string; dialogs: TelegramDialog[] }
 export type SyncOp = { action_type: ActionType; target: string; title: string }
 
@@ -24,8 +24,8 @@ export function syncKey(dialog: TelegramDialog): string {
 }
 
 // The per-target operations needed to make `target`'s chats match `source`'s
-// archive/mute state. Only chats present in BOTH accounts are touched — we never
-// archive or mute a chat the target account isn't in.
+// archive/mute/pin state. Only chats present in BOTH accounts are touched — we
+// never archive, mute, or pin a chat the target account isn't in.
 export function syncDiff(
   source: TelegramDialog[],
   target: TelegramDialog[],
@@ -46,6 +46,13 @@ export function syncDiff(
     if (options.mute && Boolean(src.muted) !== Boolean(dst.muted)) {
       ops.push({
         action_type: src.muted ? "mute_chat" : "unmute_chat",
+        target: dialogTarget(dst),
+        title: dst.title,
+      })
+    }
+    if (options.pin && Boolean(src.pinned) !== Boolean(dst.pinned)) {
+      ops.push({
+        action_type: src.pinned ? "pin_chat" : "unpin_chat",
         target: dialogTarget(dst),
         title: dst.title,
       })

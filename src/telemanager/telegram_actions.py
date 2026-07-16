@@ -23,9 +23,11 @@ from telethon.tl.functions.messages import (
     RequestAppWebViewRequest,
     RequestMainWebViewRequest,
     StartBotRequest,
+    ToggleDialogPinRequest,
 )
 from telethon.tl.types import (
     InputBotAppShortName,
+    InputDialogPeer,
     InputNotifyPeer,
     InputPeerNotifySettings,
     InputReportReasonSpam,
@@ -54,6 +56,8 @@ TelegramActionType = Literal[
     "unarchive_chat",
     "mute_chat",
     "unmute_chat",
+    "pin_chat",
+    "unpin_chat",
     "read_chat",
     "report_spam",
 ]
@@ -142,6 +146,10 @@ async def run_telegram_action(client: TelegramClient, action: TelegramAction) ->
             return await mute_chat(client, target)
         case "unmute_chat":
             return await unmute_chat(client, target)
+        case "pin_chat":
+            return await pin_chat(client, target)
+        case "unpin_chat":
+            return await unpin_chat(client, target)
         case "read_chat":
             return await read_chat(client, target)
         case "report_spam":
@@ -485,6 +493,18 @@ async def unmute_chat(client: TelegramClient, target: str) -> str:
         )
     )
     return "Chat unmuted."
+
+
+async def pin_chat(client: TelegramClient, target: str) -> str:
+    entity = await resolve_input_peer(client, target)
+    await client(ToggleDialogPinRequest(peer=InputDialogPeer(peer=entity), pinned=True))
+    return "Dialog pinned."
+
+
+async def unpin_chat(client: TelegramClient, target: str) -> str:
+    entity = await resolve_input_peer(client, target)
+    await client(ToggleDialogPinRequest(peer=InputDialogPeer(peer=entity), pinned=False))
+    return "Dialog unpinned."
 
 
 async def read_chat(client: TelegramClient, target: str) -> str:
@@ -945,6 +965,8 @@ ACTION_META: dict[TelegramActionType, ActionMeta] = {
     "unarchive_chat": ActionMeta("instant", _CHAT_TARGETS, "management"),
     "mute_chat": ActionMeta("instant", _CHAT_TARGETS, "management"),
     "unmute_chat": ActionMeta("instant", _CHAT_TARGETS, "management"),
+    "pin_chat": ActionMeta("instant", _CHAT_TARGETS, "management"),
+    "unpin_chat": ActionMeta("instant", _CHAT_TARGETS, "management"),
     "read_chat": ActionMeta("instant", _CHAT_TARGETS, "management"),
     "report_spam": ActionMeta("standard", _CHAT_TARGETS, "moderation", destructive=True),
 }
