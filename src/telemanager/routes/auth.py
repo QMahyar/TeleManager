@@ -5,8 +5,11 @@ from fastapi import APIRouter, Form, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 from ..app_password import (
+    clear_login_failures,
     create_session,
     is_password_enabled,
+    login_backoff_seconds,
+    record_failed_login,
     set_app_password,
     verify_app_password,
 )
@@ -30,10 +33,19 @@ def auth_status() -> dict:
 @router.post("/api/auth/login")
 def login(password: str = Form(...), response: Response = None) -> dict:
     """Verify password and create session."""
+    backoff = login_backoff_seconds()
+    if backoff > 0:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Too many failed attempts. Try again in {backoff} seconds.",
+        )
+
     if not verify_app_password(password):
+        record_failed_login()
         log_event("auth_failed", "Failed login attempt", "system", {})
         raise HTTPException(status_code=401, detail="Invalid password.")
 
+    clear_login_failures()
     token = create_session(active_sessions)
     response.set_cookie(
         key="telemanager_session",
@@ -77,10 +89,12 @@ def setup_password(request: PasswordSetupRequest) -> dict:
     if new_password:
         set_app_password(new_password)
         active_sessions.clear()
+        clear_login_failures()
         log_event("auth_enabled", "App password enabled", "system", {})
         return {"password_enabled": True}
 
     set_app_password("")
     active_sessions.clear()
+    clear_login_failures()
     log_event("auth_disabled", "App password disabled", "system", {})
     return {"password_enabled": False}

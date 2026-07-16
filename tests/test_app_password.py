@@ -12,6 +12,9 @@ from telemanager.app_password import (
     clear_expired_sessions,
     create_session,
     is_session_valid,
+    login_backoff_seconds,
+    record_failed_login,
+    reset_login_rate_limit,
 )
 
 
@@ -276,3 +279,83 @@ def test_logout_invalidates_server_session(app_context: dict, client) -> None:
     client.cookies.set("telemanager_session", token)
     blocked = client.get("/api/config")
     assert blocked.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Rate-limiting (plan 003)
+# ---------------------------------------------------------------------------
+
+
+def test_rate_limit_unit_helpers():
+    """record_failed_login increments counter; backoff returns 0 until threshold."""
+    reset_login_rate_limit()
+    for _ in range(4):
+        record_failed_login()
+        assert login_backoff_seconds() == 0
+    # 5th failure triggers lockout
+    record_failed_login()
+    assert login_backoff_seconds() > 0
+    reset_login_rate_limit()
+    assert login_backoff_seconds() == 0
+
+
+def test_login_429_after_five_failures(client) -> None:
+    """5 wrong passwords then the 6th attempt returns 429."""
+    enable_password(client)
+    clear_session_cookies(client)
+
+    for _ in range(5):
+        resp = login(client, password="wrong")
+        assert resp.status_code == 401
+
+    resp = login(client, password="wrong")
+    assert resp.status_code == 429
+    assert "Too many" in resp.json()["detail"]
+
+
+def test_successful_login_resets_rate_limit(client) -> None:
+    """A correct password after 4 failures clears the counter."""
+    enable_password(client)
+    clear_session_cookies(client)
+
+    for _ in range(4):
+        login(client, password="wrong")
+
+    # Correct login should succeed and reset
+    resp = login(client)
+    assert resp.status_code == 200
+    # Subsequent wrong password should be 401, not 429
+    clear_session_cookies(client)
+    resp = login(client, password="wrong")
+    assert resp.status_code == 401
+
+
+def test_setup_clears_rate_limit(client) -> None:
+    """Rotating the password via setup resets the login counter."""
+    enable_password(client)
+    clear_session_cookies(client)
+
+    for _ in range(5):
+        login(client, password="wrong")
+    assert login(client, password="wrong").status_code == 429
+
+    # Rotate clears failures
+    client.post(
+        "/api/auth/setup",
+        json={"password": "new-pass", "current_password": "secret-pass"},
+    )
+    clear_session_cookies(client)
+    resp = login(client, password="wrong")
+    assert resp.status_code == 401  # back to normal 401, not 429
+    # New password works
+    assert login(client, password="new-pass").status_code == 200
+
+
+def test_correct_password_still_401_when_not_locked(client) -> None:
+    """Wrong password returns 401, not 429, when under the threshold."""
+    enable_password(client)
+    clear_session_cookies(client)
+
+    resp = login(client, password="wrong")
+    assert resp.status_code == 401
+    assert "Too many" not in resp.json().get("detail", "")
