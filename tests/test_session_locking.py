@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 from conftest import add_account
 
@@ -209,3 +213,134 @@ def test_reconcile_native_defers_when_account_busy(app_context: dict) -> None:
             return await service._reconcile_native(schedule, ss.utcnow())
 
     assert asyncio.run(go()) is False
+
+
+# ---------------------------------------------------------------------------
+# Fake Telethon client for login-flow tests
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _FakeCodeRequest:
+    phone_code_hash: str = "fake_hash"
+
+
+class FakeLoginClient:
+    """Minimal TelegramClient stand-in for testing the login flow.
+
+    ``authorized`` controls whether ``is_user_authorized`` returns True
+    (auto-login) or False (sends code / needs password).  ``disconnect``
+    records that it was called so tests can assert teardown happened.
+    """
+
+    def __init__(self, authorized: bool = False) -> None:
+        self._authorized = authorized
+        self._connected = False
+        self.disconnected = False
+
+    async def connect(self) -> None:
+        self._connected = True
+
+    def is_connected(self) -> bool:
+        return self._connected and not self.disconnected
+
+    async def is_user_authorized(self) -> bool:
+        return self._authorized
+
+    async def send_code_request(self, phone: str) -> _FakeCodeRequest:
+        return _FakeCodeRequest()
+
+    async def sign_in(
+        self,
+        phone: str | None = None,
+        code: str | None = None,
+        phone_code_hash: str | None = None,
+    ) -> None:
+        if code == "bad":
+            from telethon.errors import PhoneCodeInvalidError
+
+            raise PhoneCodeInvalidError(request=None)
+        self._authorized = True
+
+    async def get_me(self) -> Any:
+        return type(
+            "Me",
+            (),
+            {"username": "testuser", "first_name": "Test", "last_name": "User"},
+        )()
+
+    async def disconnect(self) -> None:
+        self.disconnected = True
+
+
+def _write_config(data_dir: Path) -> None:
+    """Drop minimal API credentials so get_api_credentials() succeeds."""
+    config_file = data_dir / "config.json"
+    config_file.write_text(json.dumps({"api_id": 12345, "api_hash": "fake_hash"}), encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# Login-lock tests
+# ---------------------------------------------------------------------------
+
+
+def test_start_login_busy_account(app_context: dict) -> None:
+    """start_login must raise AccountBusyError when a run holds the session."""
+    from telemanager.accounts import AccountBusyError
+
+    manager = _manager(app_context)
+    account = add_account(app_context, "acc-1", "Primary")
+    account.phone = "+10000000000"
+    manager._save_accounts()
+    _write_config(app_context["data_dir"])
+
+    async def go() -> str:
+        async with manager.session_guard(["acc-1"]):
+            try:
+                await manager.start_login("+10000000000")
+                return "started"
+            except AccountBusyError:
+                return "busy"
+            except ValueError:
+                return "value_error"
+
+    assert asyncio.run(go()) == "busy"
+
+
+def test_start_login_disconnects_prior_pending(app_context: dict) -> None:
+    """A second start_login for the same account must disconnect the first
+    pending client and replace it with a fresh one."""
+    manager = _manager(app_context)
+    account = add_account(app_context, "acc-1", "Primary")
+    account.phone = "+10000000000"
+    manager._save_accounts()
+    _write_config(app_context["data_dir"])
+
+    fake_client_1 = FakeLoginClient(authorized=False)
+    fake_client_2 = FakeLoginClient(authorized=False)
+    clients = iter([fake_client_1, fake_client_2])
+
+    original_new_client = manager._new_client
+
+    def _patched_new_client(session_name: str, api_id: int, api_hash: str):  # type: ignore[no-untyped-def]
+        return next(clients)
+
+    manager._new_client = _patched_new_client  # type: ignore[assignment]
+
+    async def go() -> tuple[bool, bool]:
+        # First login → pending
+        await manager.start_login("+10000000000")
+        first_state = manager.pending_logins.get("acc-1")
+        first_client = first_state.client if first_state else None
+
+        # Second login → should disconnect first, create new pending
+        await manager.start_login("+10000000000")
+        second_state = manager.pending_logins.get("acc-1")
+        second_client = second_state.client if second_state else None
+
+        return first_client is not None and first_client.disconnected, second_client is fake_client_2
+
+    first_disconnected, second_is_new = asyncio.run(go())
+    assert first_disconnected, "First pending client should have been disconnected"
+    assert second_is_new, "Second login should use a new client"
+    manager._new_client = original_new_client  # type: ignore[assignment]
