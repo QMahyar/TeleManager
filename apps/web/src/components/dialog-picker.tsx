@@ -11,7 +11,7 @@ import {
 } from "../lib/dialog-actions"
 import { dialogKind, dialogTarget } from "../lib/dialog-resolver"
 import { actionMeta } from "../lib/constants"
-import type { Account, ActionType, Flash, TelegramDialog } from "../types"
+import type { Account, ActionsMeta, ActionType, Flash, TelegramDialog } from "../types"
 import {
   Badge,
   EmptyState,
@@ -42,6 +42,7 @@ export function DialogPicker({
   existingTargets,
   onAdd,
   flash,
+  apiMeta,
 }: {
   accounts: Account[]
   defaultAccountId: string
@@ -49,6 +50,7 @@ export function DialogPicker({
   existingTargets: Set<string>
   onAdd: (targets: string[]) => void
   flash: Flash
+  apiMeta?: ActionsMeta | null
 }) {
   const [open, setOpen] = React.useState(false)
   const readyAccounts = accounts.filter(
@@ -146,7 +148,7 @@ export function DialogPicker({
     )
     .map((dialog) => {
       const target = dialogTarget(dialog)
-      const { compatible, reason } = dialogCompatibility(dialog, actionType)
+      const { compatible, reason } = dialogCompatibility(dialog, actionType, apiMeta)
       return {
         dialog,
         target,

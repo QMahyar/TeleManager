@@ -177,6 +177,7 @@ export function RunPanel({
           accounts={props.accounts}
           defaultAccountId={firstAccountId}
           flash={props.flash}
+          apiMeta={props.actionsMeta}
         />
       </Field>
 

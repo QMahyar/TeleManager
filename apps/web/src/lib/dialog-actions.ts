@@ -1,11 +1,9 @@
-import type { ActionType, TelegramDialog } from "../types"
+import type { ActionsMeta, ActionType, TelegramDialog } from "../types"
 
 import { getActionSchema } from "./action-schema"
-import { actionMeta } from "./constants"
 import { resolveActionMeta } from "./action-meta"
 import { dialogKind, dialogTarget } from "./dialog-resolver"
 import { analyzeTarget } from "./targeting"
-import type { ActionsMeta } from "../types"
 
 // A quick action needs an inline mini-prompt when it has a structured form
 // (message text, ids, schedule time, …); otherwise it runs with one click.
