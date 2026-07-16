@@ -1,6 +1,8 @@
 import type { ActionType } from "../types"
 
-import { actionMeta, type TargetKind } from "./constants"
+import { type TargetKind } from "./constants"
+import { resolveActionMeta } from "./action-meta"
+import type { ActionsMeta } from "../types"
 
 export function classifyTargetKind(target: string): TargetKind {
   const clean = target.trim()
@@ -65,14 +67,17 @@ export type TargetAnalysis = {
 }
 
 // Single source of truth for target classification + per-action validity, used
-// by the target composer chips and the queue-time partitioning.
+// by the target composer chips and the queue-time partitioning. When apiMeta is
+// provided, validTargets come from the backend (source of truth); otherwise the
+// presentation constants provide a safe broad fallback.
 export function analyzeTarget(
   target: string,
-  actionType?: ActionType
+  actionType?: ActionType,
+  apiMeta?: ActionsMeta | null
 ): TargetAnalysis {
   const kind = classifyTargetKind(target)
   const label = kindLabels[kind]
-  const meta = actionType ? actionMeta[actionType] : undefined
+  const meta = actionType ? resolveActionMeta(actionType, apiMeta ?? null) : undefined
 
   if (kind === "unknown") {
     return {
@@ -111,12 +116,13 @@ export function analyzeTarget(
 // time instead of blocking the whole step.
 export function partitionTargets(
   targets: string[],
-  actionType: ActionType
+  actionType: ActionType,
+  apiMeta?: ActionsMeta | null
 ): { valid: string[]; invalid: Array<{ target: string; reason: string }> } {
   const valid: string[] = []
   const invalid: Array<{ target: string; reason: string }> = []
   for (const target of targets) {
-    const result = analyzeTarget(target, actionType)
+    const result = analyzeTarget(target, actionType, apiMeta)
     if (result.error) invalid.push({ target, reason: result.error })
     else valid.push(target)
   }
