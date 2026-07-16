@@ -41,6 +41,7 @@ export type ActionType =
   | "unmute_chat"
   | "read_chat"
   | "report_spam"
+  | "export_chat"
 
 // Per-account override for showing real dialog photos. "default" defers to the
 // global app setting; "on"/"off" force it for this account.

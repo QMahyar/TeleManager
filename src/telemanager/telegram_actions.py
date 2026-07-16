@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import re
 import struct
@@ -31,7 +32,7 @@ from telethon.tl.types import (
     InputReportReasonSpam,
 )
 
-from .config import DOWNLOADS_DIR
+from .config import DOWNLOADS_DIR, EXPORTS_DIR, ensure_dirs, now_iso
 
 TelegramActionType = Literal[
     "join_chat",
@@ -56,6 +57,7 @@ TelegramActionType = Literal[
     "unmute_chat",
     "read_chat",
     "report_spam",
+    "export_chat",
 ]
 
 
@@ -146,6 +148,8 @@ async def run_telegram_action(client: TelegramClient, action: TelegramAction) ->
             return await read_chat(client, target)
         case "report_spam":
             return await report_spam(client, target)
+        case "export_chat":
+            return await export_chat(client, target, action.message)
     raise ValueError(f"Unsupported action type: {action.action_type}")
 
 
@@ -505,6 +509,73 @@ async def report_spam(client: TelegramClient, target: str) -> str:
         )
     )
     return "Spam reported."
+
+
+# ---------------------------------------------------------------------------
+# Export
+# ---------------------------------------------------------------------------
+
+EXPORT_CHAT_MAX_MESSAGES = 10_000
+
+
+async def export_chat(client: TelegramClient, target: str, message: str | None) -> str:
+    """Export chat history to a JSON file under data/exports/.
+
+    Options (newline key=value in the message field):
+        limit   — max messages to export (default and hard cap: 10 000)
+        media   — include media download paths (default: false)
+
+    The export is capped at EXPORT_CHAT_MAX_MESSAGES to stay within the queue
+    operation timeout (180 s). For larger histories the operator would need a
+    dedicated background job — out of scope for this first slice.
+    """
+    from .dialogs_service import message_to_dict  # local import to avoid cycle
+
+    payload = parse_options(message)
+    try:
+        limit = min(int(payload.get("limit", str(EXPORT_CHAT_MAX_MESSAGES))), EXPORT_CHAT_MAX_MESSAGES)
+    except (ValueError, TypeError):
+        limit = EXPORT_CHAT_MAX_MESSAGES
+    limit = max(1, limit)
+
+    include_media = parse_bool(payload.get("media"), default=False)
+
+    peer = await resolve_input_peer(client, target)
+    ensure_dirs()
+
+    # Build a safe filename: <sanitised_target>_<YYYYMMDD_HHMMSS>.json
+    ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+    safe_name = safe_path_name(target)
+    filename = f"{safe_name}_{ts}.json"
+    out_path = EXPORTS_DIR / filename
+
+    messages: list[dict] = []
+    async for msg in client.iter_messages(peer, limit=limit):
+        if msg is None:
+            continue
+        record = message_to_dict(msg)
+        if not include_media:
+            record.pop("has_media", None)
+        messages.append(record)
+
+    export_payload = {
+        "account_id": getattr(client._self_user, "id", None) if hasattr(client, "_self_user") else None,
+        "target": target,
+        "exported_at": now_iso(),
+        "message_count": len(messages),
+        "cap": EXPORT_CHAT_MAX_MESSAGES,
+        "messages": messages,
+    }
+
+    # Atomic write: temp then replace
+    tmp_path = out_path.with_suffix(".json.tmp")
+    tmp_path.write_text(
+        json.dumps(export_payload, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    tmp_path.replace(out_path)
+
+    return f"Exported {len(messages)} messages to {out_path.name}."
 
 
 # ---------------------------------------------------------------------------
@@ -947,6 +1018,9 @@ ACTION_META: dict[TelegramActionType, ActionMeta] = {
     "unmute_chat": ActionMeta("instant", _CHAT_TARGETS, "management"),
     "read_chat": ActionMeta("instant", _CHAT_TARGETS, "management"),
     "report_spam": ActionMeta("standard", _CHAT_TARGETS, "moderation", destructive=True),
+    "export_chat": ActionMeta(
+        "instant", _CHAT_TARGETS, "downloads", needs_message=True, message_optional=True
+    ),
 }
 
 # Derived projections — keep these as views over ACTION_META, never hand-edited.

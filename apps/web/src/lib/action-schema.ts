@@ -434,6 +434,39 @@ const SCHEMAS: Partial<Record<ActionType, ActionFormSchema>> = {
       return result
     },
   },
+  export_chat: {
+    fields: [
+      {
+        name: "limit",
+        label: "Max messages",
+        kind: "text",
+        placeholder: "10000",
+        help: "Hard cap: 10 000. Smaller values export faster.",
+        hint: "Maximum number of messages to export. The export is capped at 10 000 to stay within the queue timeout. For very large histories, export in batches by adjusting this number.",
+      },
+      {
+        name: "media",
+        label: "Include media info",
+        kind: "checkbox",
+        default: false,
+        hint: "On includes a has_media flag per message. Actual media files are not downloaded — use the Download media action for that.",
+      },
+    ],
+    serialize: (v) => {
+      const lines: string[] = []
+      const limit = str(v.limit).trim()
+      if (limit && limit !== "10000") lines.push(`limit=${limit}`)
+      if (v.media === true) lines.push("media=true")
+      return lines.join("\n")
+    },
+    deserialize: (m) => {
+      const { keyed } = splitKeyedLines(m, ["limit", "media"])
+      return {
+        limit: keyed.limit ?? "10000",
+        media: keyed.media === "true",
+      }
+    },
+  },
 }
 
 // ---------------------------------------------------------------------------

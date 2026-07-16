@@ -267,6 +267,13 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
     targetHint: HINT_CHAT_TARGET,
     destructive: true,
   },
+  export_chat: {
+    label: "Export chat history",
+    category: "downloads",
+    description:
+      "Export chat messages to a JSON file under data/exports/. Media off by default.",
+    targetHint: HINT_CHAT_TARGET,
+  },
 }
 export const categoryLabels: Record<ActionCategory, string> = {
   joining: "Joining",

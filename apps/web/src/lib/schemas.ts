@@ -32,6 +32,7 @@ const actionTypeSchema = z.enum([
   "unmute_chat",
   "read_chat",
   "report_spam",
+  "export_chat",
 ])
 
 const photosModeSchema = z.enum(["default", "on", "off"])

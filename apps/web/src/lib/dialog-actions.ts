@@ -51,6 +51,7 @@ const ROW_ACTIONS: Record<DialogKind, ActionType[]> = {
     "start_bot",
     "send_message",
     "schedule_message",
+    "export_chat",
     "delete_chat",
     "clear_chat",
     "mute_chat",
@@ -61,6 +62,7 @@ const ROW_ACTIONS: Record<DialogKind, ActionType[]> = {
     "send_message",
     "send_media",
     "schedule_message",
+    "export_chat",
     "delete_chat",
     "clear_chat",
     "mute_chat",
@@ -71,6 +73,7 @@ const ROW_ACTIONS: Record<DialogKind, ActionType[]> = {
     "send_message",
     "send_media",
     "schedule_message",
+    "export_chat",
     "leave_chat",
     "delete_chat",
     "clear_chat",
@@ -83,6 +86,7 @@ const ROW_ACTIONS: Record<DialogKind, ActionType[]> = {
     "send_message",
     "send_media",
     "schedule_message",
+    "export_chat",
     "leave_chat",
     "delete_chat",
     "clear_chat",
@@ -95,6 +99,7 @@ const ROW_ACTIONS: Record<DialogKind, ActionType[]> = {
     "send_message",
     "send_media",
     "schedule_message",
+    "export_chat",
     "leave_chat",
     "delete_chat",
     "mute_chat",
@@ -102,7 +107,7 @@ const ROW_ACTIONS: Record<DialogKind, ActionType[]> = {
     "read_chat",
     "report_spam",
   ],
-  unknown: ["send_message", "delete_chat", "clear_chat", "mute_chat", "archive_chat"],
+  unknown: ["send_message", "export_chat", "delete_chat", "clear_chat", "mute_chat", "archive_chat"],
 }
 
 // Bulk actions are limited to ones that make sense applied to many chats at once
@@ -120,6 +125,7 @@ const BULK_ELIGIBLE: ActionType[] = [
   "delete_chat",
   "block_user",
   "report_spam",
+  "export_chat",
 ]
 
 // Which bulk-eligible actions are valid for each dialog kind.
@@ -133,6 +139,7 @@ const BULK_VALID_BY_KIND: Record<DialogKind, Set<ActionType>> = {
     "clear_chat",
     "delete_chat",
     "block_user",
+    "export_chat",
   ]),
   personal: new Set([
     "mute_chat",
@@ -143,6 +150,7 @@ const BULK_VALID_BY_KIND: Record<DialogKind, Set<ActionType>> = {
     "clear_chat",
     "delete_chat",
     "block_user",
+    "export_chat",
   ]),
   group: new Set([
     "mute_chat",
@@ -154,6 +162,7 @@ const BULK_VALID_BY_KIND: Record<DialogKind, Set<ActionType>> = {
     "clear_chat",
     "delete_chat",
     "report_spam",
+    "export_chat",
   ]),
   supergroup: new Set([
     "mute_chat",
@@ -165,6 +174,7 @@ const BULK_VALID_BY_KIND: Record<DialogKind, Set<ActionType>> = {
     "clear_chat",
     "delete_chat",
     "report_spam",
+    "export_chat",
   ]),
   channel: new Set([
     "mute_chat",
@@ -175,6 +185,7 @@ const BULK_VALID_BY_KIND: Record<DialogKind, Set<ActionType>> = {
     "leave_chat",
     "delete_chat",
     "report_spam",
+    "export_chat",
   ]),
   unknown: new Set([
     "mute_chat",
@@ -184,6 +195,7 @@ const BULK_VALID_BY_KIND: Record<DialogKind, Set<ActionType>> = {
     "read_chat",
     "clear_chat",
     "delete_chat",
+    "export_chat",
   ]),
 }
 
