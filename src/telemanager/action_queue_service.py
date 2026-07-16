@@ -308,6 +308,7 @@ async def process_action_queue(
             run["error"] = str(exc)
         finally:
             await manager.release_run_clients(run_account_ids)
+            manager.flush_accounts_if_dirty()
             run["current"] = None
             run["completed_at"] = now_iso()
             run["updated_at"] = run["completed_at"]

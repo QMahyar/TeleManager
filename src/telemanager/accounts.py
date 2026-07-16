@@ -99,6 +99,7 @@ class AccountManager:
         # `_busy_accounts` mirrors the held locks for a non-blocking busy check.
         self._session_locks: dict[str, asyncio.Lock] = {}
         self._busy_accounts: set[str] = set()
+        self._accounts_dirty: bool = False
         self._load_accounts()
 
     def _load_accounts(self) -> None:
@@ -112,7 +113,15 @@ class AccountManager:
     def _save_accounts(self) -> None:
         # Snapshot of the in-memory fleet (the source of truth, guarded by self.lock);
         # routed through accounts_doc so the write shares the unified store layer.
+        self._accounts_dirty = False
         accounts_doc.write([asdict(account) for account in self.accounts.values()])
+
+    def flush_accounts_if_dirty(self) -> None:
+        """Persist the accounts file once if any in-memory fields changed since the
+        last save.  Called at the end of a queue run so N operations produce at most
+        one disk write instead of N."""
+        if self._accounts_dirty:
+            self._save_accounts()
 
     def api_configured(self) -> bool:
         config = config_doc.read({})
@@ -271,6 +280,11 @@ class AccountManager:
 
         All exceptions are classified and converted to user-friendly messages.
         FloodWaitError propagates to allow queue-level retry logic.
+
+        Account persistence is deferred: success and non-critical failure paths
+        only mark ``_accounts_dirty`` so the caller (the queue worker) can batch
+        multiple saves into one at the end of the run.  A session-invalid error
+        still saves immediately so the revoked flag is never lost.
         """
         account = self._get_account(action.account_ids[0])
         try:
@@ -280,23 +294,26 @@ class AccountManager:
         except Exception as exc:
             error_info = classify_telegram_error(exc)
             account.last_error = error_info.user_message
-            self._save_accounts()
+            self._accounts_dirty = True
             return TelegramActionResult(account.id, account.label, False, action.action_type, error_info.user_message)
         try:
             detail = await run_telegram_action(client, action)
             account.authorized = True
             account.last_error = None
-            self._save_accounts()
+            self._accounts_dirty = True
             return TelegramActionResult(account.id, account.label, True, action.action_type, detail)
         except FloodWaitError:
             raise
         except Exception as exc:
             error_info = classify_telegram_error(exc)
             account.last_error = error_info.user_message
-            # Mark session invalid if it's a session error
+            # Session revocation must be persisted immediately so the flag is
+            # never lost if the process crashes before the queue flushes.
             if error_info.category == "session_invalid":
                 account.authorized = False
-            self._save_accounts()
+                self._save_accounts()
+            else:
+                self._accounts_dirty = True
             return TelegramActionResult(account.id, account.label, False, action.action_type, error_info.user_message)
 
     async def release_run_clients(self, account_ids: list[str]) -> None:
