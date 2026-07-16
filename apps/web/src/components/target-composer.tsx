@@ -12,7 +12,7 @@ import { Button } from "../ui/button"
 import { actionMeta } from "../lib/constants"
 import { splitTargets } from "../lib/helpers"
 import { analyzeTarget } from "../lib/targeting"
-import type { Account, ActionType, Flash } from "../types"
+import type { Account, ActionsMeta, ActionType, Flash } from "../types"
 import { DialogPicker } from "./dialog-picker"
 import { Callout, Input } from "./ui"
 
@@ -27,6 +27,7 @@ export function TargetComposer({
   accounts,
   defaultAccountId,
   flash,
+  apiMeta,
 }: {
   value: string
   onChange: (next: string) => void
@@ -34,6 +35,7 @@ export function TargetComposer({
   accounts: Account[]
   defaultAccountId: string
   flash: Flash
+  apiMeta?: ActionsMeta | null
 }) {
   const [draft, setDraft] = React.useState("")
   const [expanded, setExpanded] = React.useState(false)
@@ -62,7 +64,7 @@ export function TargetComposer({
 
   const analyzed = targets.map((target) => ({
     target,
-    result: analyzeTarget(target, actionType),
+    result: analyzeTarget(target, actionType, apiMeta),
   }))
   const invalidCount = analyzed.filter(({ result }) => result.error).length
   const visibleTargets = expanded ? analyzed : analyzed.slice(0, 8)
@@ -101,6 +103,7 @@ export function TargetComposer({
         existingTargets={new Set(targets)}
         onAdd={addTargets}
         flash={flash}
+        apiMeta={apiMeta}
       />
 
       {targets.length ? (

@@ -2,6 +2,7 @@ import * as React from "react"
 
 import { api } from "../lib/api"
 import { actionMeta } from "../lib/constants"
+import { resolveActionMeta } from "../lib/action-meta"
 import { defaultFieldValues, type FieldValues } from "../lib/action-schema"
 import {
   quickActionNeedsConfirm,
@@ -188,19 +189,19 @@ export function useDialogsController(
         return
       }
       guarded(async () => {
-        if (quickActionNeedsConfirm(actionType)) {
+        if (quickActionNeedsConfirm(actionType, props.actionsMeta)) {
           const confirmed = await askDialog({
             title: `${actionMeta[actionType].label}?`,
             description: `Run "${actionMeta[actionType].label}" on ${title} as the selected account.`,
             confirmLabel: actionMeta[actionType].label,
-            danger: Boolean(actionMeta[actionType].destructive),
+            danger: Boolean(resolveActionMeta(actionType, props.actionsMeta).destructive),
           })
           if (!confirmed) return
         }
         await executeQuick(actionType, [target], actionMeta[actionType].label)
       })
     },
-    [dialogAccountId, flash, guarded, askDialog, executeQuick]
+    [dialogAccountId, flash, guarded, askDialog, executeQuick, props.actionsMeta]
   )
 
   function bulkQuickAction(actionType: ActionType) {
@@ -218,12 +219,12 @@ export function useDialogsController(
     const targets = dialogs.map(dialogTarget)
     const label = `${actionMeta[actionType].label} ×${targets.length}`
     props.guarded(async () => {
-      if (quickActionNeedsConfirm(actionType)) {
+      if (quickActionNeedsConfirm(actionType, props.actionsMeta)) {
         const confirmed = await props.askDialog({
           title: `${actionMeta[actionType].label} on ${targets.length} chat(s)?`,
           description: `Run "${actionMeta[actionType].label}" on ${targets.length} selected chat(s) as the selected account.`,
           confirmLabel: actionMeta[actionType].label,
-          danger: Boolean(actionMeta[actionType].destructive),
+          danger: Boolean(resolveActionMeta(actionType, props.actionsMeta).destructive),
         })
         if (!confirmed) return
       }
