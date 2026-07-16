@@ -44,6 +44,7 @@ export type ActionType =
   | "edit_chat_title"
   | "export_invite_link"
   | "kick_or_ban_user"
+  | "export_chat"
 
 // Per-account override for showing real dialog photos. "default" defers to the
 // global app setting; "on"/"off" force it for this account.

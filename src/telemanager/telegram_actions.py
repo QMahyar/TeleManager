@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import re
 import struct
@@ -37,7 +38,7 @@ from telethon.tl.types import (
     InputReportReasonSpam,
 )
 
-from .config import DOWNLOADS_DIR
+from .config import DOWNLOADS_DIR, EXPORTS_DIR, ensure_dirs, now_iso
 
 TelegramActionType = Literal[
     "join_chat",
@@ -65,6 +66,7 @@ TelegramActionType = Literal[
     "edit_chat_title",
     "export_invite_link",
     "kick_or_ban_user",
+    "export_chat",
 ]
 
 
@@ -161,6 +163,8 @@ async def run_telegram_action(client: TelegramClient, action: TelegramAction) ->
             return await export_invite_link(client, target)
         case "kick_or_ban_user":
             return await kick_or_ban_user(client, target, action.message)
+        case "export_chat":
+            return await export_chat(client, target, action.message)
     raise ValueError(f"Unsupported action type: {action.action_type}")
 
 
@@ -622,6 +626,70 @@ async def kick_or_ban_user(client: TelegramClient, target: str, message: str | N
     await client(EditBannedRequest(channel=peer, participant=user_entity, banned_rights=rights))
     action_word = "banned" if do_ban else "kicked"
     return f"User {user_target} {action_word} from {target}."
+# Export
+# ---------------------------------------------------------------------------
+
+EXPORT_CHAT_MAX_MESSAGES = 10_000
+
+
+async def export_chat(client: TelegramClient, target: str, message: str | None) -> str:
+    """Export chat history to a JSON file under data/exports/.
+
+    Options (newline key=value in the message field):
+        limit   — max messages to export (default and hard cap: 10 000)
+        media   — include media download paths (default: false)
+
+    The export is capped at EXPORT_CHAT_MAX_MESSAGES to stay within the queue
+    operation timeout (180 s). For larger histories the operator would need a
+    dedicated background job — out of scope for this first slice.
+    """
+    from .dialogs_service import message_to_dict  # local import to avoid cycle
+
+    payload = parse_options(message)
+    try:
+        limit = min(int(payload.get("limit", str(EXPORT_CHAT_MAX_MESSAGES))), EXPORT_CHAT_MAX_MESSAGES)
+    except (ValueError, TypeError):
+        limit = EXPORT_CHAT_MAX_MESSAGES
+    limit = max(1, limit)
+
+    include_media = parse_bool(payload.get("media"), default=False)
+
+    peer = await resolve_input_peer(client, target)
+    ensure_dirs()
+
+    # Build a safe filename: <sanitised_target>_<YYYYMMDD_HHMMSS>.json
+    ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+    safe_name = safe_path_name(target)
+    filename = f"{safe_name}_{ts}.json"
+    out_path = EXPORTS_DIR / filename
+
+    messages: list[dict] = []
+    async for msg in client.iter_messages(peer, limit=limit):
+        if msg is None:
+            continue
+        record = message_to_dict(msg)
+        if not include_media:
+            record.pop("has_media", None)
+        messages.append(record)
+
+    export_payload = {
+        "account_id": getattr(client._self_user, "id", None) if hasattr(client, "_self_user") else None,
+        "target": target,
+        "exported_at": now_iso(),
+        "message_count": len(messages),
+        "cap": EXPORT_CHAT_MAX_MESSAGES,
+        "messages": messages,
+    }
+
+    # Atomic write: temp then replace
+    tmp_path = out_path.with_suffix(".json.tmp")
+    tmp_path.write_text(
+        json.dumps(export_payload, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    tmp_path.replace(out_path)
+
+    return f"Exported {len(messages)} messages to {out_path.name}."
 
 
 # ---------------------------------------------------------------------------
@@ -1073,6 +1141,9 @@ ACTION_META: dict[TelegramActionType, ActionMeta] = {
     ),
     "kick_or_ban_user": ActionMeta(
         "sensitive", _CHAT_TARGETS, "admin", needs_message=True, destructive=True
+    ),
+    "export_chat": ActionMeta(
+        "instant", _CHAT_TARGETS, "downloads", needs_message=True, message_optional=True
     ),
 }
 

@@ -9,6 +9,7 @@ import {
   IconClockPlus,
   IconDownload,
   IconEraser,
+  IconFileExport,
   IconFlag,
   IconLink,
   IconLogout,
@@ -59,4 +60,5 @@ export const ACTION_ICONS: Record<ActionType, React.ElementType> = {
   edit_chat_title: IconTitle,
   export_invite_link: IconLink,
   kick_or_ban_user: IconUserMinus,
+  export_chat: IconFileExport,
 }
