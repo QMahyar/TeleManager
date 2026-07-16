@@ -105,17 +105,19 @@ Possible follow-ups (not blocking):
 - [ ] "Apply to multiple accounts" fan-out for settings (currently per-account)
 - [ ] Unblock directly from the Blocked tab (today it points to the Actions screen)
 
-## Phase 2 — Chat & channel administration  ⬜ NOT STARTED
+## Phase 2 — Chat & channel administration  🟡 PARTIAL (2026-07-16)
 
 Dialog-scoped. New `ACTION_META` rows + impls in `telegram_actions.py`.
 
 - [ ] Create group / channel (`messages.CreateChatRequest` / `channels.CreateChannelRequest`)
-- [ ] Edit chat title / photo / about (`EditTitleRequest` / `EditPhotoRequest` / `EditChatAboutRequest`)
-- [ ] Export & revoke invite links (`messages.ExportChatInviteRequest`)
+- [x] Edit chat title / about (`EditTitleRequest` / `EditChatAboutRequest`) — shipped in plan 013
+- [x] Export invite links (`messages.ExportChatInviteRequest`) — shipped in plan 013
 - [ ] Promote/demote admin (`client.edit_admin`)
-- [ ] Ban / kick / restrict + default permissions + slow mode (`client.edit_permissions`)
+- [x] Kick / ban user (`channels.UpdateBannedRequest`) — shipped in plan 013
+- [ ] Edit photo / content-protection / join-requests
+- [ ] Restrict user (default permissions + slow mode) (`client.edit_permissions`)
 - [ ] Get/export participant list (read-only)
-- [ ] Toggle content-protection, join-requests, per-chat message auto-delete TTL
+- [ ] Toggle per-chat message auto-delete TTL
 - [ ] **Guardrail:** no bulk member-add/invite form.
 
 ## Phase 3 — Privacy rules + messaging extras  ⬜ NOT STARTED

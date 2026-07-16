@@ -312,3 +312,184 @@ def test_create_scheduled_media_rejects_missing_file(app_context: dict) -> None:
         raise AssertionError("Expected ValueError for missing file")
     except ValueError as exc:
         assert "not found" in str(exc)
+
+
+# ---------------------------------------------------------------------------
+# Plan 013 — Chat & channel admin actions
+# ---------------------------------------------------------------------------
+
+
+def test_edit_chat_title_sets_title_and_about(app_context: dict) -> None:
+    actions = _actions_module()
+    captured: dict[str, Any] = {}
+
+    class FakeClient:
+        async def get_input_entity(self, value):
+            return value
+
+        async def edit_title(self, peer, title):
+            captured["peer"] = peer
+            captured["title"] = title
+
+        async def edit_about(self, peer, about):
+            captured["about_peer"] = peer
+            captured["about"] = about
+
+    detail = asyncio.run(
+        actions.edit_chat_title(cast(Any, FakeClient()), "@group", "title=New Name\nabout=New about")
+    )
+    assert captured["peer"] == "@group"
+    assert captured["title"] == "New Name"
+    assert captured["about_peer"] == "@group"
+    assert captured["about"] == "New about"
+    assert "title" in detail.lower()
+    assert "about" in detail.lower()
+
+
+def test_edit_chat_title_sets_title_only(app_context: dict) -> None:
+    actions = _actions_module()
+    captured: dict[str, Any] = {}
+
+    class FakeClient:
+        async def get_input_entity(self, value):
+            return value
+
+        async def edit_title(self, peer, title):
+            captured["title"] = title
+
+        async def edit_about(self, peer, about):  # pragma: no cover
+            raise AssertionError("edit_about must not be called when about is absent")
+
+    detail = asyncio.run(
+        actions.edit_chat_title(cast(Any, FakeClient()), "@channel", "title=Renamed Channel")
+    )
+    assert captured["title"] == "Renamed Channel"
+    assert "title" in detail.lower()
+
+
+def test_edit_chat_title_rejects_empty_options(app_context: dict) -> None:
+    actions = _actions_module()
+
+    class FakeClient:
+        async def get_input_entity(self, value):
+            return value
+
+    try:
+        asyncio.run(
+            actions.edit_chat_title(cast(Any, FakeClient()), "@group", "title=  \nabout= ")
+        )
+        raise AssertionError("Expected ValueError for empty title and about")
+    except ValueError as exc:
+        assert "at least" in str(exc)
+
+
+def test_export_invite_link_returns_link(app_context: dict) -> None:
+    actions = _actions_module()
+    captured: dict[str, Any] = {}
+
+    class FakeResult:
+        link = "https://t.me/+abc123"
+
+    class FakeClient:
+        async def get_input_entity(self, value):
+            return value
+
+        async def __call__(self, request):
+            captured["request"] = request
+            return FakeResult()
+
+    detail = asyncio.run(actions.export_invite_link(cast(Any, FakeClient()), "@group"))
+    assert "t.me/+abc123" in detail
+    assert type(captured["request"]).__name__ == "ExportChatInviteRequest"
+
+
+def test_export_invite_link_raises_on_no_link(app_context: dict) -> None:
+    actions = _actions_module()
+
+    class FakeResult:
+        pass  # no link attribute
+
+    class FakeClient:
+        async def get_input_entity(self, value):
+            return value
+
+        async def __call__(self, request):
+            return FakeResult()
+
+    try:
+        asyncio.run(actions.export_invite_link(cast(Any, FakeClient()), "@group"))
+        raise AssertionError("Expected ValueError when no link returned")
+    except ValueError as exc:
+        assert "admin rights" in str(exc) or "invite link" in str(exc).lower()
+
+
+def test_kick_or_ban_user_kick_only(app_context: dict) -> None:
+    actions = _actions_module()
+    captured: dict[str, Any] = {}
+
+    class FakeClient:
+        async def get_input_entity(self, value):
+            return value
+
+        async def __call__(self, request):
+            captured["request"] = request
+
+    detail = asyncio.run(
+        actions.kick_or_ban_user(cast(Any, FakeClient()), "@group", "user=@baduser")
+    )
+    req = captured["request"]
+    assert type(req).__name__ == "EditBannedRequest"
+    assert req.participant == "@baduser"
+    assert req.banned_rights.view_messages is False
+    assert "kicked" in detail.lower()
+
+
+def test_kick_or_ban_user_ban(app_context: dict) -> None:
+    actions = _actions_module()
+    captured: dict[str, Any] = {}
+
+    class FakeClient:
+        async def get_input_entity(self, value):
+            return value
+
+        async def __call__(self, request):
+            captured["request"] = request
+
+    detail = asyncio.run(
+        actions.kick_or_ban_user(cast(Any, FakeClient()), "@channel", "user=@spammer\nban=true")
+    )
+    req = captured["request"]
+    assert req.banned_rights.view_messages is True
+    assert "banned" in detail.lower()
+
+
+def test_kick_or_ban_user_rejects_missing_user(app_context: dict) -> None:
+    actions = _actions_module()
+
+    class FakeClient:
+        async def get_input_entity(self, value):
+            return value
+
+    try:
+        asyncio.run(actions.kick_or_ban_user(cast(Any, FakeClient()), "@group", None))
+        raise AssertionError("Expected ValueError for missing user")
+    except ValueError as exc:
+        assert "user=" in str(exc)
+
+
+def test_chat_admin_action_meta_exists(app_context: dict) -> None:
+    actions = _actions_module()
+    for action_type in ("edit_chat_title", "export_invite_link", "kick_or_ban_user"):
+        meta = actions.ACTION_META.get(action_type)
+        assert meta is not None, f"Missing ACTION_META for {action_type}"
+        assert meta.category == "admin"
+
+
+def test_chat_admin_target_validation(app_context: dict) -> None:
+    actions = _actions_module()
+    # Chats are valid targets for all three admin actions
+    for action_type in ("edit_chat_title", "export_invite_link", "kick_or_ban_user"):
+        assert actions.validate_target_for_action(action_type, "@group") is None
+        assert actions.validate_target_for_action(action_type, "123456") is None
+    # Bot links should be rejected for admin actions
+    assert actions.validate_target_for_action("edit_chat_title", "https://t.me/MyBot?start=x") is not None

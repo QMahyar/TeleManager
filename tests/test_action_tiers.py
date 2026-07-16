@@ -46,6 +46,8 @@ def test_message_required_actions_match_known_set(app_context: dict):
             "pin_message",
             "unpin_message",
             "download_media",
+            "edit_chat_title",
+            "kick_or_ban_user",
         }
     )
 

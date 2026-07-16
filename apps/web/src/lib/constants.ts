@@ -86,6 +86,7 @@ export type ActionCategory =
   | "cleanup"
   | "moderation"
   | "downloads"
+  | "admin"
 
 export type TargetKind =
   | "invite_link"
@@ -267,6 +268,30 @@ export const actionMeta: Record<ActionType, ActionMeta> = {
     targetHint: HINT_CHAT_TARGET,
     destructive: true,
   },
+  edit_chat_title: {
+    label: "Edit chat title / about",
+    category: "admin",
+    description:
+      "Change a chat or channel title, and optionally its about text. Requires admin rights.",
+    messagePlaceholder: "title=New chat title\nabout=Optional about text",
+    targetHint: HINT_CHAT_TARGET,
+  },
+  export_invite_link: {
+    label: "Export invite link",
+    category: "admin",
+    description:
+      "Create or retrieve a permanent invite link for a chat or channel you manage.",
+    targetHint: HINT_CHAT_TARGET,
+  },
+  kick_or_ban_user: {
+    label: "Kick or ban user",
+    category: "admin",
+    description:
+      "Remove a single user from a chat. Optionally ban them permanently so they cannot rejoin.",
+    messagePlaceholder: "user=@username or numeric ID\nban=false",
+    targetHint: HINT_CHAT_TARGET,
+    destructive: true,
+  },
 }
 export const categoryLabels: Record<ActionCategory, string> = {
   joining: "Joining",
@@ -276,6 +301,7 @@ export const categoryLabels: Record<ActionCategory, string> = {
   cleanup: "Cleanup",
   moderation: "Moderation",
   downloads: "Downloads",
+  admin: "Admin",
 }
 
 export const categoryOrder: ActionCategory[] = [
@@ -286,6 +312,7 @@ export const categoryOrder: ActionCategory[] = [
   "cleanup",
   "moderation",
   "downloads",
+  "admin",
 ]
 
 export const emptySafety: SafetySettings = {
