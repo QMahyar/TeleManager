@@ -53,6 +53,8 @@ export const ACTION_ICONS: Record<ActionType, React.ElementType> = {
   unarchive_chat: IconArchiveOff,
   mute_chat: IconBellOff,
   unmute_chat: IconBell,
+  pin_chat: IconPin,
+  unpin_chat: IconPinnedOff,
   read_chat: IconChecks,
   delete_chat: IconTrashX,
   clear_chat: IconEraser,

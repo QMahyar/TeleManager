@@ -39,6 +39,8 @@ export type ActionType =
   | "unarchive_chat"
   | "mute_chat"
   | "unmute_chat"
+  | "pin_chat"
+  | "unpin_chat"
   | "read_chat"
   | "report_spam"
   | "edit_chat_title"
