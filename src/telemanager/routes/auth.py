@@ -76,9 +76,11 @@ def setup_password(request: PasswordSetupRequest) -> dict:
 
     if new_password:
         set_app_password(new_password)
+        active_sessions.clear()
         log_event("auth_enabled", "App password enabled", "system", {})
         return {"password_enabled": True}
 
     set_app_password("")
+    active_sessions.clear()
     log_event("auth_disabled", "App password disabled", "system", {})
     return {"password_enabled": False}
