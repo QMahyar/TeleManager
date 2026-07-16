@@ -2,8 +2,10 @@ import type { ActionType, TelegramDialog } from "../types"
 
 import { getActionSchema } from "./action-schema"
 import { actionMeta } from "./constants"
+import { resolveActionMeta } from "./action-meta"
 import { dialogKind, dialogTarget } from "./dialog-resolver"
 import { analyzeTarget } from "./targeting"
+import type { ActionsMeta } from "../types"
 
 // A quick action needs an inline mini-prompt when it has a structured form
 // (message text, ids, schedule time, …); otherwise it runs with one click.
@@ -13,8 +15,14 @@ export function quickActionNeedsInput(actionType: ActionType): boolean {
 
 // One-click actions still confirm first when they are destructive, or when they
 // leave a chat (an easy-to-regret state change even though it's reversible).
-export function quickActionNeedsConfirm(actionType: ActionType): boolean {
-  return Boolean(actionMeta[actionType].destructive) || actionType === "leave_chat"
+export function quickActionNeedsConfirm(
+  actionType: ActionType,
+  apiMeta?: ActionsMeta | null
+): boolean {
+  return (
+    Boolean(resolveActionMeta(actionType, apiMeta ?? null).destructive) ||
+    actionType === "leave_chat"
+  )
 }
 
 export type DialogKind =
@@ -200,17 +208,18 @@ const KIND_RESTRICTED: Partial<Record<ActionType, Set<DialogKind>>> = {
 // would. Unknown kinds skip the semantic check to avoid false-greying.
 export function dialogCompatibility(
   dialog: TelegramDialog,
-  actionType: ActionType
+  actionType: ActionType,
+  apiMeta?: ActionsMeta | null
 ): { compatible: boolean; reason?: string } {
   const kind = normalizeKind(dialog)
   const allowed = KIND_RESTRICTED[actionType]
   if (allowed && kind !== "unknown" && !allowed.has(kind)) {
     return {
       compatible: false,
-      reason: `${actionMeta[actionType].label} doesn't apply to a ${kind}.`,
+      reason: `${resolveActionMeta(actionType, apiMeta ?? null).label} doesn't apply to a ${kind}.`,
     }
   }
-  const analysis = analyzeTarget(dialogTarget(dialog), actionType)
+  const analysis = analyzeTarget(dialogTarget(dialog), actionType, apiMeta)
   if (analysis.error) return { compatible: false, reason: analysis.error }
   return { compatible: true }
 }

@@ -5,6 +5,58 @@ import type {
   QueueStep,
   SafetySettings,
 } from "../types"
+import { actionMeta, type ActionCategory, type TargetKind } from "./constants"
+
+// Merged action metadata: presentation fields (label, category, description,
+// placeholder, targetHint) from the client constants merged with enforcement
+// fields (validTargets, needsMessage, messageOptional, destructive) from the
+// backend API. This is the single resolved type consumers should use when they
+// need the full picture.
+export type ResolvedActionMeta = {
+  label: string
+  category: ActionCategory
+  description: string
+  needsMessage: boolean
+  messageOptional?: boolean
+  messagePlaceholder?: string
+  targetHint: string
+  validTargets: Set<TargetKind>
+  destructive?: boolean
+}
+
+// Merge presentation-only data (from constants) with enforcement data (from
+// API). When API meta is available its valid_targets/flags take precedence;
+// when it is not (pre-load or offline fallback) the constants map provides
+// safe defaults so target validation UI degrades gracefully.
+export function resolveActionMeta(
+  actionType: ActionType,
+  apiMeta: ActionsMeta | null
+): ResolvedActionMeta {
+  const presentation = actionMeta[actionType]
+  const api = apiMeta?.actions[actionType]
+
+  return {
+    label: presentation.label,
+    category: presentation.category,
+    description: presentation.description,
+    messagePlaceholder: presentation.messagePlaceholder,
+    targetHint: presentation.targetHint,
+    // Enforcement fields: prefer API, fall back to constants defaults
+    needsMessage: api?.needs_message ?? presentation.needsMessage,
+    messageOptional: api?.message_optional ?? presentation.messageOptional,
+    validTargets: api?.valid_targets
+      ? new Set(api.valid_targets as TargetKind[])
+      : defaultValidTargets(),
+    destructive: api?.destructive ?? presentation.destructive,
+  }
+}
+
+// Fallback valid targets used when API meta is not yet loaded. Covers the
+// broadest common set so target validation doesn't false-block before the
+// real data arrives.
+function defaultValidTargets(): Set<TargetKind> {
+  return new Set<TargetKind>(["username", "numeric_id", "public_link"])
+}
 
 // Presentation + estimation for the action risk tiers served by the backend.
 // The backend's ACTION_META is the source of truth for which tier an action is
