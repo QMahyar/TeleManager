@@ -184,6 +184,42 @@ def test_photos_mode_endpoint_sets_and_validates(app_context: dict):
     assert missing.status_code == 400
 
 
+def test_save_app_settings_preserves_password_hash(app_context: dict):
+    """Regression: save_app_settings must not wipe password_hash (P001)."""
+    client = app_context["client"]
+
+    # 1. Enable the app password.
+    response = client.post("/api/auth/setup", json={"password": "secret-pass"})
+    assert response.status_code == 200
+    assert response.json()["password_enabled"]
+
+    # 2. Clear session and login to get a valid session.
+    client.cookies.clear()
+    login_resp = client.post("/api/auth/login", data={"password": "secret-pass"})
+    assert login_resp.status_code == 200
+
+    # 3. Change an unrelated display setting.
+    saved = client.post("/api/settings/app", json={"show_dialog_photos": False})
+    assert saved.status_code == 200
+    assert saved.json()["settings"] == {"show_dialog_photos": False}
+
+    # 4. Password must still be active.
+    assert client.get("/api/auth/status").json()["password_enabled"]
+
+    # 5. Unauthenticated API must be blocked.
+    client.cookies.clear()
+    assert client.get("/api/config").status_code == 401
+
+    # 6. The public settings endpoint must return the new value and NOT leak
+    #    the password_hash.
+    login_resp = client.post("/api/auth/login", data={"password": "secret-pass"})
+    assert login_resp.status_code == 200
+
+    settings = client.get("/api/settings/app").json()["settings"]
+    assert settings == {"show_dialog_photos": False}
+    assert "password_hash" not in settings
+
+
 def test_delete_session_removes_avatar_cache(app_context: dict):
     account = add_account(app_context, "acc-1", "Primary")
     config = app_context["config"]
