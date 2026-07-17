@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import threading
 import uuid
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +15,7 @@ EVENTS_FILE = ACTIVITY_DIR / "events.jsonl"
 MAX_EVENTS = 5000
 _TRIM_CHECK_EVERY = 250
 _appends_since_check = 0
+_events_lock = threading.Lock()
 
 
 def ensure_activity_dir() -> None:
@@ -21,7 +24,6 @@ def ensure_activity_dir() -> None:
 
 
 def log_event(event_type: str, title: str, detail: str = "", payload: dict[str, Any] | None = None) -> dict[str, Any]:
-    ensure_activity_dir()
     event = {
         "id": str(uuid.uuid4()),
         "created_at": now_iso(),
@@ -30,13 +32,15 @@ def log_event(event_type: str, title: str, detail: str = "", payload: dict[str, 
         "detail": detail,
         "payload": payload or {},
     }
-    with EVENTS_FILE.open("a", encoding="utf-8") as output:
-        output.write(json.dumps(event, sort_keys=True) + "\n")
-    _maybe_trim_events()
+    with _events_lock:
+        ensure_activity_dir()
+        with EVENTS_FILE.open("a", encoding="utf-8") as output:
+            output.write(json.dumps(event, sort_keys=True) + "\n")
+        _maybe_trim_events_locked()
     return event
 
 
-def _maybe_trim_events() -> None:
+def _maybe_trim_events_locked() -> None:
     """Periodically cap the JSONL to the most recent MAX_EVENTS lines.
 
     Events are low-frequency, so an occasional rewrite (every _TRIM_CHECK_EVERY
@@ -58,21 +62,21 @@ def _maybe_trim_events() -> None:
 
 
 def list_events(limit: int = 200) -> list[dict[str, Any]]:
-    ensure_activity_dir()
-    if not EVENTS_FILE.exists():
-        return []
-    lines = EVENTS_FILE.read_text(encoding="utf-8").splitlines()
+    with _events_lock:
+        ensure_activity_dir()
+        if not EVENTS_FILE.exists():
+            return []
+        lines = EVENTS_FILE.read_text(encoding="utf-8").splitlines()
     events = []
     for line in lines[-limit:]:
-        try:
-            events.append(json.loads(line))
-        except json.JSONDecodeError:
-            continue
+        with suppress(json.JSONDecodeError):
+            events.extend(map(json.loads, [line]))
     return list(reversed(events))
 
 
 def export_events_path() -> Path:
-    ensure_activity_dir()
-    if not EVENTS_FILE.exists():
-        EVENTS_FILE.write_text("", encoding="utf-8")
-    return EVENTS_FILE
+    with _events_lock:
+        ensure_activity_dir()
+        if not EVENTS_FILE.exists():
+            EVENTS_FILE.write_text("", encoding="utf-8")
+        return EVENTS_FILE

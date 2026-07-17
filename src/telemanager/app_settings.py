@@ -28,9 +28,10 @@ def app_settings() -> dict:
 
 
 def save_app_settings(request: AppSettingsRequest) -> dict:
-    settings = request.model_dump()
-    app_settings_doc.write(settings)
-    return settings
+    updates = request.model_dump()
+    with app_settings_doc.mutate({}) as settings:
+        settings.update(updates)
+    return app_settings()
 
 
 def resolve_photos_enabled(account: AccountRecord, global_show: bool) -> bool:

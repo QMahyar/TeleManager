@@ -3,6 +3,7 @@
 Unit tests cover the in-memory session dict. HTTP tests exercise the plan-001
 auth surface via TestClient (middleware 401, setup current-password, logout).
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
@@ -147,6 +148,25 @@ def test_login_rejects_wrong_password(client) -> None:
 
     blocked = client.get("/api/config")
     assert blocked.status_code == 401
+
+
+def test_saving_app_preferences_preserves_password_and_private_keys(app_context: dict, client) -> None:
+    enable_password(client)
+    assert login(client).status_code == 200
+
+    app_settings_doc = __import__("telemanager.documents", fromlist=["app_settings_doc"]).app_settings_doc
+    with app_settings_doc.mutate({}) as settings:
+        settings["private_sentinel"] = "preserved"
+
+    saved = client.post("/api/settings/app", json={"show_dialog_photos": False})
+    assert saved.status_code == 200
+    assert saved.json() == {"settings": {"show_dialog_photos": False}}
+    assert app_settings_doc.read({})["private_sentinel"] == "preserved"
+
+    clear_session_cookies(client)
+    assert client.get("/api/auth/status").json()["password_enabled"] is True
+    assert client.get("/api/config").status_code == 401
+    assert login(client).status_code == 200
 
 
 def test_setup_requires_current_password_when_enabled(client) -> None:

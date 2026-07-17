@@ -260,7 +260,7 @@ export type ScheduleQueue = {
 export type Schedule = {
   id: string
   name: string
-  status: "active" | "paused" | "completed" | "canceled" | "error"
+  status: "active" | "paused" | "completed" | "canceled" | "error" | "deleting"
   engine: ScheduleEngine
   engine_reason: string
   queue: ScheduleQueue
