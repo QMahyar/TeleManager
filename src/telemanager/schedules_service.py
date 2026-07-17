@@ -4,6 +4,7 @@ import asyncio
 import copy
 import logging
 import uuid
+from contextlib import suppress
 from datetime import datetime, timedelta
 from typing import Any, Literal
 
@@ -135,6 +136,13 @@ def list_schedules(schedules: dict[str, dict[str, Any]]) -> list[dict[str, Any]]
     return sorted(schedules.values(), key=lambda item: item.get("created_at", ""), reverse=True)
 
 
+def has_tracked_native_ids(schedule: dict[str, Any]) -> bool:
+    native_chats = schedule.get("native_chats")
+    if not isinstance(native_chats, dict):
+        return False
+    return any(isinstance(entry, dict) and bool(entry.get("ids")) for entry in native_chats.values())
+
+
 def scheduled_targets_by_account() -> dict[str, set[str]]:
     """Map every account to the set of chats it has scheduled work for.
 
@@ -175,20 +183,27 @@ def owned_native_ids(account_id: str, target: str) -> set[int]:
     """Scheduled-message ids that a local schedule created for this account+chat."""
     owned: set[int] = set()
     for _schedule, entry in _matching_native_entries(account_id, target):
-        owned.update(int(mid) for mid in (entry.get("ids") or {}))
+        for message_id in entry.get("ids") or {}:
+            with suppress(ValueError):
+                parsed = int(message_id)
+                owned.add(parsed)
     return owned
 
 
 def prune_local_native_ids(account_id: str, target: str, ids: list[int]) -> None:
     """Forget cleared scheduled-message ids so the buffer can refill them if active."""
-    removed = {int(message_id) for message_id in ids}
+    removed = {str(message_id) for message_id in ids}
     schedules = load_schedules()
     changed = False
     for schedule in schedules.values():
         for key, entry in (schedule.get("native_chats") or {}).items():
             if not key.startswith(f"{account_id}|") or entry.get("target") != target:
                 continue
-            kept = {mid: when for mid, when in (entry.get("ids") or {}).items() if int(mid) not in removed}
+            kept = {
+                message_id: when
+                for message_id, when in (entry.get("ids") or {}).items()
+                if str(message_id) not in removed
+            }
             if len(kept) != len(entry.get("ids") or {}):
                 entry["ids"] = kept
                 changed = True
@@ -429,17 +444,53 @@ class SchedulerService:
             schedule = schedules.get(schedule_id)
             if not schedule:
                 raise KeyError(schedule_id)
-            schedules.pop(schedule_id, None)
+            if schedule.get("engine") != "native" or not has_tracked_native_ids(schedule):
+                schedules.pop(schedule_id)
+                save_schedules(schedules)
+                self._log_deleted(schedule_id, schedule)
+                return
+            schedule["status"] = "deleting"
+            schedule["last_error"] = None
+            schedule["updated_at"] = iso(utcnow())
             save_schedules(schedules)
-        # Delete any Telegram-native scheduled messages this schedule pre-created —
-        # outside self._lock so a long run on a shared account can't freeze every
-        # schedule endpoint, and best-effort so a connection failure (the schedule is
-        # already gone) never fails the request. teardown_native serializes with runs
-        # via session_guard so it never yanks a session from a live queue.
+
         try:
             await self.teardown_native(schedule)
-        except Exception:  # noqa: BLE001 - schedule is already removed; cleanup is best-effort
-            logger.exception("Native teardown failed for deleted schedule %s", schedule_id)
+        except Exception as exc:
+            logger.exception("Native teardown failed for schedule %s", schedule_id)
+            await self._retain_delete_failure(schedule_id, schedule, str(exc))
+            raise ValueError("Telegram cleanup did not finish; retry deletion when the account is available.") from exc
+
+        async with self._lock:
+            schedules = load_schedules()
+            current = schedules.get(schedule_id)
+            if not current:
+                raise ValueError("Schedule disappeared while Telegram cleanup was running.")
+            current["native_chats"] = schedule.get("native_chats", {})
+            if has_tracked_native_ids(current):
+                current["status"] = "deleting"
+                current["last_error"] = "Telegram cleanup did not finish."
+                current["updated_at"] = iso(utcnow())
+                save_schedules(schedules)
+                raise ValueError("Telegram cleanup did not finish; retry deletion when the account is available.")
+            schedules.pop(schedule_id)
+            save_schedules(schedules)
+        self._log_deleted(schedule_id, schedule)
+
+    async def _retain_delete_failure(self, schedule_id: str, attempted: dict[str, Any], error: str) -> None:
+        async with self._lock:
+            schedules = load_schedules()
+            current = schedules.get(schedule_id)
+            if not current:
+                return
+            current["native_chats"] = attempted.get("native_chats", {})
+            current["status"] = "deleting"
+            current["last_error"] = error[:300] or "Telegram cleanup did not finish."
+            current["updated_at"] = iso(utcnow())
+            save_schedules(schedules)
+        self.notify()
+
+    def _log_deleted(self, schedule_id: str, schedule: dict[str, Any]) -> None:
         log_event(
             "schedule_deleted",
             "Schedule deleted",
@@ -527,7 +578,7 @@ class SchedulerService:
         async with self.manager.temp_client(account_id) as client:
             if ids is None:
                 rows = await fetch_scheduled_messages(client, clean_target)
-                ids = [int(row["id"]) for row in rows]
+                ids = [row["id"] for row in rows]
             await delete_scheduled_messages(client, clean_target, ids)
         async with self._lock:
             prune_local_native_ids(account_id, clean_target, ids)
@@ -622,7 +673,7 @@ class SchedulerService:
             return next_fire
 
         self._fire_runner(schedule, now)
-        schedule["fires_done"] = int(schedule.get("fires_done", 0)) + 1
+        schedule["fires_done"] = schedule.get("fires_done", 0) + 1
         schedule["last_fire_at"] = iso(now)
 
         recurrence = schedule["recurrence"]
@@ -640,7 +691,7 @@ class SchedulerService:
         recurrence = schedule["recurrence"]
         planned = total_planned(recurrence)
         if planned is not None:
-            return int(schedule.get("fires_done", 0)) >= planned
+            return schedule.get("fires_done", 0) >= planned
         until = parse_iso(recurrence.get("end_until"))
         if until:
             return next_fire > until
@@ -654,10 +705,7 @@ class SchedulerService:
         fire_account_ids = {account_id for step in queue["steps"] for account_id in step["account_ids"]}
         busy = sorted(a for a in fire_account_ids if self.manager.is_account_busy(a))
         if busy:
-            labels = [
-                self.manager.accounts[a].label if a in self.manager.accounts else a
-                for a in busy
-            ]
+            labels = [self.manager.accounts[a].label if a in self.manager.accounts else a for a in busy]
             schedule["last_error"] = f"Fire at {iso(now)} skipped: account(s) busy: {', '.join(labels)}"
             return
         try:
@@ -726,7 +774,7 @@ class SchedulerService:
         desired = upcoming_fire_times(anchor, recurrence, now, horizon, TELEGRAM_SCHEDULED_PER_CHAT_LIMIT)
         native_chats: dict[str, Any] = schedule.setdefault("native_chats", {})
         coverage: datetime | None = None
-        stagger = int(recurrence.get("stagger_seconds") or 0)
+        stagger = recurrence.get("stagger_seconds") or 0
         account_ids = sorted({account_id for step in schedule["queue"]["steps"] for account_id in step["account_ids"]})
         warmed: list[str] = []
         chat_index = 0
@@ -798,8 +846,9 @@ class SchedulerService:
         entry = native_chats.setdefault(key, {"target": target, "ids": {}})
         existing = await list_scheduled_message_times(client, target)
         # Drop ids that Telegram already delivered or that no longer exist.
+        existing_ids = {str(message_id) for message_id in existing}
         tracked: dict[str, str] = {
-            str(mid): when for mid, when in entry["ids"].items() if int(mid) in existing
+            str(message_id): when for message_id, when in entry["ids"].items() if str(message_id) in existing_ids
         }
         covered = {parse_iso(when) for when in tracked.values()}
         room = TELEGRAM_SCHEDULED_PER_CHAT_LIMIT - len(existing)
@@ -860,8 +909,10 @@ class SchedulerService:
                                 continue
                             client = await self._warm(account_id, warmed)
                             if client is None:
-                                continue
+                                raise ValueError("Account is unavailable for Telegram cleanup.")
                             await delete_scheduled_messages(client, target, [int(mid) for mid in entry["ids"]])
                             entry["ids"] = {}
             finally:
                 await self.manager.release_run_clients(account_ids)
+        if has_tracked_native_ids(schedule):
+            raise ValueError("Telegram cleanup did not finish.")

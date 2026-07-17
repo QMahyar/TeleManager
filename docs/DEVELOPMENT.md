@@ -18,12 +18,16 @@ For architecture, data model, and lifecycle flows see [ARCHITECTURE.md](ARCHITEC
 ```bash
 # Python environment
 python -m venv .venv
-source .venv/Scripts/activate   # Windows: .venv\Scripts\activate
+# Activate with one command for your shell:
+# PowerShell: .venv\Scripts\Activate.ps1
+# cmd.exe:    .venv\Scripts\activate.bat
+# Git Bash:   source .venv/Scripts/activate
+# POSIX:      source .venv/bin/activate
 pip install -r requirements.txt
 
 # Frontend
-npm install
-npm run build
+npm --prefix apps/web ci
+npm --prefix apps/web run build
 ```
 
 ## Running locally
@@ -40,7 +44,7 @@ run.bat        # Windows
 Frontend dev server (proxies `/api` to `:8000`, no backend required for UI work):
 
 ```bash
-npm run dev -- --filter web
+npm --prefix apps/web run dev
 ```
 
 ---
@@ -64,7 +68,7 @@ CI gates on all four checks. Nothing merges with a failing lint, typecheck, test
 
 ## Versioning
 
-`pyproject.toml` `[project] version` is the single source of truth. After bumping it, propagate to `apps/web/package.json`, `README.md`, and `src/telemanager/__init__.py`:
+`pyproject.toml` `[project] version` is the single source of truth. The sync script propagates it to the root and web npm manifests/lockfiles, `src/telemanager/__init__.py`, and `requirements.txt`. README uses a dynamic release badge and needs no version edit:
 
 ```bash
 python scripts/sync_version.py          # apply
@@ -106,7 +110,8 @@ src/telemanager/        FastAPI app and backend services
   audit_service.py      JSONL activity log writer
   app_settings.py       App-level display preferences (dialog photos toggle)
   presets_service.py    Reusable queue preset storage
-  documents.py          Document interface (JSON or SQLite backend)
+  documents.py          Process-wide shared Document instances
+  store.py              Atomic JSON document storage and mutation locks
   config.py             Data directory paths
 
 apps/web/               React + Vite + Tailwind v4 frontend
@@ -115,7 +120,7 @@ apps/web/               React + Vite + Tailwind v4 frontend
   src/hooks/            Central client state (accounts, dialogs, queue, settings)
   src/ui/               UI primitives, tokens, and globals.css
 
-tests/                  Backend test suite (pytest, 157+ tests)
+tests/                  Backend test suite (pytest)
 scripts/                sync_version.py, build-release.py, gen-assets.mjs
 docs/                   ARCHITECTURE.md, SECURITY.md, ROADMAP.md, this file
 .github/workflows/      ci.yml (lint+test+typecheck), release.yml (tag-driven build)

@@ -112,7 +112,7 @@ const recurrenceConfigSchema = z.object({
 const scheduleSchema = z.object({
   id: z.string(),
   name: z.string(),
-  status: z.enum(["active", "paused", "completed", "canceled", "error"]),
+  status: z.enum(["active", "paused", "completed", "canceled", "error", "deleting"]),
   engine: z.enum(["native", "runner"]),
   engine_reason: z.string(),
   queue: queueConfigSchema,

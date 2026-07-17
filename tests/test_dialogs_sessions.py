@@ -121,8 +121,15 @@ def test_search_result_carries_chat_label():
 
     # No chat entity -> degrade to the bare id, never crash.
     bare = SimpleNamespace(
-        id=1, date=None, message="", sender=None, sender_id=None,
-        out=False, media=None, chat=None, chat_id=-100999,
+        id=1,
+        date=None,
+        message="",
+        sender=None,
+        sender_id=None,
+        out=False,
+        media=None,
+        chat=None,
+        chat_id=-100999,
     )
     assert dialogs_service.search_result_to_dict(bare)["chat_title"] == "-100999"
 
@@ -164,6 +171,51 @@ def test_import_session_rejects_non_session_file(client):
     assert payload["failed"][0]["error"] == "Only .session files can be imported."
 
 
+def test_import_session_batch_limit_rejects_before_service(client, monkeypatch) -> None:
+    accounts_route = __import__("telemanager.routes.accounts", fromlist=["import_session_files"])
+    called = False
+
+    async def fake_import(*_args):
+        nonlocal called
+        called = True
+        return {"imported": [], "failed": []}
+
+    monkeypatch.setattr(accounts_route, "import_session_files", fake_import)
+    files = [("files", (f"file-{index}.session", b"x", "application/octet-stream")) for index in range(26)]
+    response = client.post("/api/sessions/import-files", files=files)
+    assert response.status_code == 400
+    assert called is False
+
+    files = [("files", (f"file-{index}.session", b"x", "application/octet-stream")) for index in range(25)]
+    response = client.post("/api/sessions/import-files", files=files)
+    assert response.status_code == 200
+    assert called is True
+
+
+def test_import_session_size_boundaries_and_cleanup(app_context: dict, monkeypatch) -> None:
+    service = __import__("telemanager.sessions_service", fromlist=["import_session_files"])
+    monkeypatch.setattr(service, "MAX_SESSION_IMPORT_BYTES", 4)
+
+    async def fake_validate(account_id):
+        return app_context["main"].manager.accounts[account_id]
+
+    monkeypatch.setattr(app_context["main"].manager, "validate_account", fake_validate)
+    UploadFile = __import__("fastapi", fromlist=["UploadFile"]).UploadFile
+
+    exact = UploadFile(filename="exact.session", file=io.BytesIO(b"1234"))
+    oversized = UploadFile(filename="large.session", file=io.BytesIO(b"12345"))
+    empty = UploadFile(filename="empty.session", file=io.BytesIO(b""))
+    valid = UploadFile(filename="valid.session", file=io.BytesIO(b"ok"))
+    result = asyncio.run(service.import_session_files(app_context["main"].manager, [exact, oversized, empty, valid]))
+
+    assert len(result["imported"]) == 2
+    assert len(result["failed"]) == 2
+    assert any("exceeds" in item["error"] for item in result["failed"])
+    assert any("empty" in item["error"] for item in result["failed"])
+    assert len(list(app_context["sessions_dir"].glob("*.session"))) == 2
+    assert len(app_context["main"].manager.accounts) == 2
+
+
 def test_export_sessions_redacts_metadata(app_context: dict):
     account = add_account(app_context, "acc-1", "Primary")
     account.phone = "+10000000000"
@@ -185,6 +237,46 @@ def test_export_sessions_redacts_metadata(app_context: dict):
         assert "README-SECURITY.txt" in names
         metadata = archive.read("accounts-export.json").decode()
         assert "+10000000000" not in metadata
+
+
+def test_export_preflight_leaves_no_partial_archive(app_context: dict) -> None:
+    first = add_account(app_context, "acc-1", "First")
+    second = add_account(app_context, "acc-2", "Second")
+    app_context["sessions_dir"].mkdir(parents=True, exist_ok=True)
+    (app_context["sessions_dir"] / f"{first.session_name}.session").write_bytes(b"fake sqlite bytes")
+
+    response = app_context["client"].post(
+        "/api/sessions/export",
+        json={"account_ids": [first.id, second.id], "redact_phone": True},
+    )
+    assert response.status_code == 400
+    exports = app_context["data_dir"] / "exports"
+    assert not list(exports.iterdir())
+
+
+def test_export_write_failure_cleans_temporary_archive(app_context: dict, monkeypatch) -> None:
+    account = add_account(app_context, "acc-1", "Primary")
+    app_context["sessions_dir"].mkdir(parents=True, exist_ok=True)
+    (app_context["sessions_dir"] / f"{account.session_name}.session").write_bytes(b"fake sqlite bytes")
+    service = __import__("telemanager.sessions_service", fromlist=["export_sessions"])
+
+    monkeypatch.setattr(zipfile.ZipFile, "write", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("disk")))
+    with pytest.raises(OSError, match="disk"):
+        service.export_sessions(app_context["main"].manager, [account.id])
+    assert not list((app_context["data_dir"] / "exports").iterdir())
+
+
+def test_export_names_are_unique_within_same_second(app_context: dict) -> None:
+    account = add_account(app_context, "acc-1", "Primary")
+    app_context["sessions_dir"].mkdir(parents=True, exist_ok=True)
+    (app_context["sessions_dir"] / f"{account.session_name}.session").write_bytes(b"fake sqlite bytes")
+    service = __import__("telemanager.sessions_service", fromlist=["export_sessions"])
+
+    first = service.export_sessions(app_context["main"].manager, [account.id])
+    second = service.export_sessions(app_context["main"].manager, [account.id])
+    assert first != second
+    with zipfile.ZipFile(first), zipfile.ZipFile(second):
+        pass
 
 
 def test_rename_and_delete_session_file(app_context: dict):
@@ -211,9 +303,5 @@ def test_validate_account_route_registered(app_context: dict):
     # this handler once lost its @router.post decorator in a merge, silently 404ing
     # the button. Assert the route stays registered rather than the handler body.
     app = app_context["main"].app
-    registered = {
-        (route.path, method)
-        for route in app.routes
-        for method in getattr(route, "methods", None) or ()
-    }
+    registered = {(route.path, method) for route in app.routes for method in getattr(route, "methods", None) or ()}
     assert ("/api/accounts/{account_id}/validate", "POST") in registered

@@ -1,4 +1,5 @@
 """Account lifecycle + local session files (/api/accounts/*, /api/sessions/*)."""
+
 from __future__ import annotations
 
 import asyncio
@@ -11,6 +12,7 @@ from pydantic import BaseModel, Field
 from ..audit_service import log_event
 from ..runtime import manager
 from ..sessions_service import (
+    MAX_SESSION_IMPORT_FILES,
     delete_local_session,
     export_sessions,
     import_session_files,
@@ -115,25 +117,20 @@ async def validate_all_accounts() -> dict:
     tasks = [manager.validate_account(acc.id) for acc in accounts]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    ok_count = sum(
-        1
-        for i, acc in enumerate(accounts)
-        if not isinstance(results[i], Exception) and results[i].authorized
-    )
-    failed_count = len(accounts) - ok_count
-
+    rows = []
+    for account, result in zip(accounts, results, strict=True):
+        if isinstance(result, BaseException):
+            ok = False
+            error = str(result)
+        else:
+            ok = result.authorized
+            error = result.last_error
+        rows.append({"account_id": account.id, "label": account.label, "ok": ok, "error": error})
+    ok_count = sum(row["ok"] for row in rows)
     return {
-        "results": [
-            {
-                "account_id": acc.id,
-                "label": acc.label,
-                "ok": not isinstance(results[i], Exception) and results[i].authorized,
-                "error": str(results[i]) if isinstance(results[i], Exception) else results[i].last_error,
-            }
-            for i, acc in enumerate(accounts)
-        ],
+        "results": rows,
         "ok_count": ok_count,
-        "failed_count": failed_count,
+        "failed_count": len(accounts) - ok_count,
     }
 
 
@@ -163,6 +160,11 @@ def delete_account(account_id: str) -> dict:
 async def import_sessions_batch(files: list[UploadFile] = FILES_BODY) -> dict:
     if not files:
         raise HTTPException(status_code=400, detail="Select at least one .session file to import.")
+    if len(files) > MAX_SESSION_IMPORT_FILES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Select no more than {MAX_SESSION_IMPORT_FILES} session files.",
+        )
     result = await import_session_files(manager, files)
     imported = result["imported"]
     log_event(

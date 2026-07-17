@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from contextlib import asynccontextmanager
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -70,6 +71,27 @@ ALLOWED_HOSTS = [
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
 
 
+def is_trusted_browser_origin(origin: str) -> bool:
+    try:
+        parsed = urlsplit(origin)
+        if parsed.scheme not in {"http", "https"} or parsed.username or parsed.password:
+            return False
+        _ = parsed.port
+    except ValueError:
+        return False
+    allowed = {host.lower().strip("[]") for host in ALLOWED_HOSTS}
+    return bool(parsed.hostname) and parsed.hostname.lower().strip("[]") in allowed
+
+
+def should_reject_cross_origin_mutation(request: Request) -> bool:
+    if request.method in {"GET", "HEAD", "OPTIONS"}:
+        return False
+    origin = request.headers.get("origin")
+    if origin is not None:
+        return not is_trusted_browser_origin(origin)
+    return request.headers.get("sec-fetch-site", "").lower() == "cross-site"
+
+
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     """Check app password if enabled. Exempt auth endpoints and static assets.
@@ -78,6 +100,12 @@ async def auth_middleware(request: Request, call_next):
     `/api/auth/*`) returns 401 JSON. Non-API paths still load so the SPA can
     render a login gate — the browser needs HTML/JS before it can authenticate.
     """
+    if should_reject_cross_origin_mutation(request):
+        return JSONResponse(
+            status_code=403,
+            content={"detail": "Cross-origin state-changing requests are not allowed."},
+        )
+
     # Skip auth for login/status endpoints and static files
     if request.url.path.startswith(("/api/auth/", "/assets/", "/favicon.ico")):
         return await call_next(request)
@@ -113,8 +141,17 @@ if (FRONTEND_DIST_DIR / "assets").exists():
 # "/{filename}" routes. (Order isn't strictly required since /{filename} is single-
 # segment and can't match /api/*, but it keeps the catch-all visibly last.)
 for _module in (
-    auth, config, settings, accounts, account_settings,
-    dialogs, actions, schedules, activity, system, static,
+    auth,
+    config,
+    settings,
+    accounts,
+    account_settings,
+    dialogs,
+    actions,
+    schedules,
+    activity,
+    system,
+    static,
 ):
     app.include_router(_module.router)
 

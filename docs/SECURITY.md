@@ -27,6 +27,10 @@ A Telethon `.session` file can allow access to the Telegram account it belongs t
 
 Session exports contain Telegram authentication material. Keep them private, move them only through trusted storage, and delete temporary copies when finished.
 
+Session imports are limited server-side to 25 files per request and 32 MiB per
+file, enforced while streaming. Size limits protect local resources but do not
+make an untrusted session database safe; import only session files you trust.
+
 ## Local-Only Default
 
 The app is intended to run on `127.0.0.1`. Do not expose it to a LAN or public network until authentication, HTTPS, CSRF protection, and user access controls are added.
@@ -38,6 +42,12 @@ python -m uvicorn telemanager.main:app --app-dir src --reload
 ```
 
 Do not change the host to `0.0.0.0` unless the app has been secured for remote access.
+
+Host allowlisting prevents DNS rebinding. Browser-identified state-changing requests
+with a foreign, null, or malformed origin are also rejected; local CLI and test
+clients without browser origin metadata remain supported. These localhost controls
+do not make remote exposure safe: HTTPS, a complete CSRF strategy, authentication,
+and user access controls are still required before binding beyond localhost.
 
 ## Queue Safety Model
 

@@ -1,4 +1,5 @@
 """Recurring schedules + Telegram-native scheduled messages (/api/schedules/*, /api/scheduled/*)."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
@@ -57,6 +58,8 @@ async def delete_schedule(schedule_id: str) -> dict:
         await scheduler.delete(schedule_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Schedule was not found.") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return {"ok": True}
 
 

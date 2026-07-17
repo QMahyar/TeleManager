@@ -438,7 +438,8 @@ export function ScheduleCard({
   askDialog: AskDialog
   loadSchedules: () => Promise<void>
 }) {
-  const terminal = TERMINAL_STATUSES.has(schedule.status)
+  const deleting = schedule.status === "deleting"
+  const terminal = TERMINAL_STATUSES.has(schedule.status) || deleting
   const planned = schedule.fires_planned
   const progress =
     planned != null
@@ -532,12 +533,12 @@ export function ScheduleCard({
           onClick={() =>
             guarded(async () => {
               const confirmed = await askDialog({
-                title: "Delete schedule?",
+                title: deleting ? "Retry schedule deletion?" : "Delete schedule?",
                 description:
                   schedule.engine === "native"
-                    ? "This removes the schedule and deletes any messages it pre-scheduled in Telegram."
+                    ? "TeleManager will remove the schedule only after its pre-scheduled Telegram messages are deleted."
                     : "This removes the schedule. It will stop firing.",
-                confirmLabel: "Delete Schedule",
+                confirmLabel: deleting ? "Retry Deletion" : "Delete Schedule",
                 danger: true,
               })
               if (!confirmed) return
@@ -547,7 +548,7 @@ export function ScheduleCard({
             })
           }
         >
-          <IconTrash /> Delete
+          <IconTrash /> {deleting ? "Retry Delete" : "Delete"}
         </Button>
       </div>
     </div>

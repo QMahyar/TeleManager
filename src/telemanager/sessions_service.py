@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import shutil
@@ -15,6 +16,9 @@ from .accounts import AccountManager, AccountRecord
 from .config import AVATARS_DIR, EXPORTS_DIR, SESSIONS_DIR, ensure_dirs, now_iso
 
 PHOTOS_MODES = frozenset({"default", "on", "off"})
+MAX_SESSION_IMPORT_FILES = 25
+MAX_SESSION_IMPORT_BYTES = 32 * 1024 * 1024
+SESSION_IMPORT_CHUNK_BYTES = 1024 * 1024
 
 SESSION_SLUG_RE = re.compile(r"^[a-zA-Z0-9_-]{3,64}$")
 
@@ -42,9 +46,21 @@ def display_name_from_account(account: AccountRecord, fallback: str) -> str:
     return account.username or full_name or fallback
 
 
-async def import_session_file(
-    manager: AccountManager, upload: UploadFile, label: str | None = None
-) -> AccountRecord:
+def _copy_session_upload(upload: UploadFile, output) -> None:
+    total = 0
+    while True:
+        chunk = upload.file.read(min(SESSION_IMPORT_CHUNK_BYTES, MAX_SESSION_IMPORT_BYTES - total + 1))
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > MAX_SESSION_IMPORT_BYTES:
+            raise ValueError(f"Session file exceeds the {MAX_SESSION_IMPORT_BYTES // (1024 * 1024)} MiB limit.")
+        output.write(chunk)
+    if total == 0:
+        raise ValueError("Session file cannot be empty.")
+
+
+async def import_session_file(manager: AccountManager, upload: UploadFile, label: str | None = None) -> AccountRecord:
     ensure_dirs()
     original_name = Path(upload.filename or "imported.session").name
     if not original_name.endswith(".session"):
@@ -58,8 +74,12 @@ async def import_session_file(
     if destination.exists():
         raise ValueError("A session with this generated name already exists.")
 
-    with destination.open("wb") as output:
-        shutil.copyfileobj(upload.file, output)
+    try:
+        with destination.open("wb") as output:
+            _copy_session_upload(upload, output)
+    except Exception:
+        destination.unlink(missing_ok=True)
+        raise
 
     account = AccountRecord(
         id=account_id,
@@ -94,10 +114,13 @@ async def import_session_files(manager: AccountManager, uploads: list[UploadFile
     imported: list[AccountRecord] = []
     failed: list[dict] = []
     for upload in uploads:
-        try:
-            imported.append(await import_session_file(manager, upload, None))
-        except ValueError as exc:
-            failed.append({"filename": upload.filename or "unknown", "error": str(exc)})
+        result = (await asyncio.gather(import_session_file(manager, upload, None), return_exceptions=True))[0]
+        if isinstance(result, ValueError):
+            failed.append({"filename": upload.filename or "unknown", "error": str(result)})
+        elif isinstance(result, BaseException):
+            raise result
+        else:
+            imported.append(result)
     return {"imported": imported, "failed": failed}
 
 
@@ -105,26 +128,39 @@ def export_sessions(manager: AccountManager, account_ids: list[str], redact_phon
     ensure_dirs()
     if not account_ids:
         raise ValueError("Select at least one account to export.")
+    if len(set(account_ids)) != len(account_ids):
+        raise ValueError("Each account may be exported only once.")
 
-    export_path = EXPORTS_DIR / f"telemanager-export-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}.zip"
+    selected = []
     metadata = []
-    with zipfile.ZipFile(export_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for account_id in account_ids:
-            account = manager._get_account(account_id)
-            source = session_file_path(account.session_name)
-            if not source.exists():
-                raise ValueError(f"Session file missing for {account.label}.")
-            archive.write(source, f"sessions/{source.name}")
-            record = asdict(account)
-            if redact_phone:
-                record["phone"] = ""
-            metadata.append(record)
-        archive.writestr("accounts-export.json", json.dumps(metadata, indent=2, sort_keys=True))
-        archive.writestr(
-            "README-SECURITY.txt",
-            "TeleManager session exports contain Telegram authentication material. Keep this ZIP private.\n",
-        )
-    return export_path
+    for account_id in account_ids:
+        account = manager._get_account(account_id)
+        source = session_file_path(account.session_name)
+        if not source.is_file():
+            raise ValueError(f"Session file missing for {account.label}.")
+        selected.append((account, source))
+        record = asdict(account)
+        if redact_phone:
+            record["phone"] = ""
+        metadata.append(record)
+
+    timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+    suffix = uuid.uuid4().hex[:8]
+    export_path = EXPORTS_DIR / f"telemanager-export-{timestamp}-{suffix}.zip"
+    temp_path = EXPORTS_DIR / f".{export_path.name}.tmp-{uuid.uuid4().hex[:8]}"
+    try:
+        with zipfile.ZipFile(temp_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            for _account, source in selected:
+                archive.write(source, f"sessions/{source.name}")
+            archive.writestr("accounts-export.json", json.dumps(metadata, indent=2, sort_keys=True))
+            archive.writestr(
+                "README-SECURITY.txt",
+                "TeleManager session exports contain Telegram authentication material. Keep this ZIP private.\n",
+            )
+        temp_path.replace(export_path)
+        return export_path
+    finally:
+        temp_path.unlink(missing_ok=True)
 
 
 def rename_account(manager: AccountManager, account_id: str, label: str) -> AccountRecord:
@@ -182,6 +218,9 @@ def delete_local_session(manager: AccountManager, account_id: str) -> None:
     # no orphaned local image cache behind.
     avatar_cache = AVATARS_DIR / account.id
     if avatar_cache.is_dir():
-        shutil.rmtree(avatar_cache, ignore_errors=True)
+        try:
+            shutil.rmtree(avatar_cache)
+        except OSError:
+            pass
     manager.accounts.pop(account.id, None)
     manager._save_accounts()

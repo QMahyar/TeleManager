@@ -90,9 +90,7 @@ def test_classify_engine_and_native_text(app_context: dict) -> None:
         "text": "hello",
     }
     # send_media classifies native and carries the file/caption to schedule offline.
-    media_payload = ss.native_payload_for_step(
-        {"action_type": "send_media", "message": "file=E:/p.jpg\ncaption=hi"}
-    )
+    media_payload = ss.native_payload_for_step({"action_type": "send_media", "message": "file=E:/p.jpg\ncaption=hi"})
     assert media_payload == {"kind": "media", "file": "E:/p.jpg", "caption": "hi", "parse_mode": None}
     native_only, _ = ss.classify_engine([{"action_type": "send_media", "message": "file=E:/p.jpg"}])
     assert native_only == "native"
@@ -104,9 +102,7 @@ def test_create_list_pause_resume_delete_schedule(app_context: dict, client) -> 
     body = {
         "name": "Daily hello",
         "queue": {
-            "steps": [
-                {"action_type": "send_message", "account_ids": ["acc-1"], "targets": ["@chat"], "message": "hi"}
-            ],
+            "steps": [{"action_type": "send_message", "account_ids": ["acc-1"], "targets": ["@chat"], "message": "hi"}],
             "max_operations": 10,
         },
         "recurrence": {"interval_value": 5, "interval_unit": "minutes", "end_mode": "count", "end_count": 3},
@@ -133,15 +129,120 @@ def test_create_list_pause_resume_delete_schedule(app_context: dict, client) -> 
     assert client.get(f"/api/schedules/{schedule_id}").status_code == 404
 
 
+def _native_schedule_with_ids(app_context: dict):
+    ss = _ss()
+    add_account(app_context, "acc-native", "Native")
+    schedule = ss.build_schedule(
+        ss.ScheduleRequest(
+            name="Native cleanup",
+            queue={
+                "steps": [
+                    {
+                        "action_type": "send_message",
+                        "account_ids": ["acc-native"],
+                        "targets": ["@chat"],
+                        "message": "hi",
+                    }
+                ],
+                "max_operations": 10,
+            },
+            recurrence=_recurrence(),
+        )
+    )
+    schedule["native_chats"] = {"acc-native|0|@chat": {"target": "@chat", "ids": {"123": ss.iso(ss.utcnow())}}}
+    ss.save_schedules({schedule["id"]: schedule})
+    return ss, schedule
+
+
+def test_native_delete_succeeds_only_after_telegram_cleanup(app_context: dict, monkeypatch) -> None:
+    ss, schedule = _native_schedule_with_ids(app_context)
+    service = app_context["main"].scheduler
+    deleted: list[int] = []
+
+    async def fake_warm(_account_id, _warmed):
+        return object()
+
+    async def fake_delete(_client, _target, ids):
+        deleted.extend(ids)
+
+    monkeypatch.setattr(service, "_warm", fake_warm)
+    monkeypatch.setattr(service.manager, "release_run_clients", lambda _ids: asyncio.sleep(0))
+    monkeypatch.setattr(ss, "delete_scheduled_messages", fake_delete)
+
+    response = app_context["client"].delete(f"/api/schedules/{schedule['id']}")
+    assert response.status_code == 200
+    assert deleted == [123]
+    assert schedule["id"] not in ss.load_schedules()
+
+
+def test_native_delete_failure_is_retryable_and_audited_only_on_success(app_context: dict, monkeypatch) -> None:
+    ss, schedule = _native_schedule_with_ids(app_context)
+    service = app_context["main"].scheduler
+
+    async def fake_warm(_account_id, _warmed):
+        return object()
+
+    async def fail_delete(*_args):
+        raise RuntimeError("account unavailable")
+
+    monkeypatch.setattr(service, "_warm", fake_warm)
+    monkeypatch.setattr(service.manager, "release_run_clients", lambda _ids: asyncio.sleep(0))
+    monkeypatch.setattr(ss, "delete_scheduled_messages", fail_delete)
+
+    failed = app_context["client"].delete(f"/api/schedules/{schedule['id']}")
+    assert failed.status_code == 409
+    retained = ss.load_schedules()[schedule["id"]]
+    assert retained["status"] == "deleting"
+    assert ss.has_tracked_native_ids(retained)
+
+    audit = __import__("telemanager.audit_service", fromlist=["list_events"])
+    assert not any(event["event_type"] == "schedule_deleted" for event in audit.list_events())
+
+    async def succeed_delete(*_args):
+        return None
+
+    monkeypatch.setattr(ss, "delete_scheduled_messages", succeed_delete)
+    retried = app_context["client"].delete(f"/api/schedules/{schedule['id']}")
+    assert retried.status_code == 200
+    assert schedule["id"] not in ss.load_schedules()
+    assert any(event["event_type"] == "schedule_deleted" for event in audit.list_events())
+
+
+def test_native_delete_retains_ids_when_account_cannot_warm(app_context: dict, monkeypatch) -> None:
+    ss, schedule = _native_schedule_with_ids(app_context)
+    service = app_context["main"].scheduler
+
+    async def unavailable(_account_id, _warmed):
+        return None
+
+    monkeypatch.setattr(service, "_warm", unavailable)
+    monkeypatch.setattr(service.manager, "release_run_clients", lambda _ids: asyncio.sleep(0))
+
+    response = app_context["client"].delete(f"/api/schedules/{schedule['id']}")
+    assert response.status_code == 409
+    retained = ss.load_schedules()[schedule["id"]]
+    assert retained["status"] == "deleting"
+    assert ss.has_tracked_native_ids(retained)
+
+    asyncio.run(service.tick())
+    assert ss.load_schedules()[schedule["id"]]["status"] == "deleting"
+
+
+def test_has_tracked_native_ids_handles_malformed_records(app_context: dict) -> None:
+    ss = _ss()
+    assert not ss.has_tracked_native_ids({})
+    assert not ss.has_tracked_native_ids({"native_chats": []})
+    assert not ss.has_tracked_native_ids({"native_chats": {"x": None}})
+    assert ss.has_tracked_native_ids({"native_chats": {"x": {"ids": {"1": "now"}}}})
+
+
 def test_schedule_preview_reports_engine_and_warnings(app_context: dict, client) -> None:
     add_account(app_context, "acc-1", "Primary")
 
     runner_body = {
         "name": "Hourly join",
         "queue": {
-            "steps": [
-                {"action_type": "leave_chat", "account_ids": ["acc-1"], "targets": ["@group"]}
-            ],
+            "steps": [{"action_type": "leave_chat", "account_ids": ["acc-1"], "targets": ["@group"]}],
             "max_operations": 10,
         },
         "recurrence": {"interval_value": 1, "interval_unit": "hours", "end_mode": "forever"},
@@ -204,17 +305,13 @@ def test_native_reconcile_fills_buffer_and_dedupes(app_context: dict, monkeypatc
     native_chats: dict[str, Any] = {}
 
     payload = {"kind": "text", "text": "hi"}
-    coverage, capped = asyncio.run(
-        service._reconcile_chat(object(), native_chats, "k1", "@chat", payload, desired)
-    )
+    coverage, capped = asyncio.run(service._reconcile_chat(object(), native_chats, "k1", "@chat", payload, desired))
     assert len(created) == cap  # exactly the per-chat limit, which fits
     assert coverage is not None
     assert capped is False
 
     created.clear()
-    _, capped_again = asyncio.run(
-        service._reconcile_chat(object(), native_chats, "k1", "@chat", payload, desired)
-    )
+    _, capped_again = asyncio.run(service._reconcile_chat(object(), native_chats, "k1", "@chat", payload, desired))
     assert created == []  # already buffered, nothing new and no room left
     assert capped_again is False
 
